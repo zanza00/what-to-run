@@ -1,0 +1,43 @@
+# Variables
+BINARY_NAME := what-to-run
+GO := go
+CMD := ./cmd/what-to-run
+
+.PHONY: all build run test fmt lint tidy clean help
+
+all: fmt test build
+
+## build: Build the application
+build:
+	@echo "Building $(BINARY_NAME)..."
+	$(GO) build -o bin/$(BINARY_NAME) $(CMD)
+
+## run: Run the application without building a binary
+run:
+	$(GO) run $(CMD)
+
+## test: Run tests with the race detector and coverage
+test:
+	$(GO) test -race -coverprofile=coverage.out ./...
+
+## fmt: Format and vet the code
+fmt:
+	$(GO) fmt ./...
+	$(GO) vet ./...
+
+## lint: Run golangci-lint (requires golangci-lint installed)
+lint:
+	golangci-lint run ./...
+
+## tidy: Tidy go.mod and go.sum
+tidy:
+	$(GO) mod tidy
+
+## clean: Remove build artifacts
+clean:
+	rm -rf bin/ coverage.out coverage.html
+
+## help: Show this help message
+help:
+	@echo "Usage: make [target]"
+	@sed -n 's/^##//p' $(MAKEFILE_LIST) | column -t -s ':' | sed -e 's/^/ /'

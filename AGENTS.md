@@ -8,6 +8,7 @@ Current state: skeleton that renders a hello world.
 
 - `cmd/what-to-run/` — entry point, no business logic
 - `internal/tui/` — Bubble Tea model, views, and styles
+- `scripts/` — local shell test harness (`ctrl-s.zsh` binds Ctrl-S to the local build)
 
 ## Go development
 

@@ -91,8 +91,8 @@ generated with, so bind it as `what-to-run` to see that name in the
 rc file and in the picker title, or as `wtr` to keep it short. A bare name is
 resolved through `PATH` when the key is pressed; a path, like
 `eval "$(./bin/wtr init zsh)"`, is embedded as an absolute path instead. With
-the explicit name, the message printed at shell startup also points to `wtr`,
-when it is on `PATH`.
+the explicit name, `--help` and the message printed at shell startup also
+point to `wtr`, when it is on `PATH`.
 
 `--key` takes a combo name (`ctrl-s`, `alt-x`) or a raw zsh key sequence as
 `bindkey` accepts it (`'^[[15~'` for F5). The key opens the inline picker

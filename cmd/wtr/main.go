@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -36,9 +37,13 @@ func main() {
 	debugArea := flag.Bool("debug-area", false,
 		"draw a border around the area managed in inline mode (development aid)")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [flags]\n"+
+		out := flag.CommandLine.Output()
+		fmt.Fprintf(out, "usage: %s [flags]\n"+
 			"       %s init zsh [--key combo]\n\nFlags:\n", prog, prog)
 		flag.PrintDefaults()
+		if hint := helpHint(prog, shortNameAvailable()); hint != "" {
+			fmt.Fprintf(out, "\n%s\n", hint)
+		}
 	}
 	flag.Parse()
 
@@ -116,6 +121,23 @@ func progName(arg0 string) string {
 		return "wtr"
 	}
 	return filepath.Base(arg0)
+}
+
+// helpHint is the line appended to the usage of the explicit name, so the
+// short one is discoverable. It is empty when there is nothing to teach, or
+// when the short name is not around to be typed.
+func helpHint(name string, aliasAvailable bool) string {
+	if name == "what-to-run" && aliasAvailable {
+		return "The same program is also available as 'wtr', quicker to type."
+	}
+	return ""
+}
+
+// shortNameAvailable reports whether the short name resolves through PATH, so
+// the hint never points at a missing command.
+func shortNameAvailable() bool {
+	_, err := exec.LookPath("wtr")
+	return err == nil
 }
 
 // widgetBin is the command the generated zsh widget launches: the binary as

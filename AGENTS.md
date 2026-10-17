@@ -27,9 +27,9 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `bin/what-to-run` the explicit one for shell rc files. The invoked
   name is the one shown in usage, messages and the picker title, and
   `init zsh` embeds the invoked command — the bare name via PATH, or the
-  absolute path — in `WTR_BIN`; generated with the explicit name, the script
-  also points at `wtr` when it is on PATH. `cmd/wtr/main_test.go` pins the
-  helpers.
+  absolute path — in `WTR_BIN`; with the explicit name, `--help` and the
+  generated script also point at `wtr` when it is on PATH. `cmd/wtr/main_test.go`
+  pins the helpers.
 - The optional rc file (`config.go`; `.what-to-run.toml` in the project,
   `$XDG_CONFIG_HOME/what-to-run/config.toml` globally) adds `[[tasks]]`,
   overrides `package_manager` and disables sources; its problems are warnings

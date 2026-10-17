@@ -43,3 +43,22 @@ func TestWidgetBin(t *testing.T) {
 		t.Errorf("widgetBin(%q) = %q; want the same path", abs, got)
 	}
 }
+
+func TestHelpHint(t *testing.T) {
+	const wantHint = "The same program is also available as 'wtr', quicker to type."
+	tests := []struct {
+		name  string
+		alias bool
+		want  string
+	}{
+		{"what-to-run", true, wantHint},
+		{"what-to-run", false, ""},
+		{"wtr", true, ""},
+		{"", true, ""},
+	}
+	for _, tt := range tests {
+		if got := helpHint(tt.name, tt.alias); got != tt.want {
+			t.Errorf("helpHint(%q, %v) = %q; want %q", tt.name, tt.alias, got, tt.want)
+		}
+	}
+}

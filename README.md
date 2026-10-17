@@ -9,7 +9,7 @@ v2 and [Lip Gloss](https://charm.land/lipgloss/v2) v2. It runs either full
 screen, or **inline**: anchored between the shell prompt and the bottom of the
 screen, with the scrollback above left intact. The inline mode is the same idea
 as `television --inline` and is meant for shell widgets that launch the binary
-right below the prompt (see [`scripts/ctrl-s.zsh`](scripts/ctrl-s.zsh)).
+right below the prompt (see [shell integration](#shell-integration-zsh)).
 
 ```
    shell history + prompt      ← never touched (no alternate screen)
@@ -28,7 +28,9 @@ Task discovery and execution are implemented: the picker lists what it finds,
 filters as you type, and runs the selected task. In full screen it runs in
 place and returns to the list; in inline mode it quits first and the task then
 runs at the prompt, propagating its exit code. `tab` inserts the chosen command
-in the prompt without running it. An optional [rc file](#rc-file) can
+in the prompt without running it, and an [`init zsh`](#shell-integration-zsh)
+subcommand prints the shell widget to evaluate, bound to the key you choose.
+An optional [rc file](#rc-file) can
 add custom tasks, force a package manager, or disable sources. See
 [Roadmap](#roadmap) for what is still open.
 
@@ -69,6 +71,26 @@ go run ./cmd/what-to-run
 | `ctrl+c` | quit |
 
 `q` types into the filter; it does not quit.
+
+### Shell integration (zsh)
+
+`init` prints a small zsh script to stdout; evaluate it to bind the picker to
+a key in the current shell (the same pattern as `tv init zsh`):
+
+```sh
+eval "$(what-to-run init zsh)"               # default: Ctrl-S
+eval "$(what-to-run init zsh --key ctrl-g)"  # bind another combo
+```
+
+`--key` takes a combo name (`ctrl-s`, `alt-x`) or a raw zsh key sequence as
+`bindkey` accepts it (`'^[[15~'` for F5). The key opens the inline picker
+right below the prompt: `enter` runs the chosen task at the prompt, so it
+lands in the shell history, and `tab` places the command line there without
+running it. The generated script honours `WTR_BIN` (the binary the widget
+launches) and `WTR_FLAGS` (extra flags, e.g. `WTR_FLAGS=--debug-area`).
+Ctrl-S and Ctrl-Q are the XOFF and XON flow-control characters: when one of
+them is bound, the script turns IXON off (`stty -ixon`) so the key reaches zle
+instead of freezing the terminal, and `stty ixon` restores the default.
 
 ## Features
 
@@ -136,7 +158,7 @@ task must run after the picker has left it.
 `tab` does the same up to the point of running: the chosen command line is
 placed in the shell prompt, ready to be edited or deleted. Both keys go through
 the shell when the picker is launched by a widget (see
-[`scripts/ctrl-s.zsh`](scripts/ctrl-s.zsh)): the widget captures stdout, the
+[shell integration](#shell-integration-zsh)): the widget captures stdout, the
 picker renders on the terminal itself and reports its result on stdout (a mode
 line, `run` or `insert`, then the command line), and the widget fills the zle
 buffer and accepts the line — so the command is visible at the prompt and lands
@@ -176,6 +198,8 @@ and the previous shell contents are restored on quit.
       running it (zsh widget flow)
 - [x] rc file (`.what-to-run.toml`, global `config.toml`): custom tasks,
       package manager override, disabled sources
+- [x] zsh integration: `eval "$(what-to-run init zsh)"`, with a
+      configurable key combo (`--key ctrl-g`)
 - [ ] More sources: `justfile`, `Makefile.toml`
 - [ ] `ctrl+r` to refresh the list after editing a task file
 
@@ -184,7 +208,7 @@ and the previous shell contents are restored on quit.
 ```sh
 make test    # run tests with the race detector and coverage
 make build   # build the binary into bin/
-make bind    # build + print the source line: eval "$(make bind)"
+make bind    # build + print the zsh integration for eval (KEY=combo)
 make run     # go run, without building a binary
 make fmt     # gofmt and go vet
 make lint    # golangci-lint (requires golangci-lint installed)
@@ -192,36 +216,31 @@ make help    # list all targets
 ```
 
 There are no PTY tests for the inline mode: verify it end-to-end in tmux (zsh
-plus the Ctrl-S harness), and check the row math in
+plus the widget), and check the row math in
 `internal/tui/tui_test.go` after any layout change.
 
 ### Trying the inline UI from the shell
 
 ```sh
-eval "$(make bind)"        # build + bind Ctrl-S in the current shell
+eval "$(make bind)"             # build + bind Ctrl-S in the current shell
+eval "$(make bind KEY=ctrl-g)"  # bind another combo
 ```
 
 The widget runs `bin/what-to-run` on every invocation, so the binding
-survives a rebuild: after editing Go code, `make build` is enough. The
-`wtr-refresh` function (defined by the script) rebuilds and rebinds in one
-command, for changes to the script itself:
-
-```sh
-wtr-refresh
-```
-
-Ctrl-S then opens the UI just below the prompt. The script disables `stty ixon`
-because Ctrl-S is the XOFF flow-control character. Extra flags can be passed to
-the widget with `WTR_FLAGS` (e.g. `WTR_FLAGS=--debug-area source
-scripts/ctrl-s.zsh`), and `WTR_BIN` overrides the binary path.
+survives a rebuild: after editing Go code, `make build` is enough. After
+editing the integration itself (`internal/tui/zshinit.go`), evaluate `make
+bind` again to re-bind. The chosen key then opens the UI just below the prompt
+(Ctrl-S turns `stty ixon` off because it is the XOFF flow-control character).
+Extra flags can be passed to the widget with `WTR_FLAGS` (e.g.
+`WTR_FLAGS=--debug-area`), and `WTR_BIN` overrides the binary path.
 
 ## Repository layout
 
 ```
-cmd/what-to-run/   entry point (flag parsing only)
+cmd/what-to-run/   entry point (flags and the init subcommand)
 internal/tui/tui.go       Bubble Tea model, views, and styles
 internal/tui/tasks.go     the Task model
 internal/tui/sources.go   discovery framework and the source registry
 internal/tui/source_*.go  one parser per source (package.json, Makefile, Cargo.toml)
-scripts/ctrl-s.zsh        local zsh harness for the inline mode
+internal/tui/zshinit.go   zsh integration generator (init zsh)
 ```

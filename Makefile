@@ -2,6 +2,7 @@
 BINARY_NAME := what-to-run
 GO := go
 CMD := ./cmd/what-to-run
+KEY ?= ctrl-s
 
 .PHONY: all build run test fmt lint tidy clean bind help
 
@@ -12,10 +13,10 @@ build:
 	@echo "Building $(BINARY_NAME)..."
 	$(GO) build -o bin/$(BINARY_NAME) $(CMD)
 
-## bind: Build and print the source command for the calling shell (eval "$(make bind)")
+## bind: Build and print the zsh integration for eval (eval "$(make bind)", KEY=combo)
 bind:
 	@$(MAKE) --no-print-directory build 1>&2
-	@echo "source $(CURDIR)/scripts/ctrl-s.zsh"
+	@bin/$(BINARY_NAME) init zsh --key $(KEY)
 
 ## run: Run the application without building a binary
 run:

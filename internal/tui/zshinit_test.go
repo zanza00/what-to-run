@@ -69,8 +69,9 @@ func TestZshInitScript(t *testing.T) {
 // the rc file and in the message printed at shell startup.
 func TestZshInitNamesTheInvokedProgram(t *testing.T) {
 	tests := []struct {
-		prog string
-		want []string
+		prog    string
+		want    []string
+		wantNot []string
 	}{
 		{
 			prog: "what-to-run",
@@ -78,11 +79,20 @@ func TestZshInitNamesTheInvokedProgram(t *testing.T) {
 				"# what-to-run: zsh integration, Ctrl-G opens the inline picker.",
 				`eval "$(what-to-run init zsh --key Ctrl-G)"`,
 				`print "what-to-run: Ctrl-G opens ${WTR_BIN} --inline"`,
+				"if (( $+commands[wtr] )); then",
+				`print "what-to-run: (or type 'wtr' directly)"`,
 			},
 		},
 		{
-			prog: "",
+			prog: "wtr",
 			want: []string{"# wtr: zsh integration"},
+			// The short name needs no hint: it is already what you type.
+			wantNot: []string{"or type 'wtr' directly"},
+		},
+		{
+			prog:    "",
+			want:    []string{"# wtr: zsh integration"},
+			wantNot: []string{"or type 'wtr' directly"},
 		},
 	}
 	for _, tt := range tests {
@@ -93,6 +103,11 @@ func TestZshInitNamesTheInvokedProgram(t *testing.T) {
 		for _, want := range tt.want {
 			if !strings.Contains(got, want) {
 				t.Errorf("ZshInit(%q) script does not contain %q:\n%s", tt.prog, want, got)
+			}
+		}
+		for _, notWant := range tt.wantNot {
+			if strings.Contains(got, notWant) {
+				t.Errorf("ZshInit(%q) script should not contain %q:\n%s", tt.prog, notWant, got)
 			}
 		}
 	}
@@ -129,15 +144,17 @@ func TestZshInitParsesAsZsh(t *testing.T) {
 	if err != nil {
 		t.Skip("zsh not installed")
 	}
-	for _, key := range []string{"ctrl-s", "alt-x", "^[[15~"} {
-		script, err := ZshInit("wtr", "/bin/wtr", key)
-		if err != nil {
-			t.Fatalf("ZshInit(%q) error: %v", key, err)
-		}
-		cmd := exec.Command(zsh, "-n")
-		cmd.Stdin = strings.NewReader(script)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Errorf("zsh -n rejects the script for %q: %v\n%s", key, err, out)
+	for _, prog := range []string{"wtr", "what-to-run"} {
+		for _, key := range []string{"ctrl-s", "alt-x", "^[[15~"} {
+			script, err := ZshInit(prog, "/bin/wtr", key)
+			if err != nil {
+				t.Fatalf("ZshInit(%q, %q) error: %v", prog, key, err)
+			}
+			cmd := exec.Command(zsh, "-n")
+			cmd.Stdin = strings.NewReader(script)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Errorf("zsh -n rejects the script for %s %q: %v\n%s", prog, key, err, out)
+			}
 		}
 	}
 }

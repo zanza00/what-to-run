@@ -101,6 +101,15 @@ zle -N wtr-widget _wtr_widget
 	}
 	fmt.Fprintf(&b, "bindkey '%s' wtr-widget\n\n", seq)
 	fmt.Fprintf(&b, "print \"%s: %s opens ${WTR_BIN} --inline%s\"\n", prog, name, note)
+	if prog == "what-to-run" {
+		// The explicit name is the one meant for rc files: point at the
+		// short one, but only when it is actually around.
+		fmt.Fprintf(&b, `
+if (( $+commands[wtr] )); then
+  print "%s: (or type 'wtr' directly)"
+fi
+`, prog)
+	}
 
 	return b.String(), nil
 }

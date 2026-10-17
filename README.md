@@ -30,8 +30,8 @@ right below the prompt (see [shell integration](#shell-integration-zsh)).
 
 Task discovery and execution are implemented: the picker lists what it finds —
 each row shows the command line that will run the task (`npm run build`,
-`make build`, `cargo make clean`, …) and the file it comes from — filters as
-you type, and runs the selected task. In full screen it runs in
+`make build`, `cargo make clean`, …), its description and the file it comes
+from — filters as you type, and runs the selected task. In full screen it runs in
 place and returns to the list; in inline mode it quits first and the task then
 runs at the prompt, propagating its exit code. `tab` inserts the chosen command
 in the prompt without running it, and an [`init zsh`](#shell-integration-zsh)
@@ -121,7 +121,7 @@ instead of freezing the terminal, and `stty ixon` restores the default.
 
 | Source | Discovered | Runs as |
 | --- | --- | --- |
-| `package.json` | `scripts`, sorted by name; the script body is kept as its description | `<pm> run NAME`, with `pm` from the `packageManager` field, a lock file (`bun.lock`, `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`), or npm |
+| `package.json` | `scripts`, sorted by name; the script body is shown as its description | `<pm> run NAME`, with `pm` from the `packageManager` field, a lock file (`bun.lock`, `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`), or npm |
 | `Makefile` (or `makefile`, `GNUmakefile`) | targets, in file order; the comment directly above a target is its description, with the `## name: text` and `## name - text` conventions (`make help` style) cleaned up | `make NAME` |
 | `Cargo.toml` | cargo-make `[tasks]`, sorted by name; `description`, or `command` `args` when there is none | `cargo make NAME` |
 

@@ -605,10 +605,11 @@ func (m model) listLines(w int) []string {
 }
 
 // taskRow renders one list row: the cursor marker, the command line that will
-// run and the source file, right-aligned. The command is what the row is
-// about — it already contains the task name for every runner — and it gets
-// all the room up to the badge. A fill theme highlights the whole selected
-// row; a bar theme paints the row with its tint.
+// run, the description and the source file, right-aligned. The command comes
+// first and keeps its whole text — it already contains the task name for
+// every runner — then the description takes the room that is left, and is
+// dropped before the command shrinks. A fill theme highlights the whole
+// selected row; a bar theme paints the row with its tint.
 func (m model) taskRow(t Task, selected bool, w int) string {
 	badge := t.Source
 	badgeW := lipgloss.Width(badge)
@@ -618,11 +619,25 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 		marker = m.styles.markerText
 	}
 
-	// marker(2) + command + padding + space(1) + badge at the right edge.
-	room := max(w-badgeW-1, 0)
-	cmd := ""
-	if maxW := room - 2; maxW > 0 {
-		cmd = ansi.Truncate(t.commandLine(), maxW, "…")
+	room := max(w-badgeW-1, 0) // columns left of the badge separator
+	avail := max(room-2, 0)    // columns after the marker
+
+	cmdW := min(m.commandWidth(), avail)
+	cmd := t.commandLine()
+	if lipgloss.Width(cmd) > cmdW {
+		cmd = ansi.Truncate(cmd, cmdW, "…")
+	}
+	cmd += strings.Repeat(" ", max(cmdW-lipgloss.Width(cmd), 0))
+
+	desc := t.Desc
+	if desc != "" && strings.Contains(strings.ToLower(t.commandLine()), strings.ToLower(desc)) {
+		// The command already says it: rc tasks without a custom
+		// description default to their own command.
+		desc = ""
+	}
+	var descLine string
+	if descW := avail - cmdW - 1; desc != "" && descW > 0 {
+		descLine = " " + ansi.Truncate(desc, descW, "…")
 	}
 
 	if selected {
@@ -630,20 +645,37 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 			// Bar selection: the marker in the accent color, the rest of the
 			// row in the theme's light tone over its tinted background.
 			left := m.styles.marker.Render(marker) + m.styles.selectedName.Render(cmd)
+			if descLine != "" {
+				left += m.styles.selectedText.Render(descLine)
+			}
 			pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
 			if pad != "" {
 				pad = m.styles.selectedPad.Render(pad)
 			}
 			return left + pad + m.styles.selectedText.Render(" "+badge)
 		}
-		left := marker + cmd
+		left := marker + cmd + descLine
 		pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
 		return m.styles.selected.Render(left + pad + " " + badge)
 	}
 
 	left := marker + cmd
+	if descLine != "" {
+		left += m.styles.dim.Render(descLine)
+	}
 	pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
 	return left + pad + " " + m.styles.dim.Render(badge)
+}
+
+// commandWidth returns the width of the command column: the widest visible
+// command line, so the descriptions of all rows start together. taskRow caps
+// it to the room the row has; only a command longer than that is truncated.
+func (m model) commandWidth() int {
+	cmdW := 0
+	for _, t := range m.visible() {
+		cmdW = max(cmdW, lipgloss.Width(t.commandLine()))
+	}
+	return cmdW
 }
 
 // helpLine renders the bottom line in w columns: the outcome of the last

@@ -71,14 +71,23 @@ func TestViewRendersTasks(t *testing.T) {
 
 func TestViewShowsCommandLines(t *testing.T) {
 	got := sized(Options{}).View().Content
-	for _, want := range []string{"npm run build", "make build-all", "cargo make clean"} {
+	for _, want := range []string{
+		"npm run build", "make build-all", "cargo make clean", // commands
+		"go build ./...", "Build everything", "Run the tests", // descriptions
+	} {
 		if !strings.Contains(got, want) {
-			t.Errorf("View() does not show the command line %q:\n%s", want, got)
+			t.Errorf("View() does not show %q:\n%s", want, got)
 		}
 	}
-	// The row is the command and the badge: the description is not shown.
-	if strings.Contains(got, "Build everything") {
-		t.Errorf("View() still shows the description:\n%s", got)
+}
+
+func TestViewHidesRepeatedDescription(t *testing.T) {
+	// An rc task without a custom description defaults to its command: the
+	// row must not print it twice.
+	tasks := []Task{{Source: "rc", Name: "status", Desc: "git status", Args: []string{"sh", "-c", "git status"}}}
+	got := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10}).View().Content
+	if n := strings.Count(got, "git status"); n != 1 {
+		t.Errorf("View() shows %q %d times, want once:\n%s", "git status", n, got)
 	}
 }
 

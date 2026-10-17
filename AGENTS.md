@@ -44,11 +44,14 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `selBg` tint and its `selFg` light text (never the dim color, which can be
   nearly identical to the tint), because a nested style's reset would drop
   the background before the row padding.
-- Rows show the command line (`Task.commandLine`) and the source badge: no
-  name column, no description (`Task.Desc` is still parsed and kept for
-  future use). The command takes all the room up to the badge and truncates
-  only when it does not fit; the filter matches tokens against the task name
-  or the command line, since the name is not a column any more.
+- Rows show the command line (`Task.commandLine`), the description and the
+  source badge: no name column, the command already contains the name. The
+  command column is the widest visible command line, so descriptions start
+  together; it is capped to the room the row has, and the description takes
+  what is left — dropped before the command shrinks. A description already
+  contained in the command line is hidden (an rc task without a custom
+  description defaults to its own command). The filter matches tokens against
+  the task name or the command line, since the name is not a column.
 - The inline row math (`areaHeight`, `restoreCursor`) is pinned in
   `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests in sync with
   any layout change.

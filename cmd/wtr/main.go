@@ -36,6 +36,14 @@ func main() {
 			"binary right below the prompt, see '"+prog+" init zsh')")
 	debugArea := flag.Bool("debug-area", false,
 		"draw a border around the area managed in inline mode (development aid)")
+	theme := flag.String("theme", "",
+		"theme to render the picker with (\"classic\", \"nord\", \"dracula\", …);\n"+
+			"ctrl+t cycles through them while the picker is open")
+	listThemes := flag.Bool("list-themes", false,
+		"list the available themes and exit")
+	preview := flag.Bool("preview", false,
+		"print one static frame of the picker to stdout and exit (theming\n"+
+			"aid: compare themes side by side, e.g. with --theme)")
 	flag.Usage = func() {
 		out := flag.CommandLine.Output()
 		fmt.Fprintf(out, "usage: %s [flags]\n"+
@@ -47,7 +55,20 @@ func main() {
 	}
 	flag.Parse()
 
-	err := tui.Run(tui.Options{Prog: prog, Inline: *inline, DebugArea: *debugArea})
+	if *listThemes {
+		tui.ListThemes(os.Stdout)
+		return
+	}
+
+	if *preview {
+		if err := tui.Preview(os.Stdout, tui.Options{Prog: prog, Theme: *theme}, 80, 24); err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %v\n", prog, err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	err := tui.Run(tui.Options{Prog: prog, Inline: *inline, DebugArea: *debugArea, Theme: *theme})
 	if err == nil {
 		return
 	}

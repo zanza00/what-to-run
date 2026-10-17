@@ -63,6 +63,9 @@ go run ./cmd/wtr
 | Flag | Description |
 | --- | --- |
 | `--inline` | Render between the current cursor line (the prompt) and the bottom of the screen instead of taking over the terminal. Requires an interactive terminal; falls back to full screen with a warning otherwise. |
+| `--theme NAME` | Render the picker with one of the [themes](#themes). An unknown name is a warning; the default look is used. |
+| `--list-themes` | Print the available themes and exit. |
+| `--preview` | Print one static 80×24 frame of the picker with the tasks of the current directory and exit (aiding to compare themes: `--preview --theme nord`). |
 | `--debug-area` | Draw a border around the whole area managed in inline mode (development aid; ignored in full screen). |
 
 ### Keys
@@ -76,6 +79,7 @@ go run ./cmd/wtr
 | `tab` | inline only: place the command in the shell prompt without running it |
 | `esc` | clear the filter, or quit when the filter is empty |
 | `ctrl+u` | clear the filter |
+| `ctrl+t` | preview the next theme, live; the title shows the active one |
 | `ctrl+c` | quit |
 
 `q` types into the filter; it does not quit.
@@ -103,7 +107,8 @@ point to `wtr`, when it is on `PATH`.
 right below the prompt: `enter` runs the chosen task at the prompt, so it
 lands in the shell history, and `tab` places the command line there without
 running it. The generated script honours `WTR_BIN` (the binary the widget
-launches) and `WTR_FLAGS` (extra flags, e.g. `WTR_FLAGS=--debug-area`).
+launches) and `WTR_FLAGS` (extra flags, e.g. `WTR_FLAGS=--debug-area`, or
+`WTR_FLAGS="--theme nord"` to pin a [theme](#themes)).
 Ctrl-S and Ctrl-Q are the XOFF and XON flow-control characters: when one of
 them is bound, the script turns IXON off (`stty -ixon`) so the key reaches zle
 instead of freezing the terminal, and `stty ixon` restores the default.
@@ -202,6 +207,36 @@ space below the prompt:
 
 The default mode: the UI takes over the terminal through the alternate screen
 and the previous shell contents are restored on quit.
+
+### Themes
+
+The look of the picker is one of a handful of named themes — palettes plus a
+couple of structural variants (a filled selection row, an accent bar, a frame
+around the view):
+
+| Theme | Look |
+| --- | --- |
+| `classic` | the default violet look, filled selection |
+| `nord` | arctic blues and frost, filled selection |
+| `dracula` | high-contrast plum, filled selection |
+| `tokyo` | night blues on ink, bar selection |
+| `gruvbox` | warm retro amber, bar selection |
+| `frame` | the classic palette in a box, bar selection |
+| `mono` | no colors at all, reverse-video selection |
+
+Pick one with `--theme nord`, or cycle them live in the picker with `ctrl+t`
+(the title shows the active one; the choice lasts for the session). To compare
+them side by side in a script, use the static preview:
+
+```sh
+for t in $(bin/wtr --list-themes | cut -c3- | cut -d' ' -f1); do
+  printf '\n== %s ==\n' "$t"
+  bin/wtr --preview --theme "$t"
+done
+```
+
+`--list-themes` marks the default with `*`. The themes are plain data in
+`internal/tui/theme.go`: a new variant is one entry in the registry.
 
 ## Roadmap
 

@@ -17,9 +17,10 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `go test -race ./internal/tui -run TestViewInlineHeight`.
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
   `tasks.go` = the Task model, `sources.go` = the discovery framework and the
-  source registry, `source_*.go` = one parser per source, `zshinit.go` = the
-  zsh widget printed by `init zsh`); `cmd/wtr` only parses
-  flags/subcommands and calls `tui.Run` / `tui.ZshInit`. Adding a source: a
+  source registry, `source_*.go` = one parser per source, `theme.go` = the
+  named looks and the styles derived from them, `zshinit.go` = the
+  zsh widget printed by `init zsh`); `cmd/wtr` only parses flags/subcommands
+  and calls `tui.Run` / `tui.Preview` / `tui.ZshInit`. Adding a source: a
   `source` literal and its parser in a new `source_<name>.go`, one line in
   `defaultSources`, and table-driven tests next to them. Unknown `package.json`
   shapes etc. belong in the matching `source_*.go`.
@@ -35,6 +36,12 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   overrides `package_manager` and disables sources; its problems are warnings
   (status line), never fatal, like broken sources. Its tasks are assembled in
   `discoverTasks` and shadow same-named source tasks.
+- The look is a named theme (`theme.go`): the registry order is the `ctrl+t`
+  cycle order, the first entry (`classic`) is the default, `--theme` pins one
+  and an unknown name is only a warning. `--list-themes` and `--preview`
+  (a static 80×24 frame) are the comparison aids. Keep `classic` looking as it
+  always did; a boxed theme fits its frame inside the same inline budget as
+  `--debug-area` (inner size `h-2`×`w-2`).
 - The inline row math (`areaHeight`, `restoreCursor`) is pinned in
   `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests in sync with
   any layout change.

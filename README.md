@@ -184,6 +184,7 @@ and the previous shell contents are restored on quit.
 ```sh
 make test    # run tests with the race detector and coverage
 make build   # build the binary into bin/
+make try     # build + open a clean zsh with the Ctrl-S widget bound
 make run     # go run, without building a binary
 make fmt     # gofmt and go vet
 make lint    # golangci-lint (requires golangci-lint installed)
@@ -195,6 +196,12 @@ plus the Ctrl-S harness), and check the row math in
 `internal/tui/tui_test.go` after any layout change.
 
 ### Trying the inline UI from the shell
+
+```sh
+make try                     # build + a clean interactive zsh with Ctrl-S bound
+```
+
+or, in your own shell:
 
 ```sh
 make build

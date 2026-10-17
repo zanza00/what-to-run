@@ -1,22 +1,37 @@
 # Variables
-BINARY_NAME := what-to-run
+BINARY_NAME := wtr
+# The same program is also built under its explicit name, meant for shell rc
+# files (the invoked name is the one shown in messages and in the picker).
+BINARY_ALIAS := what-to-run
 GO := go
-CMD := ./cmd/what-to-run
+CMD := ./cmd/wtr
 KEY ?= ctrl-s
+# Where `make install` puts the binaries (override: PREFIX=/usr/local/bin).
+PREFIX ?= $(HOME)/.local/bin
 
-.PHONY: all build run test fmt lint tidy clean bind help
+.PHONY: all build run test fmt lint tidy clean bind install help
 
 all: fmt test build
 
-## build: Build the application
+## build: Build bin/wtr and bin/what-to-run
 build:
-	@echo "Building $(BINARY_NAME)..."
+	@echo "Building $(BINARY_NAME) and $(BINARY_ALIAS)..."
 	$(GO) build -o bin/$(BINARY_NAME) $(CMD)
+	$(GO) build -o bin/$(BINARY_ALIAS) $(CMD)
 
 ## bind: Build and print the zsh integration for eval (eval "$(make bind)", KEY=combo)
 bind:
 	@$(MAKE) --no-print-directory build 1>&2
 	@bin/$(BINARY_NAME) init zsh --key $(KEY)
+
+## install: Install both names into PREFIX (default ~/.local/bin)
+install: build
+	mkdir -p $(PREFIX)
+	install -m755 bin/$(BINARY_NAME) $(PREFIX)/$(BINARY_NAME)
+	install -m755 bin/$(BINARY_ALIAS) $(PREFIX)/$(BINARY_ALIAS)
+	@echo "Installed $(BINARY_NAME) and $(BINARY_ALIAS) into $(PREFIX)"
+	@case ":$$PATH:" in *:$(PREFIX):*) ;; \
+	  *) echo "Note: $(PREFIX) is not in your PATH" ;; esac
 
 ## run: Run the application without building a binary
 run:

@@ -5,10 +5,14 @@ A terminal UI to discover and run the scripts declared in a project's
 remember the exact task names.
 
 It is a single Go binary built with [Bubble Tea](https://charm.land/bubbletea/v2)
-v2 and [Lip Gloss](https://charm.land/lipgloss/v2) v2. It runs either full
-screen, or **inline**: anchored between the shell prompt and the bottom of the
-screen, with the scrollback above left intact. The inline mode is the same idea
-as `television --inline` and is meant for shell widgets that launch the binary
+v2 and [Lip Gloss](https://charm.land/lipgloss/v2) v2. The same program is
+built under two names: `wtr`, for typing at the command line, and
+`what-to-run`, the explicit name meant for shell rc files — the name you
+invoke is the one shown in usage, messages and the picker title. It runs either
+full screen, or **inline**:
+anchored between the shell prompt and the bottom of the screen, with the
+scrollback above left intact. The inline mode is the same idea as
+`television --inline` and is meant for shell widgets that launch the binary
 right below the prompt (see [shell integration](#shell-integration-zsh)).
 
 ```
@@ -39,15 +43,19 @@ add custom tasks, force a package manager, or disable sources. See
 Requirements: Go 1.27 or later.
 
 ```sh
-make build                        # build bin/what-to-run
-bin/what-to-run            # full screen
-bin/what-to-run --inline   # anchored below the prompt
+make build                        # build bin/wtr and bin/what-to-run
+bin/wtr                           # full screen
+bin/wtr --inline                  # anchored below the prompt
 ```
+
+For a permanent setup, `make install` copies both names into `~/.local/bin`
+(`PREFIX=...` to install elsewhere), so they work from any directory; re-run
+it after rebuilding.
 
 Or without building a binary:
 
 ```sh
-go run ./cmd/what-to-run
+go run ./cmd/wtr
 ```
 
 ### Flags
@@ -81,6 +89,14 @@ a key in the current shell (the same pattern as `tv init zsh`):
 eval "$(what-to-run init zsh)"               # default: Ctrl-S
 eval "$(what-to-run init zsh --key ctrl-g)"  # bind another combo
 ```
+
+Generate the integration with either name: the script keeps the name it was
+generated with, so bind it as `what-to-run` to see that name in the
+rc file and in the picker title, or as `wtr` to keep it short. A bare name is
+resolved through `PATH` when the key is pressed; a path, like
+`eval "$(./bin/wtr init zsh)"`, is embedded as an absolute path instead. With
+the explicit name, `--help` and the message printed at shell startup also
+point to `wtr`, when it is on `PATH`.
 
 `--key` takes a combo name (`ctrl-s`, `alt-x`) or a raw zsh key sequence as
 `bindkey` accepts it (`'^[[15~'` for F5). The key opens the inline picker
@@ -151,7 +167,7 @@ scrollback, so it can be reviewed after quitting the picker.
 In **inline** mode, `enter` quits the picker first and the task then runs at
 the prompt like a hand-typed command, so its output is ordinary shell output in
 the normal scrollback; the task's exit code becomes the exit code of
-what-to-run. This is also the only way it can work: the inline renderer
+the picker. This is also the only way it can work: the inline renderer
 cannot reposition its frame after another process scrolls the screen, so the
 task must run after the picker has left it.
 
@@ -207,7 +223,8 @@ and the previous shell contents are restored on quit.
 
 ```sh
 make test    # run tests with the race detector and coverage
-make build   # build the binary into bin/
+make build   # build both binaries into bin/
+make install # install both names into ~/.local/bin (PREFIX=... to change)
 make bind    # build + print the zsh integration for eval (KEY=combo)
 make run     # go run, without building a binary
 make fmt     # gofmt and go vet
@@ -226,7 +243,7 @@ eval "$(make bind)"             # build + bind Ctrl-S in the current shell
 eval "$(make bind KEY=ctrl-g)"  # bind another combo
 ```
 
-The widget runs `bin/what-to-run` on every invocation, so the binding
+The widget runs `bin/wtr` on every invocation, so the binding
 survives a rebuild: after editing Go code, `make build` is enough. After
 editing the integration itself (`internal/tui/zshinit.go`), evaluate `make
 bind` again to re-bind. The chosen key then opens the UI just below the prompt
@@ -237,7 +254,7 @@ Extra flags can be passed to the widget with `WTR_FLAGS` (e.g.
 ## Repository layout
 
 ```
-cmd/what-to-run/   entry point (flags and the init subcommand)
+cmd/wtr/                  entry point; built as bin/wtr and bin/what-to-run
 internal/tui/tui.go       Bubble Tea model, views, and styles
 internal/tui/tasks.go     the Task model
 internal/tui/sources.go   discovery framework and the source registry

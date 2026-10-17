@@ -18,11 +18,18 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
   `tasks.go` = the Task model, `sources.go` = the discovery framework and the
   source registry, `source_*.go` = one parser per source, `zshinit.go` = the
-  zsh widget printed by `init zsh`); `cmd/what-to-run` only parses
+  zsh widget printed by `init zsh`); `cmd/wtr` only parses
   flags/subcommands and calls `tui.Run` / `tui.ZshInit`. Adding a source: a
   `source` literal and its parser in a new `source_<name>.go`, one line in
   `defaultSources`, and table-driven tests next to them. Unknown `package.json`
   shapes etc. belong in the matching `source_*.go`.
+- `make build` compiles `cmd/wtr` twice: `bin/wtr` is the CLI name and
+  `bin/what-to-run` the explicit one for shell rc files. The invoked
+  name is the one shown in usage, messages and the picker title, and
+  `init zsh` embeds the invoked command — the bare name via PATH, or the
+  absolute path — in `WTR_BIN`; with the explicit name, `--help` and the
+  generated script also point at `wtr` when it is on PATH. `cmd/wtr/main_test.go`
+  pins the helpers.
 - The optional rc file (`config.go`; `.what-to-run.toml` in the project,
   `$XDG_CONFIG_HOME/what-to-run/config.toml` globally) adds `[[tasks]]`,
   overrides `package_manager` and disables sources; its problems are warnings
@@ -60,6 +67,6 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   character.
 - No PTY tests: verify inline behavior end-to-end in tmux (zsh + the widget
   from `eval "$(make bind)"`, with `KEY=ctrl-g` to bind another combo); the
-  widget runs `bin/what-to-run` on every invocation, so plain
+  widget runs `bin/wtr` on every invocation, so plain
   `make build` is enough for Go-only changes. `--debug-area` draws a border
   around the managed area.

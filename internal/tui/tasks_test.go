@@ -170,7 +170,7 @@ func TestDiscoverMakeTargetsOfThisRepo(t *testing.T) {
 	for _, task := range tasks {
 		byName[task.Name] = task
 	}
-	for _, name := range []string{"all", "build", "run", "test", "fmt", "lint", "tidy", "clean", "help"} {
+	for _, name := range []string{"all", "build", "run", "test", "fmt", "lint", "tidy", "clean", "install", "help"} {
 		if _, ok := byName[name]; !ok {
 			t.Errorf("task %q not found in this repo's Makefile, got %v", name, tasks)
 		}
@@ -178,8 +178,9 @@ func TestDiscoverMakeTargetsOfThisRepo(t *testing.T) {
 	if got := byName["build"].Source; got != "Makefile" {
 		t.Errorf("build source = %q, want %q", got, "Makefile")
 	}
-	if got := byName["build"].Desc; got != "Build the application" {
-		t.Errorf("build description = %q, want %q", got, "Build the application")
+	const wantDesc = "Build bin/wtr and bin/what-to-run"
+	if got := byName["build"].Desc; got != wantDesc {
+		t.Errorf("build description = %q, want %q", got, wantDesc)
 	}
 	if got := byName["build"].Args; !reflect.DeepEqual(got, []string{"make", "build"}) {
 		t.Errorf("build args = %v, want [make build]", got)

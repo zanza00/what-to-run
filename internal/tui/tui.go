@@ -1,4 +1,4 @@
-// Package tui implements the terminal user interface of what-to-run.
+// Package tui implements the terminal user interface of wtr.
 package tui
 
 import (
@@ -64,10 +64,15 @@ const minInlineHeight = 15
 
 // Options configures the TUI.
 type Options struct {
+	// Prog is the name the program was invoked as ("wtr",
+	// "what-to-run"): it identifies the picker and its warnings.
+	// Defaults to "wtr".
+	Prog string
+
 	// Inline renders the UI between the current cursor line and the bottom of
 	// the screen instead of taking over the whole screen. It is meant for
 	// shell widgets that launch the binary right below the prompt (the zsh
-	// integration from 'what-to-run init zsh', see ZshInit) so that
+	// integration from 'wtr init zsh', see ZshInit) so that
 	// the shell history above stays visible.
 	Inline bool
 
@@ -75,6 +80,15 @@ type Options struct {
 	// managed by the app is visible. It is a development aid and is ignored
 	// in fullscreen mode.
 	DebugArea bool
+}
+
+// prog is the name the program identifies with: the invoked name, or "wtr"
+// when it was not set.
+func (o Options) prog() string {
+	if o.Prog == "" {
+		return "wtr"
+	}
+	return o.Prog
 }
 
 // Run starts the picker and blocks until the user quits or launches a task.
@@ -95,7 +109,7 @@ type Options struct {
 // line, as there is no prompt to insert it into.
 func Run(opts Options) error {
 	if opts.Inline && !inlineInputAvailable() {
-		fmt.Fprintln(os.Stderr, "what-to-run: --inline requires an interactive terminal, running fullscreen")
+		fmt.Fprintf(os.Stderr, "%s: --inline requires an interactive terminal, running fullscreen\n", opts.prog())
 		opts.Inline = false
 	}
 
@@ -106,7 +120,7 @@ func Run(opts Options) error {
 	if opts.Inline && !term.IsTerminal(os.Stdout.Fd()) {
 		in, ttyOut, err := tea.OpenTTY()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "what-to-run: cannot open the terminal, running fullscreen")
+			fmt.Fprintf(os.Stderr, "%s: cannot open the terminal, running fullscreen\n", opts.prog())
 			opts.Inline = false
 		} else {
 			defer func() { _ = in.Close(); _ = ttyOut.Close() }()
@@ -497,7 +511,7 @@ func (m model) listHeight() int {
 func (m model) render(h, w int) string {
 	lines := make([]string, 0, h)
 	lines = append(lines,
-		titleStyle.Render("what-to-run"),
+		titleStyle.Render(m.opts.prog()),
 		m.filterLine(),
 		"",
 	)

@@ -43,14 +43,15 @@ func TestParseBindKeyInvalid(t *testing.T) {
 }
 
 func TestZshInitScript(t *testing.T) {
-	got, err := ZshInit("/opt/wtr/what-to-run", "ctrl-g")
+	got, err := ZshInit("wtr", "/opt/wtr/wtr", "ctrl-g")
 	if err != nil {
 		t.Fatalf("ZshInit() error: %v", err)
 	}
 	for _, want := range []string{
-		"zle -N what-to-run-widget _what_to_run_widget",
-		"bindkey '^G' what-to-run-widget",
-		`typeset -g WTR_BIN="${WTR_BIN:-/opt/wtr/what-to-run}"`,
+		"# wtr: zsh integration",
+		"zle -N wtr-widget _wtr_widget",
+		"bindkey '^G' wtr-widget",
+		`typeset -g WTR_BIN="${WTR_BIN:-/opt/wtr/wtr}"`,
 		"out=$(\"$WTR_BIN\" --inline ${=WTR_FLAGS} < /dev/tty)",
 		"Ctrl-G opens",
 	} {
@@ -63,9 +64,58 @@ func TestZshInitScript(t *testing.T) {
 	}
 }
 
+// TestZshInitNamesTheInvokedProgram pins the mnemonic rule: the script keeps
+// the name it was generated with, so the integration is self-explaining in
+// the rc file and in the message printed at shell startup.
+func TestZshInitNamesTheInvokedProgram(t *testing.T) {
+	tests := []struct {
+		prog    string
+		want    []string
+		wantNot []string
+	}{
+		{
+			prog: "what-to-run",
+			want: []string{
+				"# what-to-run: zsh integration, Ctrl-G opens the inline picker.",
+				`eval "$(what-to-run init zsh --key Ctrl-G)"`,
+				`print "what-to-run: Ctrl-G opens ${WTR_BIN} --inline"`,
+				"if (( $+commands[wtr] )); then",
+				`print "what-to-run: (or type 'wtr' directly)"`,
+			},
+		},
+		{
+			prog: "wtr",
+			want: []string{"# wtr: zsh integration"},
+			// The short name needs no hint: it is already what you type.
+			wantNot: []string{"or type 'wtr' directly"},
+		},
+		{
+			prog:    "",
+			want:    []string{"# wtr: zsh integration"},
+			wantNot: []string{"or type 'wtr' directly"},
+		},
+	}
+	for _, tt := range tests {
+		got, err := ZshInit(tt.prog, "/bin/wtr", "ctrl-g")
+		if err != nil {
+			t.Fatalf("ZshInit(%q) error: %v", tt.prog, err)
+		}
+		for _, want := range tt.want {
+			if !strings.Contains(got, want) {
+				t.Errorf("ZshInit(%q) script does not contain %q:\n%s", tt.prog, want, got)
+			}
+		}
+		for _, notWant := range tt.wantNot {
+			if strings.Contains(got, notWant) {
+				t.Errorf("ZshInit(%q) script should not contain %q:\n%s", tt.prog, notWant, got)
+			}
+		}
+	}
+}
+
 func TestZshInitFlowControlKeyDisablesIXON(t *testing.T) {
 	for _, key := range []string{"ctrl-s", "ctrl-q", "^s", "^Q"} {
-		got, err := ZshInit("/bin/what-to-run", key)
+		got, err := ZshInit("wtr", "/bin/wtr", key)
 		if err != nil {
 			t.Fatalf("ZshInit(%q) error: %v", key, err)
 		}
@@ -77,11 +127,11 @@ func TestZshInitFlowControlKeyDisablesIXON(t *testing.T) {
 
 func TestZshInitErrors(t *testing.T) {
 	for _, tt := range []struct{ bin, key string }{
-		{"/bin/what-to-run", "bogus"},
-		{"/bin/what-to-run", ""},
+		{"/bin/wtr", "bogus"},
+		{"/bin/wtr", ""},
 		{"", "ctrl-s"},
 	} {
-		if _, err := ZshInit(tt.bin, tt.key); err == nil {
+		if _, err := ZshInit("wtr", tt.bin, tt.key); err == nil {
 			t.Errorf("ZshInit(%q, %q) should fail", tt.bin, tt.key)
 		}
 	}
@@ -94,15 +144,17 @@ func TestZshInitParsesAsZsh(t *testing.T) {
 	if err != nil {
 		t.Skip("zsh not installed")
 	}
-	for _, key := range []string{"ctrl-s", "alt-x", "^[[15~"} {
-		script, err := ZshInit("/bin/what-to-run", key)
-		if err != nil {
-			t.Fatalf("ZshInit(%q) error: %v", key, err)
-		}
-		cmd := exec.Command(zsh, "-n")
-		cmd.Stdin = strings.NewReader(script)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Errorf("zsh -n rejects the script for %q: %v\n%s", key, err, out)
+	for _, prog := range []string{"wtr", "what-to-run"} {
+		for _, key := range []string{"ctrl-s", "alt-x", "^[[15~"} {
+			script, err := ZshInit(prog, "/bin/wtr", key)
+			if err != nil {
+				t.Fatalf("ZshInit(%q, %q) error: %v", prog, key, err)
+			}
+			cmd := exec.Command(zsh, "-n")
+			cmd.Stdin = strings.NewReader(script)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Errorf("zsh -n rejects the script for %s %q: %v\n%s", prog, key, err, out)
+			}
 		}
 	}
 }

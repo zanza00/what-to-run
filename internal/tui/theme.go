@@ -25,6 +25,10 @@ type theme struct {
 	// a lighter surface tone, so the row still reads as selected without
 	// the saturated accent of the fill.
 	selBg color.Color
+	// selFg is the foreground of the name, description and badge on that
+	// tinted row: the palette's light tone, kept readable on selBg (the
+	// dim color may be nearly identical to it, e.g. nord).
+	selFg color.Color
 	sel   selection
 }
 
@@ -61,6 +65,7 @@ var themes = []theme{
 		ok:     lipgloss.Color("#A3BE8C"),
 		err:    lipgloss.Color("#BF616A"),
 		selBg:  lipgloss.Color("#434C5E"),
+		selFg:  lipgloss.Color("#D8DEE9"),
 		sel:    selBar,
 	},
 	{
@@ -71,6 +76,7 @@ var themes = []theme{
 		ok:     lipgloss.Color("#50FA7B"),
 		err:    lipgloss.Color("#FF5555"),
 		selBg:  lipgloss.Color("#44475A"),
+		selFg:  lipgloss.Color("#F8F8F2"),
 		sel:    selBar,
 	},
 	{
@@ -81,6 +87,7 @@ var themes = []theme{
 		ok:     lipgloss.Color("#9ECE6A"),
 		err:    lipgloss.Color("#F7768E"),
 		selBg:  lipgloss.Color("#3B4261"),
+		selFg:  lipgloss.Color("#C0CAF5"),
 		sel:    selBar,
 	},
 	{
@@ -91,6 +98,7 @@ var themes = []theme{
 		ok:     lipgloss.Color("#B8BB26"),
 		err:    lipgloss.Color("#FB4934"),
 		selBg:  lipgloss.Color("#504945"),
+		selFg:  lipgloss.Color("#EBDBB2"),
 		sel:    selBar,
 	},
 	{
@@ -138,7 +146,7 @@ type styles struct {
 	filter       lipgloss.Style // the filter prompt and its cursor
 	selected     lipgloss.Style // a whole selected row (fill or reverse)
 	selectedName lipgloss.Style // bar selection: the name on the tinted row
-	selectedDim  lipgloss.Style // bar selection: desc and badge on the tinted row
+	selectedText lipgloss.Style // bar selection: desc and badge on the tinted row
 	selectedPad  lipgloss.Style // bar selection: the padding between them
 	marker       lipgloss.Style // bar selection: the cursor marker
 	dim          lipgloss.Style
@@ -193,8 +201,8 @@ func newStyles(t theme) styles {
 			return st
 		}
 		s.marker = onTint(t.accent, true)
-		s.selectedName = onTint(t.accent, true)
-		s.selectedDim = onTint(t.dim, false)
+		s.selectedName = onTint(t.selFg, true)
+		s.selectedText = onTint(t.selFg, false)
 		s.selectedPad = onTint(nil, false)
 	case selReverse:
 		s.selected = lipgloss.NewStyle().Reverse(true)

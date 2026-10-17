@@ -30,8 +30,8 @@ func TestThemeRegistry(t *testing.T) {
 		if seen[th.name] {
 			t.Errorf("duplicate theme name %q", th.name)
 		}
-		if th.sel == selBar && th.selBg == nil {
-			t.Errorf("theme %q uses bar selection but has no selBg tint", th.name)
+		if th.sel == selBar && (th.selBg == nil || th.selFg == nil) {
+			t.Errorf("theme %q uses bar selection but misses selBg or selFg", th.name)
 		}
 		seen[th.name] = true
 	}
@@ -123,15 +123,32 @@ func TestViewShowsActiveTheme(t *testing.T) {
 }
 
 func TestBarSelectionTintsTheWholeRow(t *testing.T) {
-	got := sized(Options{Theme: "tokyo"}).View().Content
-	if !strings.Contains(got, "▌") {
-		t.Errorf("bar-selected view does not use the bar marker:\n%s", got)
+	view := sized(Options{Theme: "tokyo"}).View().Content
+
+	var selected string
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "▌") {
+			selected = line
+			break
+		}
 	}
-	// The tint of the selected row arrives as a background color; the bar
-	// itself must not be the only highlight.
-	if !strings.Contains(got, "48;2;59;66;97") { // #3B4261
-		t.Errorf("bar-selected view does not paint the row with the theme tint:\n%q", got)
+	if selected == "" {
+		t.Fatalf("bar-selected view does not use the bar marker:\n%s", view)
 	}
+
+	// The tint arrives as a background color, and the text on it is the
+	// palette's light tone: never the dim color, which can be nearly
+	// identical to the tint (the nord bug) and make the row unreadable.
+	if !strings.Contains(selected, "48;2;59;66;97") { // #3B4261
+		t.Errorf("selected row does not paint the theme tint:\n%q", selected)
+	}
+	if !strings.Contains(selected, "38;2;192;202;245") { // #C0CAF5
+		t.Errorf("selected row text is not the theme's light tone:\n%q", selected)
+	}
+	if strings.Contains(selected, "38;2;86;95;137") { // tokyo dim #565F89
+		t.Errorf("selected row still uses the dim color for part of its text:\n%q", selected)
+	}
+
 	if strings.Contains(sized(Options{}).View().Content, "▌") {
 		t.Error("the default theme uses the bar marker, want the arrow")
 	}

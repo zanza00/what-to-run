@@ -631,16 +631,16 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 
 	if selected {
 		if m.styles.bar {
-			// Bar selection: the marker and the name in the accent color,
-			// the whole row on the theme's lighter surface tone.
+			// Bar selection: the marker in the accent color, the rest of the
+			// row in the theme's light tone over its tinted background.
 			left := m.styles.marker.Render(marker) +
 				m.styles.selectedName.Render(name) +
-				m.styles.selectedDim.Render(" "+desc)
+				m.styles.selectedText.Render(" "+desc)
 			pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
 			if pad != "" {
 				pad = m.styles.selectedPad.Render(pad)
 			}
-			return left + pad + m.styles.selectedDim.Render(" "+badge)
+			return left + pad + m.styles.selectedText.Render(" "+badge)
 		}
 		left := marker + name + " " + desc
 		pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))

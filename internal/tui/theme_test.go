@@ -32,8 +32,10 @@ func TestThemeRegistry(t *testing.T) {
 		if seen[th.name] {
 			t.Errorf("duplicate theme name %q", th.name)
 		}
-		if th.sel == selBar && (th.selBg == nil || th.selFg == nil) {
-			t.Errorf("theme %q uses bar selection but misses selBg or selFg", th.name)
+		// A colored theme needs both tint colors: the selected row's
+		// background and a readable foreground on it.
+		if th.accent != nil && (th.selBg == nil || th.selFg == nil) {
+			t.Errorf("theme %q has colors but misses selBg or selFg", th.name)
 		}
 		seen[th.name] = true
 	}
@@ -44,8 +46,8 @@ func TestThemeRegistry(t *testing.T) {
 // failed this with the dim color on a nearly identical tint.
 func TestThemeContrast(t *testing.T) {
 	for _, th := range themes {
-		if th.sel != selBar {
-			continue
+		if th.selBg == nil || th.selFg == nil {
+			continue // the colorless theme has no tint to check
 		}
 		if got := contrastRatio(th.selFg, th.selBg); got < 4.5 {
 			t.Errorf("theme %q: selFg on selBg contrast = %.1f:1, want at least 4.5:1", th.name, got)
@@ -127,52 +129,164 @@ func TestUnknownThemeWarnsAndFallsBack(t *testing.T) {
 	}
 }
 
-func TestCtrlTCyclesThemes(t *testing.T) {
-	m := sized(Options{})
-	first := themes[m.themeIdx].name
-
-	seen := map[string]bool{first: true}
-	for range len(themes) - 1 {
-		next, _ := m.Update(ctrlTKey)
-		m = next.(model)
-		seen[themes[m.themeIdx].name] = true
+func TestCtrlTOpensTheThemePicker(t *testing.T) {
+	m := update(sized(Options{}), ctrlTKey)
+	if !m.themeModal {
+		t.Fatal("ctrl+t did not open the theme picker")
 	}
-	if len(seen) != len(themes) {
-		t.Errorf("ctrl+t visited %d themes, want %d: %v", len(seen), len(themes), seen)
-	}
-
-	// One more press wraps back to the first theme.
-	next, _ := m.Update(ctrlTKey)
-	if m = next.(model); themes[m.themeIdx].name != first {
-		t.Errorf("theme after a full cycle = %q, want %q", themes[m.themeIdx].name, first)
+	if m.themeIdx != 0 || m.themeBefore != 0 {
+		t.Errorf("opening the picker changed the theme: idx = %d, before = %d", m.themeIdx, m.themeBefore)
 	}
 	if m.filter != "" {
-		t.Errorf("filter after ctrl+t = %q, want empty (it cycles, it does not type)", m.filter)
+		t.Errorf("filter after ctrl+t = %q, want empty (it opens the picker, it does not type)", m.filter)
 	}
 }
 
-func TestViewShowsActiveTheme(t *testing.T) {
-	if got := titleLine(sized(Options{}).View().Content); got != "wtr" {
-		t.Errorf("default title = %q, want %q", got, "wtr")
-	}
-	if got := titleLine(sized(Options{Theme: "nord"}).View().Content); got != "wtr · nord" {
-		t.Errorf("title with the nord theme = %q, want %q", got, "wtr · nord")
-	}
-}
+func TestThemePickerPreviewsLive(t *testing.T) {
+	m := update(sized(Options{}), ctrlTKey)
 
-func TestBarSelectionTintsTheWholeRow(t *testing.T) {
-	view := sized(Options{Theme: "tokyo"}).View().Content
-
-	var selected string
-	for _, line := range strings.Split(view, "\n") {
-		if strings.Contains(line, "▌") {
-			selected = line
+	m = update(m, downKey)
+	if got := themes[m.themeIdx].name; got != "nord" {
+		t.Errorf("theme after one down = %q, want nord", got)
+	}
+	// The preview is live: the task list behind the box wears the theme's
+	// tint (nord selBg #434C5E).
+	got := m.View().Content
+	var row string
+	for _, line := range strings.Split(got, "\n") {
+		if strings.Contains(line, "▌") && strings.Contains(line, "npm run build") {
+			row = line
 			break
 		}
 	}
-	if selected == "" {
-		t.Fatalf("bar-selected view does not use the bar marker:\n%s", view)
+	if row == "" {
+		t.Fatalf("no selected task row in the previewed view:\n%s", got)
 	}
+	if !strings.Contains(row, "48;2;67;76;94") {
+		t.Errorf("the task list does not wear the previewed theme's tint:\n%q", row)
+	}
+
+	m = update(m, upKey)
+	if got := themes[m.themeIdx].name; got != defaultTheme {
+		t.Errorf("theme after one up = %q, want %q", got, defaultTheme)
+	}
+
+	// The cursor stops at the ends of the list.
+	for range len(themes) {
+		m = update(m, upKey)
+	}
+	if m.themeIdx != 0 {
+		t.Errorf("theme after scrolling past the top = %d, want 0", m.themeIdx)
+	}
+	m = update(m, endKey)
+	if m.themeIdx != len(themes)-1 {
+		t.Errorf("theme after end = %d, want %d", m.themeIdx, len(themes)-1)
+	}
+	m = update(m, homeKey)
+	if m.themeIdx != 0 {
+		t.Errorf("theme after home = %d, want 0", m.themeIdx)
+	}
+}
+
+func TestThemePickerConfirmAndCancel(t *testing.T) {
+	// enter keeps the previewed theme and closes the box.
+	m := update(sized(Options{}), ctrlTKey)
+	m = update(m, downKey)
+	next, cmd := m.Update(enterKey)
+	m = next.(model)
+	if m.themeModal || m.themeIdx != 1 {
+		t.Errorf("after enter: modal = %v, theme = %d; want closed on 1", m.themeModal, m.themeIdx)
+	}
+	if cmd != nil {
+		t.Error("enter in the theme picker returned a command, want none")
+	}
+	if got := m.View().Content; strings.Contains(got, "╰") {
+		t.Errorf("the box is still drawn after enter:\n%s", got)
+	}
+
+	// ctrl+t toggles the picker closed, keeping the preview.
+	m = update(sized(Options{}), ctrlTKey)
+	m = update(m, downKey)
+	m = update(m, ctrlTKey)
+	if m.themeModal || m.themeIdx != 1 {
+		t.Errorf("after ctrl+t: modal = %v, theme = %d; want closed on 1", m.themeModal, m.themeIdx)
+	}
+
+	// esc cancels: the theme from before the picker comes back, and the
+	// press neither quits nor clears the filter.
+	m = press(sized(Options{}), "npm")
+	m = update(m, ctrlTKey)
+	m = update(m, downKey)
+	next, cmd = m.Update(escKey)
+	m = next.(model)
+	if m.themeModal || m.themeIdx != 0 {
+		t.Errorf("after esc: modal = %v, theme = %d; want closed on the original 0", m.themeModal, m.themeIdx)
+	}
+	if m.filter != "npm" {
+		t.Errorf("filter after esc in the picker = %q, want %q", m.filter, "npm")
+	}
+	if cmd != nil {
+		t.Error("esc in the theme picker returned a command, want none (it must not quit)")
+	}
+}
+
+func TestThemePickerIgnoresTyping(t *testing.T) {
+	m := press(update(sized(Options{}), ctrlTKey), "npm")
+	if m.filter != "" {
+		t.Errorf("filter while the picker is open = %q, want empty", m.filter)
+	}
+	if !m.themeModal {
+		t.Error("typing closed the theme picker")
+	}
+	if m.themeIdx != 0 {
+		t.Errorf("theme after typing = %d, want 0", m.themeIdx)
+	}
+}
+
+func TestViewTitleIgnoresTheTheme(t *testing.T) {
+	if got := titleLine(sized(Options{}).View().Content); got != "wtr" {
+		t.Errorf("default title = %q, want %q", got, "wtr")
+	}
+	// The title stays the program name whatever the theme is: the picker
+	// shows the look itself.
+	if got := titleLine(sized(Options{Theme: "nord"}).View().Content); got != "wtr" {
+		t.Errorf("title with the nord theme = %q, want %q", got, "wtr")
+	}
+}
+
+// selectedRow returns the rendered line of the bar-selected row.
+func selectedRow(t *testing.T, view string) string {
+	t.Helper()
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "▌") {
+			return line
+		}
+	}
+	t.Fatalf("bar-selected view does not use the bar marker:\n%s", view)
+	return ""
+}
+
+// boxHeight returns the number of rows of the theme picker box, from the top
+// border to the bottom one.
+func boxHeight(t *testing.T, view string) int {
+	t.Helper()
+	top, bottom := -1, -1
+	for i, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "╭") {
+			top = i
+		}
+		if strings.Contains(line, "╰") {
+			bottom = i
+		}
+	}
+	if top < 0 || bottom < 0 {
+		t.Fatalf("no box in the view:\n%s", view)
+	}
+	return bottom - top + 1
+}
+
+func TestBarSelectionTintsTheWholeRow(t *testing.T) {
+	selected := selectedRow(t, sized(Options{Theme: "tokyo"}).View().Content)
 
 	// The tint arrives as a background color, and the text on it is the
 	// palette's light tone: never the dim color, which can be nearly
@@ -187,8 +301,139 @@ func TestBarSelectionTintsTheWholeRow(t *testing.T) {
 		t.Errorf("selected row still uses the dim color for part of its text:\n%q", selected)
 	}
 
-	if strings.Contains(sized(Options{}).View().Content, "▌") {
-		t.Error("the default theme uses the bar marker, want the arrow")
+	// The default theme is a bar theme like the others: same marker, its
+	// own violet tint and light tone.
+	selected = selectedRow(t, sized(Options{}).View().Content)
+	if !strings.Contains(selected, "48;2;70;60;110") { // #463C6E
+		t.Errorf("default selected row does not paint its tint:\n%q", selected)
+	}
+	if !strings.Contains(selected, "38;2;237;233;254") { // #EDE9FE
+		t.Errorf("default selected row text is not the theme's light tone:\n%q", selected)
+	}
+	if strings.Contains(selected, "38;5;241") { // classic dim
+		t.Errorf("default selected row still uses the dim color for part of its text:\n%q", selected)
+	}
+
+	// The colorless theme keeps the same layout: no colors anywhere on the
+	// row, reverse video as its tint.
+	selected = selectedRow(t, sized(Options{Theme: "mono"}).View().Content)
+	if !strings.Contains(selected, "[7m") && !strings.Contains(selected, ";7m") {
+		t.Errorf("mono selected row does not use reverse video:\n%q", selected)
+	}
+	if strings.Contains(selected, "38;") || strings.Contains(selected, "48;") {
+		t.Errorf("mono selected row uses colors:\n%q", selected)
+	}
+}
+
+func TestThemePickerRenders(t *testing.T) {
+	got := update(sized(Options{}), ctrlTKey).View().Content
+
+	for _, want := range []string{"╭", "╰", "themes", "classic", "nord", "tokyo", themeModalHints} {
+		if !strings.Contains(got, want) {
+			t.Errorf("theme picker view does not contain %q:\n%s", want, got)
+		}
+	}
+	if h := boxHeight(t, got); h != themeModalListRows+themeModalChrome {
+		t.Errorf("box height = %d rows, want %d", h, themeModalListRows+themeModalChrome)
+	}
+
+	// The rows are just the names: no theme description in the box.
+	if strings.Contains(got, "the default violet look") {
+		t.Errorf("theme picker shows a theme description:\n%s", got)
+	}
+
+	// The previewed row is tinted with the active theme's palette...
+	var row string
+	for _, line := range strings.Split(got, "\n") {
+		if strings.Contains(line, "▌") && strings.Contains(line, "classic") {
+			row = line
+			break
+		}
+	}
+	if row == "" {
+		t.Fatalf("no selected theme row in the picker:\n%s", got)
+	}
+	if !strings.Contains(row, "48;2;70;60;110") { // classic tint #463C6E
+		t.Errorf("selected theme row does not paint the theme tint:\n%q", row)
+	}
+
+	// ... and the other rows use their own palette: nord's name carries its
+	// accent.
+	for _, line := range strings.Split(got, "\n") {
+		if strings.Contains(line, "nord") && !strings.Contains(line, "38;2;136;192;208") { // #88C0D0
+			t.Errorf("nord row does not use its own accent:\n%q", line)
+		}
+	}
+}
+
+func TestThemePickerRendersEveryTheme(t *testing.T) {
+	for _, th := range themes {
+		t.Run(th.name, func(t *testing.T) {
+			got := update(sized(Options{Theme: th.name}), ctrlTKey).View().Content
+			if !strings.Contains(got, "themes") || !strings.Contains(got, "╰") {
+				t.Errorf("theme picker with theme %q does not render:\n%s", th.name, got)
+			}
+		})
+	}
+}
+
+func TestThemePickerWindowsTheList(t *testing.T) {
+	// The box shows five theme rows; the rest are reached by scrolling.
+	m := update(sized(Options{}), ctrlTKey)
+	got := m.View().Content
+	if !strings.Contains(got, "themes 1/13 ↓") {
+		t.Errorf("the title does not mark the hidden rows below:\n%s", got)
+	}
+	if strings.Contains(got, "catppuccin") || strings.Contains(got, " mono ") {
+		t.Errorf("a theme outside the window is rendered:\n%s", got)
+	}
+
+	m = update(m, endKey)
+	if want := len(themes) - themeModalListRows; m.themeOffset != want {
+		t.Errorf("offset after scrolling to the end = %d, want %d", m.themeOffset, want)
+	}
+	got = m.View().Content
+	if !strings.Contains(got, " mono ") {
+		t.Errorf("the last theme is not revealed after scrolling:\n%s", got)
+	}
+	if strings.Contains(got, " classic ") {
+		t.Errorf("the first theme is still rendered after scrolling:\n%s", got)
+	}
+	if !strings.Contains(got, "↑ themes 13/13") {
+		t.Errorf("the title does not mark the hidden rows above:\n%s", got)
+	}
+}
+
+func TestThemePickerFitsInlineArea(t *testing.T) {
+	// Inline with a 15-row area: the box is smaller than the area and the
+	// view keeps its 15 rows.
+	m := newModel(Options{Inline: true}, sampleTasks(), nil)
+	m = update(m, tea.WindowSizeMsg{Width: 80, Height: 20})
+	m = update(m, tea.CursorPositionMsg{Y: 12})
+	m = update(m, ctrlTKey)
+
+	got := m.View().Content
+	if n := strings.Count(got, "\n"); n != 14 {
+		t.Errorf("inline picker has %d lines, want 15", n+1)
+	}
+	if h := boxHeight(t, got); h != themeModalListRows+themeModalChrome {
+		t.Errorf("box height = %d rows, want %d", h, themeModalListRows+themeModalChrome)
+	}
+}
+
+func TestThemePickerFitsNarrowTerminals(t *testing.T) {
+	m := newModel(Options{}, sampleTasks(), nil)
+	m = update(m, tea.WindowSizeMsg{Width: 40, Height: 24})
+	m = update(m, ctrlTKey)
+
+	got := m.View().Content
+	if !strings.Contains(got, "themes") {
+		t.Fatalf("no theme picker in the view:\n%s", got)
+	}
+	for _, line := range strings.Split(got, "\n") {
+		if w := ansi.StringWidth(line); w > 40 {
+			t.Errorf("picker line is %d columns wide, want at most 40: %q", w, line)
+		}
 	}
 }
 
@@ -243,10 +488,13 @@ func TestPreviewRendersAFrame(t *testing.T) {
 	if n := strings.Count(got, "\n"); n != 24 {
 		t.Errorf("preview height = %d rows, want 24", n)
 	}
-	for _, want := range []string{"build", "tokyo"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("preview does not contain %q:\n%s", want, got)
-		}
+	if !strings.Contains(got, "build") {
+		t.Errorf("preview does not contain the task:\n%s", got)
+	}
+	// The frame wears the requested theme: its accent colors the title
+	// (tokyo #7AA2F7).
+	if !strings.Contains(got, "38;2;122;162;247") {
+		t.Errorf("preview does not use the tokyo accent:\n%s", got)
 	}
 }
 

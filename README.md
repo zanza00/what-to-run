@@ -81,7 +81,7 @@ go run ./cmd/wtr
 | `tab` | inline only: place the command in the shell prompt without running it |
 | `esc` | clear the filter, or quit when the filter is empty |
 | `ctrl+u` | clear the filter |
-| `ctrl+t` | preview the next theme, live; the title shows the active one |
+| `ctrl+t` | open the theme picker: ↑/↓ preview live, enter keep, esc cancel |
 | `ctrl+c` | quit |
 
 `q` types into the filter; it does not quit.
@@ -212,13 +212,13 @@ and the previous shell contents are restored on quit.
 
 ### Themes
 
-The look of the picker is one of these named themes — palettes plus a couple
-of structural variants (a filled selection row, an accent bar over a lighter
-tinted row, reverse video):
+The look of the picker is one of these named themes — palettes sharing the
+same selection style, an accent bar over a lighter tinted row (the colorless
+`mono` tints the row with reverse video):
 
 | Theme | Look |
 | --- | --- |
-| `classic` | the default violet look, filled selection row |
+| `classic` | the default violet look |
 | `nord` | arctic blues and frost |
 | `dracula` | high-contrast plum |
 | `tokyo` | night blues on ink |
@@ -230,12 +230,16 @@ tinted row, reverse video):
 | `everforest` | muted forest greens |
 | `kanagawa` | ukiyo-e ink blues and sakura |
 | `rose-pine` | dusty rose, pine and iris |
-| `mono` | no colors at all, reverse-video selection |
+| `mono` | no colors at all, reverse-video tint |
 
-Every theme but `classic` and `mono` uses the bar-and-tinted-row selection.
+Every theme uses the bar-and-tinted-row selection; `mono`, having no colors,
+tints the row with reverse video.
 
-Pick one with `--theme nord`, or cycle them live in the picker with `ctrl+t`
-(the title shows the active one; the choice lasts for the session). To compare
+Pick one with `--theme nord`, or open the theme picker with `ctrl+t`: ↑/↓
+scroll the list and preview each theme live, enter (or ctrl+t again) keeps the
+choice, esc restores the previous one. The box lists five theme names at a
+time, each in its own accent; the position and ↑/↓ arrows sit on the top
+border when the list scrolls. The choice lasts for the session. To compare
 them side by side in a script, use the static preview:
 
 ```sh

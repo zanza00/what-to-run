@@ -18,7 +18,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
   `tasks.go` = the Task model, `sources.go` = the discovery framework and the
   source registry, `source_*.go` = one parser per source, `theme.go` = the
-  named looks and the styles derived from them, `zshinit.go` = the
+  named looks and the styles derived from them, `theme_modal.go` = the ctrl+t
+  theme picker overlay, `zshinit.go` = the
   zsh widget printed by `init zsh`); `cmd/wtr` only parses flags/subcommands
   and calls `tui.Run` / `tui.Preview` / `tui.ZshInit`. Adding a source: a
   `source` literal and its parser in a new `source_<name>.go`, one line in
@@ -36,14 +37,21 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   overrides `package_manager` and disables sources; its problems are warnings
   (status line), never fatal, like broken sources. Its tasks are assembled in
   `discoverTasks` and shadow same-named source tasks.
-- The look is a named theme (`theme.go`): the registry order is the `ctrl+t`
-  cycle order, the first entry (`classic`) is the default, `--theme` pins one
-  and an unknown name is only a warning. `--list-themes` and `--preview`
-  (a static 80×24 frame) are the comparison aids. Keep `classic` looking as it
-  always did; a bar theme paints every segment of the selected row with its
-  `selBg` tint and its `selFg` light text (never the dim color, which can be
-  nearly identical to the tint), because a nested style's reset would drop
-  the background before the row padding.
+- The look is a named theme (`theme.go`): the registry order is the order of
+  the `ctrl+t` picker, the first entry (`classic`) is the default, `--theme`
+  pins one and an unknown name is only a warning. `--list-themes` and
+  `--preview` (a static 80×24 frame) are the comparison aids. Every theme uses
+  the same bar selection: the selected row is painted segment by segment — the
+  `selBg` tint with the `selFg` light text, or reverse video for the colorless
+  `mono` — never the dim color, which can be nearly identical to the tint,
+  because a nested style's reset would drop the highlight before the row
+  padding.
+- `ctrl+t` opens the theme picker (`theme_modal.go`): a centered box listing
+  five theme names at a time, each in its own accent (the top border carries
+  the position and ↑/↓ when the list scrolls). ↑/↓ preview live, enter or
+  ctrl+t keep, esc restores the theme that was active when it opened. The box
+  is composited cell by cell over the rendered rows (the lipgloss canvas), so
+  a tinted background crossing its edges is not broken.
 - Rows show the command line (`Task.commandLine`), the description and the
   source badge: no name column, the command already contains the name. The
   command column is the widest visible command line, so descriptions start

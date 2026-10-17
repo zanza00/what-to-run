@@ -38,7 +38,7 @@ func main() {
 		"draw a border around the area managed in inline mode (development aid)")
 	theme := flag.String("theme", "",
 		"theme to render the picker with (\"classic\", \"nord\", \"dracula\", …);\n"+
-			"ctrl+t cycles through them while the picker is open")
+			"ctrl+t opens the theme picker")
 	listThemes := flag.Bool("list-themes", false,
 		"list the available themes and exit")
 	preview := flag.Bool("preview", false,

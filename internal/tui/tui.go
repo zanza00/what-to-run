@@ -257,9 +257,15 @@ type model struct {
 	chosenInsert bool
 
 	// themeIdx is the active theme (an index into themes) and styles are
-	// its concrete styles. ctrl+t replaces both to preview another look.
-	themeIdx int
-	styles   styles
+	// its concrete styles. ctrl+t opens the theme picker: themeModal reports
+	// that it is open, themeBefore is the theme to restore when it is
+	// cancelled with esc, and themeOffset the first row shown while the
+	// list is windowed.
+	themeIdx    int
+	styles      styles
+	themeModal  bool
+	themeBefore int
+	themeOffset int
 }
 
 func newModel(opts Options, tasks []Task, warnings []error) model {
@@ -318,10 +324,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKey reacts to a key press.
 func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
+	key := msg.String()
+	if key == "ctrl+c" {
 		return m, tea.Quit
+	}
+	if m.themeModal {
+		return m.handleThemeKey(msg)
+	}
 
+	switch key {
 	case "esc":
 		if m.filter != "" {
 			m.filter = ""
@@ -363,11 +374,12 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.filter = ""
 		m.cursor, m.offset = 0, 0
 
-	// Preview the themes without restarting: the title shows the active one
-	// and --theme pins the choice for the next run.
+	// Open the theme picker over the list; the theme in use is kept if the
+	// choice is cancelled with esc.
 	case "ctrl+t":
-		m.themeIdx = (m.themeIdx + 1) % len(themes)
-		m.styles = newStyles(themes[m.themeIdx])
+		m.themeModal = true
+		m.themeBefore = m.themeIdx
+		m.keepThemeVisible()
 
 	case "backspace":
 		m.filter = trimLastRune(m.filter)
@@ -384,6 +396,53 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	m.keepCursorVisible()
 	return m, nil
+}
+
+// handleThemeKey reacts to a key while the theme picker is open: ↑/↓ scroll
+// the list and preview each theme live, enter and ctrl+t keep the previewed
+// one, esc restores the theme that was active when the picker opened.
+func (m model) handleThemeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.themeModal = false
+		m.setTheme(m.themeBefore)
+		return m, nil
+
+	case "enter", "ctrl+t":
+		m.themeModal = false
+		return m, nil
+
+	case "up", "ctrl+k", "ctrl+p":
+		m.setTheme(max(m.themeIdx-1, 0))
+
+	case "down", "ctrl+j", "ctrl+n":
+		m.setTheme(min(m.themeIdx+1, len(themes)-1))
+
+	case "pgup":
+		m.setTheme(max(m.themeIdx-m.themeModalWindow(), 0))
+
+	case "pgdown":
+		m.setTheme(min(m.themeIdx+m.themeModalWindow(), len(themes)-1))
+
+	case "home":
+		m.setTheme(0)
+
+	case "end":
+		m.setTheme(len(themes) - 1)
+
+	default:
+		// The picker owns the keyboard: typing does not reach the filter.
+		return m, nil
+	}
+
+	m.keepThemeVisible()
+	return m, nil
+}
+
+// setTheme activates the theme at index i and rebuilds its styles.
+func (m *model) setTheme(i int) {
+	m.themeIdx = i
+	m.styles = newStyles(themes[i])
 }
 
 // run starts the task under the cursor.
@@ -562,17 +621,15 @@ func (m model) render(h, w int) string {
 			lines[i] = ansi.Truncate(line, w, "…")
 		}
 	}
+	if m.themeModal {
+		return m.overlayThemeModal(lines, h, w)
+	}
 	return strings.Join(lines, "\n")
 }
 
-// titleLine renders the picker's title: the invoked name, plus the active
-// theme when it is not the default one, so a previewed look is easy to name.
+// titleLine renders the picker's title: the invoked name.
 func (m model) titleLine() string {
-	name := m.opts.prog()
-	if t := themes[m.themeIdx].name; t != defaultTheme {
-		return m.styles.title.Render(name) + m.styles.dim.Render(" · "+t)
-	}
-	return m.styles.title.Render(name)
+	return m.styles.title.Render(m.opts.prog())
 }
 
 // filterLine renders the filter input.
@@ -608,15 +665,15 @@ func (m model) listLines(w int) []string {
 // run, the description and the source file, right-aligned. The command comes
 // first and keeps its whole text — it already contains the task name for
 // every runner — then the description takes the room that is left, and is
-// dropped before the command shrinks. A fill theme highlights the whole
-// selected row; a bar theme paints the row with its tint.
+// dropped before the command shrinks. The whole selected row carries the
+// theme's tint, or reverse video in the colorless theme.
 func (m model) taskRow(t Task, selected bool, w int) string {
 	badge := t.Source
 	badgeW := lipgloss.Width(badge)
 
 	marker := "  "
 	if selected {
-		marker = m.styles.markerText
+		marker = "▌ "
 	}
 
 	room := max(w-badgeW-1, 0) // columns left of the badge separator
@@ -641,22 +698,17 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 	}
 
 	if selected {
-		if m.styles.bar {
-			// Bar selection: the marker in the accent color, the rest of the
-			// row in the theme's light tone over its tinted background.
-			left := m.styles.marker.Render(marker) + m.styles.selectedName.Render(cmd)
-			if descLine != "" {
-				left += m.styles.selectedText.Render(descLine)
-			}
-			pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
-			if pad != "" {
-				pad = m.styles.selectedPad.Render(pad)
-			}
-			return left + pad + m.styles.selectedText.Render(" "+badge)
+		// The marker in the accent color, the rest of the row in the
+		// theme's light tone over its tint (reverse video, in mono).
+		left := m.styles.marker.Render(marker) + m.styles.selectedName.Render(cmd)
+		if descLine != "" {
+			left += m.styles.selectedText.Render(descLine)
 		}
-		left := marker + cmd + descLine
 		pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
-		return m.styles.selected.Render(left + pad + " " + badge)
+		if pad != "" {
+			pad = m.styles.selectedPad.Render(pad)
+		}
+		return left + pad + m.styles.selectedText.Render(" "+badge)
 	}
 
 	left := marker + cmd

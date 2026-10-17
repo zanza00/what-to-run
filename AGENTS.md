@@ -20,6 +20,11 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   its parser in a new `source_<name>.go`, one line in `defaultSources`, and
   table-driven tests next to them. Unknown `package.json` shapes etc. belong in
   the matching `source_*.go`.
+- The optional rc file (`config.go`; `.what-to-run.toml` in the project,
+  `$XDG_CONFIG_HOME/what-to-run/config.toml` globally) adds `[[tasks]]`,
+  overrides `package_manager` and disables sources; its problems are warnings
+  (status line), never fatal, like broken sources. Its tasks are assembled in
+  `discoverTasks` and shadow same-named source tasks.
 - The inline row math (`areaHeight`, `restoreCursor`) is pinned in
   `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests in sync with
   any layout change.

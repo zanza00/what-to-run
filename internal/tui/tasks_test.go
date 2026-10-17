@@ -21,6 +21,7 @@ func TestDiscoverPackageScripts(t *testing.T) {
 		name    string
 		pkg     string
 		locks   []string
+		runner  string
 		want    []Task
 		wantErr bool
 	}{
@@ -40,6 +41,13 @@ func TestDiscoverPackageScripts(t *testing.T) {
 			},
 		},
 		{
+			name: "bare packageManager field wins",
+			pkg:  `{"scripts": {"dev": "vite"}, "packageManager": "yarn"}`,
+			want: []Task{
+				{Source: "package.json", Name: "dev", Desc: "vite", Args: []string{"yarn", "run", "dev"}},
+			},
+		},
+		{
 			name:  "lock file decides",
 			pkg:   `{"scripts": {"dev": "vite"}}`,
 			locks: []string{"pnpm-lock.yaml"},
@@ -53,6 +61,15 @@ func TestDiscoverPackageScripts(t *testing.T) {
 			locks: []string{"yarn.lock"},
 			want: []Task{
 				{Source: "package.json", Name: "dev", Desc: "vite", Args: []string{"yarn", "run", "dev"}},
+			},
+		},
+		{
+			name:   "rc package_manager wins over the lock file",
+			pkg:    `{"scripts": {"dev": "vite"}}`,
+			locks:  []string{"pnpm-lock.yaml"},
+			runner: "bun",
+			want: []Task{
+				{Source: "package.json", Name: "dev", Desc: "vite", Args: []string{"bun", "run", "dev"}},
 			},
 		},
 		{
@@ -70,7 +87,7 @@ func TestDiscoverPackageScripts(t *testing.T) {
 				writeFile(t, dir, lock, "")
 			}
 
-			got, err := discoverSource(packageJSONSource(), dir)
+			got, err := discoverSource(packageJSONSource(tt.runner), dir)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("discoverSource() succeeded, want error")
@@ -91,7 +108,7 @@ func TestDiscoverPackageScripts(t *testing.T) {
 }
 
 func TestDiscoverPackageScriptsMissingFile(t *testing.T) {
-	got, err := discoverSource(packageJSONSource(), t.TempDir())
+	got, err := discoverSource(packageJSONSource(""), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}
@@ -229,7 +246,7 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 	writeFile(t, dir, "Makefile", "test:\n\tgo test ./...\n")
 	writeFile(t, dir, "Cargo.toml", "[tasks.fmt]\ndescription = \"Format\"\n")
 
-	tasks, errs := discoverTasks(dir)
+	tasks, errs := discoverTasks(dir, config{})
 	if len(errs) != 0 {
 		t.Fatalf("discoverTasks() errors = %v, want none", errs)
 	}
@@ -248,7 +265,7 @@ func TestDiscoverTasksSkipsBrokenSource(t *testing.T) {
 	writeFile(t, dir, "package.json", `not json`)
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := discoverTasks(dir)
+	tasks, errs := discoverTasks(dir, config{})
 	if len(errs) != 1 {
 		t.Fatalf("discoverTasks() errors = %v, want exactly one", errs)
 	}
@@ -257,9 +274,86 @@ func TestDiscoverTasksSkipsBrokenSource(t *testing.T) {
 	}
 }
 
+// TestDiscoverTasksRCTasksFirst: rc tasks come first, run through the shell,
+// default their description to the command and resolve a relative cwd.
+func TestDiscoverTasksRCTasksFirst(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
+
+	cfg := config{Tasks: []configTask{
+		{Name: "deploy", Command: "scripts/deploy.sh --prod", Description: "Deploy to production", Cwd: "ops"},
+		{Name: "status", Command: "git status"},
+	}}
+
+	tasks, errs := discoverTasks(dir, cfg)
+	if len(errs) != 0 {
+		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+	}
+	want := []Task{
+		{Source: "rc", Name: "deploy", Desc: "Deploy to production", Args: []string{"sh", "-c", "scripts/deploy.sh --prod"}, Dir: filepath.Join(dir, "ops")},
+		{Source: "rc", Name: "status", Desc: "git status", Args: []string{"sh", "-c", "git status"}},
+		{Source: "package.json", Name: "build", Desc: "go build ./...", Args: []string{"npm", "run", "build"}},
+	}
+	if !reflect.DeepEqual(tasks, want) {
+		t.Errorf("discoverTasks() = %+v, want %+v", tasks, want)
+	}
+}
+
+// TestDiscoverTasksRCShadowsBuiltin: an rc task hides the same-named task of
+// the built-in sources.
+func TestDiscoverTasksRCShadowsBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
+
+	cfg := config{Tasks: []configTask{{Name: "build", Command: "make -C tools build"}}}
+	tasks, errs := discoverTasks(dir, cfg)
+	if len(errs) != 0 {
+		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+	}
+	if len(tasks) != 1 || tasks[0].Source != "rc" || tasks[0].Name != "build" {
+		t.Errorf("discoverTasks() = %+v, want just the rc build task", tasks)
+	}
+}
+
+// TestDiscoverTasksDisabledSourceIsNotRead: a disabled source is not even
+// read, so a file it could not parse cannot warn.
+func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", "[tasks\n") // broken, but disabled
+	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
+
+	tasks, errs := discoverTasks(dir, config{Disable: []string{"Cargo.toml"}})
+	if len(errs) != 0 {
+		t.Fatalf("discoverTasks() errors = %v, want none from the disabled source", errs)
+	}
+	if len(tasks) != 1 || tasks[0].Name != "build" {
+		t.Errorf("discoverTasks() = %+v, want the Makefile build task", tasks)
+	}
+}
+
+// TestDiscoverTasksUnknownDisableEntry: a disable entry that names no source
+// is reported, and no source is disabled.
+func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
+
+	tasks, errs := discoverTasks(dir, config{Disable: []string{"cargo"}})
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "cargo") {
+		t.Errorf("discoverTasks() errors = %v, want one warning about %q", errs, "cargo")
+	}
+	if len(tasks) != 1 || tasks[0].Name != "build" {
+		t.Errorf("discoverTasks() = %+v, want the Makefile build task", tasks)
+	}
+}
+
 func TestTaskCommand(t *testing.T) {
-	task := Task{Args: []string{"make", "build", "GOFLAGS=-v"}}
-	if got, want := task.command().Args, []string{"make", "build", "GOFLAGS=-v"}; !reflect.DeepEqual(got, want) {
+	task := Task{Args: []string{"make", "build", "GOFLAGS=-v"}, Dir: "ops"}
+
+	cmd := task.command()
+	if got, want := cmd.Args, []string{"make", "build", "GOFLAGS=-v"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("command().Args = %v, want %v", got, want)
+	}
+	if got := cmd.Dir; got != "ops" {
+		t.Errorf("command().Dir = %q, want %q", got, "ops")
 	}
 }

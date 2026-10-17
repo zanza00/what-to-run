@@ -76,6 +76,19 @@ func TestViewShowsCommandLines(t *testing.T) {
 			t.Errorf("View() does not show the command line %q:\n%s", want, got)
 		}
 	}
+	// The row is the command and the badge: the description is not shown.
+	if strings.Contains(got, "Build everything") {
+		t.Errorf("View() still shows the description:\n%s", got)
+	}
+}
+
+func TestFilteringByCommandLine(t *testing.T) {
+	// The name is not a column any more: filtering has to find what the
+	// rows show, e.g. the runner.
+	m := press(sized(Options{}), "npm")
+	if vis := m.visible(); len(vis) != 1 || vis[0].Name != "build" {
+		t.Errorf("visible tasks with filter %q = %+v, want just the build task", m.filter, vis)
+	}
 }
 
 func TestViewKeepsCommandOnNarrowTerminals(t *testing.T) {

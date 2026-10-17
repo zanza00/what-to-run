@@ -438,11 +438,13 @@ func (m model) visible() []Task {
 }
 
 // matches reports whether the task matches all tokens, as case-insensitive
-// subsequences of its name.
+// subsequences of its name or of the command line shown in the list: the
+// rows show the command, so typing "npm" or "cargo" must find it.
 func (t Task) matches(tokens []string) bool {
 	name := strings.ToLower(t.Name)
+	cmd := strings.ToLower(t.commandLine())
 	for _, token := range tokens {
-		if !subsequence(name, token) {
+		if !subsequence(name, token) && !subsequence(cmd, token) {
 			return false
 		}
 	}
@@ -602,11 +604,11 @@ func (m model) listLines(w int) []string {
 	return rows
 }
 
-// taskRow renders one list row: cursor marker, task name, the command line
-// that will run, the description and the source file, right-aligned. A fill
-// theme highlights the whole selected row; a bar theme paints the row with
-// its tint. The description is the first column to shrink: what runs matters
-// more than the prose.
+// taskRow renders one list row: the cursor marker, the command line that will
+// run and the source file, right-aligned. The command is what the row is
+// about — it already contains the task name for every runner — and it gets
+// all the room up to the badge. A fill theme highlights the whole selected
+// row; a bar theme paints the row with its tint.
 func (m model) taskRow(t Task, selected bool, w int) string {
 	badge := t.Source
 	badgeW := lipgloss.Width(badge)
@@ -616,72 +618,32 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 		marker = m.styles.markerText
 	}
 
-	nameW := m.nameWidth(w)
-	name := t.Name
-	if lipgloss.Width(name) > nameW {
-		name = ansi.Truncate(name, nameW, "…")
-	}
-	name += strings.Repeat(" ", max(nameW-lipgloss.Width(name), 0))
-
-	cmdW := m.commandWidth(w)
-	cmd := t.commandLine()
-	if lipgloss.Width(cmd) > cmdW {
-		cmd = ansi.Truncate(cmd, cmdW, "…")
-	}
-	cmd += strings.Repeat(" ", max(cmdW-lipgloss.Width(cmd), 0))
-
-	// marker(2) + name(nameW) + space(1) + command(cmdW) + space(1) +
-	// description, padded to leave room for a space and the badge at the
-	// right edge.
+	// marker(2) + command + padding + space(1) + badge at the right edge.
 	room := max(w-badgeW-1, 0)
-	var desc string
-	if descW := room - 2 - nameW - 1 - cmdW - 1; descW > 0 {
-		desc = ansi.Truncate(t.Desc, descW, "…")
+	cmd := ""
+	if maxW := room - 2; maxW > 0 {
+		cmd = ansi.Truncate(t.commandLine(), maxW, "…")
 	}
 
 	if selected {
 		if m.styles.bar {
 			// Bar selection: the marker in the accent color, the rest of the
 			// row in the theme's light tone over its tinted background.
-			left := m.styles.marker.Render(marker) +
-				m.styles.selectedName.Render(name) +
-				m.styles.selectedText.Render(" "+cmd+" "+desc)
+			left := m.styles.marker.Render(marker) + m.styles.selectedName.Render(cmd)
 			pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
 			if pad != "" {
 				pad = m.styles.selectedPad.Render(pad)
 			}
 			return left + pad + m.styles.selectedText.Render(" "+badge)
 		}
-		left := marker + name + " " + cmd + " " + desc
+		left := marker + cmd
 		pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
 		return m.styles.selected.Render(left + pad + " " + badge)
 	}
 
-	left := marker + name + " " + cmd + " " + m.styles.dim.Render(desc)
+	left := marker + cmd
 	pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
 	return left + pad + " " + m.styles.dim.Render(badge)
-}
-
-// nameWidth returns the width of the name column: wide enough for the widest
-// visible task name, capped to a third of the available width.
-func (m model) nameWidth(w int) int {
-	nameW := 0
-	for _, t := range m.visible() {
-		nameW = max(nameW, lipgloss.Width(t.Name))
-	}
-	return min(nameW, max(w/3, 12))
-}
-
-// commandWidth returns the width of the command column: wide enough for the
-// widest visible command line, capped at the name column plus the longest
-// runner prefix ("cargo make "), so a long custom command cannot crowd the
-// rest of the row.
-func (m model) commandWidth(w int) int {
-	cmdW := 0
-	for _, t := range m.visible() {
-		cmdW = max(cmdW, lipgloss.Width(t.commandLine()))
-	}
-	return min(cmdW, m.nameWidth(w)+12)
 }
 
 // helpLine renders the bottom line in w columns: the outcome of the last

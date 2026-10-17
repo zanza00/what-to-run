@@ -507,30 +507,12 @@ func (m model) View() tea.View {
 			// The border takes 2 columns and 2 rows of the area for itself.
 			return tea.NewView(areaStyle.Render(m.render(max(h-2, 0), max(m.width-2, 0))))
 		}
-		if m.styles.boxed {
-			// Same budget for the themed frame.
-			return tea.NewView(m.frame(m.render(max(h-2, 0), max(m.width-2, 0))))
-		}
 		return tea.NewView(m.render(h, m.width))
 	}
 
-	// A themed frame takes 2 columns and 2 rows from the view for itself.
-	h, w := m.viewHeight(), m.width
-	if m.styles.boxed {
-		h, w = max(h-2, 0), max(w-2, 0)
-	}
-	v := tea.NewView(m.frame(m.render(h, w)))
+	v := tea.NewView(m.render(m.viewHeight(), m.width))
 	v.AltScreen = true
 	return v
-}
-
-// frame wraps a rendered view in the theme's box, or returns it untouched
-// when the theme has no frame.
-func (m model) frame(s string) string {
-	if !m.styles.boxed {
-		return s
-	}
-	return m.styles.frame.Render(s)
 }
 
 // viewHeight returns the number of rows the fullscreen view occupies, or the
@@ -648,15 +630,20 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 	}
 
 	if selected {
+		if m.styles.bar {
+			// Bar selection: the marker and the name in the accent color,
+			// the whole row on the theme's lighter surface tone.
+			left := m.styles.marker.Render(marker) +
+				m.styles.selectedName.Render(name) +
+				m.styles.selectedDim.Render(" "+desc)
+			pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
+			if pad != "" {
+				pad = m.styles.selectedPad.Render(pad)
+			}
+			return left + pad + m.styles.selectedDim.Render(" "+badge)
+		}
 		left := marker + name + " " + desc
-		if m.styles.bar {
-			left = m.styles.marker.Render(marker) + m.styles.selectedName.Render(name) +
-				" " + m.styles.dim.Render(desc)
-		}
 		pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
-		if m.styles.bar {
-			return left + pad + " " + m.styles.dim.Render(badge)
-		}
 		return m.styles.selected.Render(left + pad + " " + badge)
 	}
 

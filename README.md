@@ -211,17 +211,16 @@ and the previous shell contents are restored on quit.
 ### Themes
 
 The look of the picker is one of a handful of named themes — palettes plus a
-couple of structural variants (a filled selection row, an accent bar, a frame
-around the view):
+couple of structural variants (a filled selection row, an accent bar over a
+lighter tinted row, reverse video):
 
 | Theme | Look |
 | --- | --- |
-| `classic` | the default violet look, filled selection |
-| `nord` | arctic blues and frost, filled selection |
-| `dracula` | high-contrast plum, filled selection |
-| `tokyo` | night blues on ink, bar selection |
-| `gruvbox` | warm retro amber, bar selection |
-| `frame` | the classic palette in a box, bar selection |
+| `classic` | the default violet look, filled selection row |
+| `nord` | arctic blues and frost, bar selection on a tinted row |
+| `dracula` | high-contrast plum, bar selection on a tinted row |
+| `tokyo` | night blues on ink, bar selection on a tinted row |
+| `gruvbox` | warm retro amber, bar selection on a tinted row |
 | `mono` | no colors at all, reverse-video selection |
 
 Pick one with `--theme nord`, or cycle them live in the picker with `ctrl+t`

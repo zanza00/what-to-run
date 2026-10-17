@@ -40,8 +40,9 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   cycle order, the first entry (`classic`) is the default, `--theme` pins one
   and an unknown name is only a warning. `--list-themes` and `--preview`
   (a static 80×24 frame) are the comparison aids. Keep `classic` looking as it
-  always did; a boxed theme fits its frame inside the same inline budget as
-  `--debug-area` (inner size `h-2`×`w-2`).
+  always did; a bar theme paints every segment of the selected row with its
+  `selBg` tint, because a nested style's reset would drop the background
+  before the row padding.
 - The inline row math (`areaHeight`, `restoreCursor`) is pinned in
   `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests in sync with
   any layout change.

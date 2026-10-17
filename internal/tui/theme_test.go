@@ -30,6 +30,9 @@ func TestThemeRegistry(t *testing.T) {
 		if seen[th.name] {
 			t.Errorf("duplicate theme name %q", th.name)
 		}
+		if th.sel == selBar && th.selBg == nil {
+			t.Errorf("theme %q uses bar selection but has no selBg tint", th.name)
+		}
 		seen[th.name] = true
 	}
 }
@@ -119,28 +122,18 @@ func TestViewShowsActiveTheme(t *testing.T) {
 	}
 }
 
-func TestBoxedThemeFramesTheView(t *testing.T) {
-	// Fullscreen: the frame rows replace two rows of the view.
-	m := sized(Options{Theme: "frame"})
-	got := m.View().Content
-	if n := strings.Count(got, "\n") + 1; n != 30 {
-		t.Errorf("framed fullscreen view height = %d, want 30", n)
+func TestBarSelectionTintsTheWholeRow(t *testing.T) {
+	got := sized(Options{Theme: "tokyo"}).View().Content
+	if !strings.Contains(got, "▌") {
+		t.Errorf("bar-selected view does not use the bar marker:\n%s", got)
 	}
-	if n := strings.Count(got, "╭"); n != 1 {
-		t.Errorf("framed fullscreen view has %d top-left corners, want 1", n)
+	// The tint of the selected row arrives as a background color; the bar
+	// itself must not be the only highlight.
+	if !strings.Contains(got, "48;2;59;66;97") { // #3B4261
+		t.Errorf("bar-selected view does not paint the row with the theme tint:\n%q", got)
 	}
-
-	// Inline: the frame fits inside the area, it does not grow it.
-	m = sized(Options{Inline: true, Theme: "frame"}) // 25 rows of area
-	got = m.View().Content
-	if n := strings.Count(got, "\n") + 1; n != 25 {
-		t.Errorf("framed inline view height = %d, want 25", n)
-	}
-	if n := strings.Count(got, "╭"); n != 1 {
-		t.Errorf("framed inline view has %d top-left corners, want 1", n)
-	}
-	if n := strings.Count(sized(Options{}).View().Content, "╭"); n != 0 {
-		t.Errorf("unframed view has %d top-left corners, want 0", n)
+	if strings.Contains(sized(Options{}).View().Content, "▌") {
+		t.Error("the default theme uses the bar marker, want the arrow")
 	}
 }
 
@@ -157,16 +150,6 @@ func TestEveryThemeRenders(t *testing.T) {
 				t.Errorf("inline view of theme %q misses the task list:\n%s", th.name, inline)
 			}
 		})
-	}
-}
-
-func TestBarSelectionMarksTheRow(t *testing.T) {
-	got := sized(Options{Theme: "tokyo"}).View().Content
-	if !strings.Contains(got, "▌") {
-		t.Errorf("bar-selected view does not use the bar marker:\n%s", got)
-	}
-	if strings.Contains(sized(Options{}).View().Content, "▌") {
-		t.Error("the default theme uses the bar marker, want the arrow")
 	}
 }
 
@@ -197,7 +180,7 @@ func TestPreviewRendersAFrame(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Preview(&buf, Options{Theme: "frame"}, 80, 24); err != nil {
+	if err := Preview(&buf, Options{Theme: "tokyo"}, 80, 24); err != nil {
 		t.Fatalf("Preview: %v", err)
 	}
 
@@ -205,7 +188,7 @@ func TestPreviewRendersAFrame(t *testing.T) {
 	if n := strings.Count(got, "\n"); n != 24 {
 		t.Errorf("preview height = %d rows, want 24", n)
 	}
-	for _, want := range []string{"build", "╭"} {
+	for _, want := range []string{"build", "tokyo"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("preview does not contain %q:\n%s", want, got)
 		}

@@ -10,8 +10,8 @@ import (
 
 // theme is one named look of the picker: the palette plus the structural
 // choices the variants experiment with (how the row under the cursor stands
-// out, whether the whole view sits in a frame). Themes are pure data:
-// newStyles turns one into the styles a model renders with.
+// out). Themes are pure data: newStyles turns one into the styles a model
+// renders with.
 type theme struct {
 	name string
 	desc string
@@ -21,16 +21,19 @@ type theme struct {
 	// dim, ok and err colour secondary text, task success and task failure;
 	// a nil colour leaves the terminal's own foreground.
 	dim, ok, err color.Color
-	sel          selection
-	boxed        bool
+	// selBg is the background of the whole selected row in bar selection:
+	// a lighter surface tone, so the row still reads as selected without
+	// the saturated accent of the fill.
+	selBg color.Color
+	sel   selection
 }
 
 // selection is how the row under the cursor stands out.
 type selection int
 
 const (
-	selFill    selection = iota // full-row accent background
-	selBar                      // accent bar and name, no background
+	selFill    selection = iota // whole-row accent background, light text
+	selBar                      // accent bar and name over a selBg-tinted row
 	selReverse                  // terminal reverse video, no colors
 )
 
@@ -52,49 +55,43 @@ var themes = []theme{
 	},
 	{
 		name:   "nord",
-		desc:   "arctic blues and frost, filled selection",
+		desc:   "arctic blues and frost, bar selection on a tinted row",
 		accent: lipgloss.Color("#88C0D0"),
 		dim:    lipgloss.Color("#4C566A"),
 		ok:     lipgloss.Color("#A3BE8C"),
 		err:    lipgloss.Color("#BF616A"),
-		sel:    selFill,
+		selBg:  lipgloss.Color("#434C5E"),
+		sel:    selBar,
 	},
 	{
 		name:   "dracula",
-		desc:   "high-contrast plum, filled selection",
+		desc:   "high-contrast plum, bar selection on a tinted row",
 		accent: lipgloss.Color("#BD93F9"),
 		dim:    lipgloss.Color("#6272A4"),
 		ok:     lipgloss.Color("#50FA7B"),
 		err:    lipgloss.Color("#FF5555"),
-		sel:    selFill,
+		selBg:  lipgloss.Color("#44475A"),
+		sel:    selBar,
 	},
 	{
 		name:   "tokyo",
-		desc:   "night blues on ink, bar selection",
+		desc:   "night blues on ink, bar selection on a tinted row",
 		accent: lipgloss.Color("#7AA2F7"),
 		dim:    lipgloss.Color("#565F89"),
 		ok:     lipgloss.Color("#9ECE6A"),
 		err:    lipgloss.Color("#F7768E"),
+		selBg:  lipgloss.Color("#3B4261"),
 		sel:    selBar,
 	},
 	{
 		name:   "gruvbox",
-		desc:   "warm retro amber, bar selection",
+		desc:   "warm retro amber, bar selection on a tinted row",
 		accent: lipgloss.Color("#FABD2F"),
 		dim:    lipgloss.Color("#928374"),
 		ok:     lipgloss.Color("#B8BB26"),
 		err:    lipgloss.Color("#FB4934"),
+		selBg:  lipgloss.Color("#504945"),
 		sel:    selBar,
-	},
-	{
-		name:   "frame",
-		desc:   "the classic palette in a box, bar selection",
-		accent: lipgloss.Color("#7D56F4"),
-		dim:    lipgloss.Color("241"),
-		ok:     lipgloss.Color("2"),
-		err:    lipgloss.Color("1"),
-		sel:    selBar,
-		boxed:  true,
 	},
 	{
 		name: "mono",
@@ -140,16 +137,16 @@ type styles struct {
 	title        lipgloss.Style // the program name
 	filter       lipgloss.Style // the filter prompt and its cursor
 	selected     lipgloss.Style // a whole selected row (fill or reverse)
-	selectedName lipgloss.Style // the name on a bar-selected row
-	marker       lipgloss.Style // the cursor marker on a bar-selected row
+	selectedName lipgloss.Style // bar selection: the name on the tinted row
+	selectedDim  lipgloss.Style // bar selection: desc and badge on the tinted row
+	selectedPad  lipgloss.Style // bar selection: the padding between them
+	marker       lipgloss.Style // bar selection: the cursor marker
 	dim          lipgloss.Style
 	ok           lipgloss.Style
 	err          lipgloss.Style
-	frame        lipgloss.Style // the box around the view, when the theme has one
 
 	markerText string // marker on the selected row ("› " or "▌ ")
-	bar        bool   // selection is a bar and colored text, not a fill
-	boxed      bool   // draw frame around the whole view
+	bar        bool   // selection is a bar over a tinted row
 }
 
 // newStyles builds the styles for a theme. A nil color leaves the
@@ -179,8 +176,26 @@ func newStyles(t theme) styles {
 	case selBar:
 		s.bar = true
 		s.markerText = "▌ "
-		s.marker = accent.Bold(true)
-		s.selectedName = accent.Bold(true)
+
+		// Every segment of the tinted row carries the background itself:
+		// a nested style's reset would otherwise drop it before the pads.
+		onTint := func(fg color.Color, bold bool) lipgloss.Style {
+			st := lipgloss.NewStyle()
+			if t.selBg != nil {
+				st = st.Background(t.selBg)
+			}
+			if fg != nil {
+				st = st.Foreground(fg)
+			}
+			if bold {
+				st = st.Bold(true)
+			}
+			return st
+		}
+		s.marker = onTint(t.accent, true)
+		s.selectedName = onTint(t.accent, true)
+		s.selectedDim = onTint(t.dim, false)
+		s.selectedPad = onTint(nil, false)
 	case selReverse:
 		s.selected = lipgloss.NewStyle().Reverse(true)
 	default: // selFill
@@ -192,19 +207,6 @@ func newStyles(t theme) styles {
 		} else {
 			s.selected = lipgloss.NewStyle().Reverse(true)
 		}
-	}
-	if t.boxed {
-		s.boxed = true
-		border := t.accent
-		if border == nil {
-			border = t.dim
-		}
-		if border == nil {
-			border = lipgloss.Color("240")
-		}
-		s.frame = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(border)
 	}
 	return s
 }

@@ -44,6 +44,11 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `selBg` tint and its `selFg` light text (never the dim color, which can be
   nearly identical to the tint), because a nested style's reset would drop
   the background before the row padding.
+- Rows are laid out as name, command line (`Task.commandLine`), description
+  and source badge. The command column is capped at `nameWidth+12` (the
+  longest runner prefix is `cargo make `) and the description is the first to
+  shrink — it may be empty on narrow terminals — so room stays with the
+  command that will run.
 - The inline row math (`areaHeight`, `restoreCursor`) is pinned in
   `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests in sync with
   any layout change.

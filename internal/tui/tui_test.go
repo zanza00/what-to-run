@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // update feeds msg to m and returns the resulting concrete model.
@@ -64,6 +65,30 @@ func TestViewRendersTasks(t *testing.T) {
 	for _, want := range []string{"wtr", "build", "test", "clean", "type to filter", "4 tasks"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("View() content does not contain %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestViewShowsCommandLines(t *testing.T) {
+	got := sized(Options{}).View().Content
+	for _, want := range []string{"npm run build", "make build-all", "cargo make clean"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("View() does not show the command line %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestViewKeepsCommandOnNarrowTerminals(t *testing.T) {
+	// At 44 columns the description barely fits: the command must stay
+	// readable, since it is what will actually run.
+	m := update(newModel(Options{}, sampleTasks(), nil), tea.WindowSizeMsg{Width: 44, Height: 10})
+	got := m.View().Content
+	if !strings.Contains(got, "npm run build") {
+		t.Errorf("narrow View() dropped the command line:\n%s", got)
+	}
+	for _, line := range strings.Split(got, "\n") {
+		if w := lipgloss.Width(line); w > 44 {
+			t.Errorf("narrow View() line is %d columns wide, want at most 44: %q", w, line)
 		}
 	}
 }

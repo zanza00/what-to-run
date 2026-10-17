@@ -28,8 +28,10 @@ right below the prompt (see [shell integration](#shell-integration-zsh)).
 
 ## Status
 
-Task discovery and execution are implemented: the picker lists what it finds,
-filters as you type, and runs the selected task. In full screen it runs in
+Task discovery and execution are implemented: the picker lists what it finds —
+each row shows the task name, the command line that will run it (`npm run
+build`, `make build`, `cargo make clean`, …), its description and the source
+file — filters as you type, and runs the selected task. In full screen it runs in
 place and returns to the list; in inline mode it quits first and the task then
 runs at the prompt, propagating its exit code. `tab` inserts the chosen command
 in the prompt without running it, and an [`init zsh`](#shell-integration-zsh)

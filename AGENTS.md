@@ -14,9 +14,17 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   run it before committing. A single test:
   `go test -race ./internal/tui -run TestViewInlineHeight`.
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
-  `tasks.go` = discovery); `cmd/what-to-run` only parses flags and calls
-  `tui.Run`. Unknown `package.json` shapes etc. belong in `tasks.go` with
-  table-driven tests.
+  `tasks.go` = the Task model, `sources.go` = the discovery framework and the
+  source registry, `source_*.go` = one parser per source); `cmd/what-to-run`
+  only parses flags and calls `tui.Run`. Adding a source: a `source` literal and
+  its parser in a new `source_<name>.go`, one line in `defaultSources`, and
+  table-driven tests next to them. Unknown `package.json` shapes etc. belong in
+  the matching `source_*.go`.
+- The optional rc file (`config.go`; `.what-to-run.toml` in the project,
+  `$XDG_CONFIG_HOME/what-to-run/config.toml` globally) adds `[[tasks]]`,
+  overrides `package_manager` and disables sources; its problems are warnings
+  (status line), never fatal, like broken sources. Its tasks are assembled in
+  `discoverTasks` and shadow same-named source tasks.
 - The inline row math (`areaHeight`, `restoreCursor`) is pinned in
   `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests in sync with
   any layout change.

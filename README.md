@@ -27,8 +27,9 @@ right below the prompt (see [`scripts/ctrl-s.zsh`](scripts/ctrl-s.zsh)).
 Task discovery and execution are implemented: the picker lists what it finds,
 filters as you type, and runs the selected task. In full screen it runs in
 place and returns to the list; in inline mode it quits first and runs the task
-at the prompt, propagating its exit code. See [Roadmap](#roadmap) for what is
-still open.
+at the prompt, propagating its exit code. An optional [rc file](#rc-file) can
+add custom tasks, force a package manager, or disable sources. See
+[Roadmap](#roadmap) for what is still open.
 
 ## Getting started
 
@@ -81,6 +82,40 @@ A source that fails to parse is skipped and reported in the status line; the
 tasks from the other sources still show up. With no tasks at all, the picker
 exits with an error.
 
+### rc file
+
+Two optional TOML files extend what the picker finds:
+
+- `.what-to-run.toml` in the project directory (committed with the
+  project: settings that belong to everyone);
+- `$XDG_CONFIG_HOME/what-to-run/config.toml`, usually
+  `~/.config/what-to-run/config.toml` (your personal settings).
+
+The project file wins on `package_manager`, `disable` entries are merged, and
+its tasks shadow same-named global ones. A broken file is reported in the
+status line and skipped, like a broken task source.
+
+```toml
+# Force a package manager instead of detecting one.
+package_manager = "bun"
+
+# Skip a source, by any of the file names it looks for.
+disable = ["Cargo.toml"]
+
+# Custom tasks, shown above the discovered ones with the "rc" badge.
+# They run through the shell (sh -c), so pipes and && work.
+[[tasks]]
+name = "deploy"
+command = "scripts/deploy.sh --prod"
+description = "Deploy to production" # defaults to the command
+cwd = "ops"                          # optional, relative to the project
+
+# An rc task hides the discovered task with the same name.
+[[tasks]]
+name = "test"
+command = "go test -race ./..."
+```
+
 ### Running a task
 
 In **full screen**, `enter` runs the task in place: the picker hands the
@@ -124,6 +159,8 @@ and the previous shell contents are restored on quit.
 - [x] Present them in a navigable, filterable list
 - [x] Run the selected task and return to the list when it finishes
       (full screen; inline mode runs the task at the prompt instead)
+- [x] rc file (`.what-to-run.toml`, global `config.toml`): custom tasks,
+      package manager override, disabled sources
 - [ ] More sources: `justfile`, `Makefile.toml`
 - [ ] `ctrl+r` to refresh the list after editing a task file
 
@@ -159,6 +196,8 @@ scripts/ctrl-s.zsh`), and `WTR_BIN` overrides the binary path.
 ```
 cmd/what-to-run/   entry point (flag parsing only)
 internal/tui/tui.go       Bubble Tea model, views, and styles
-internal/tui/tasks.go     task discovery (package.json, Makefile, Cargo.toml)
+internal/tui/tasks.go     the Task model
+internal/tui/sources.go   discovery framework and the source registry
+internal/tui/source_*.go  one parser per source (package.json, Makefile, Cargo.toml)
 scripts/ctrl-s.zsh        local zsh harness for the inline mode
 ```

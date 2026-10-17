@@ -93,12 +93,14 @@ func Run(opts Options) error {
 		opts.Inline = false
 	}
 
-	tasks, warnings := discoverTasks(".")
+	cfg, warnings := loadConfig(defaultConfigFiles("."))
+	tasks, discoveryWarnings := discoverTasks(".", cfg)
+	warnings = append(warnings, discoveryWarnings...)
 	if len(tasks) == 0 {
 		if len(warnings) > 0 {
 			return fmt.Errorf("no tasks found: %w", errors.Join(warnings...))
 		}
-		return errors.New("no tasks found: no package.json scripts, Makefile targets or cargo-make tasks")
+		return errors.New("no tasks found: no package.json scripts, Makefile targets, cargo-make tasks or rc file tasks")
 	}
 
 	final, err := tea.NewProgram(newModel(opts, tasks, warnings)).Run()

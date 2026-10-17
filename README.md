@@ -159,6 +159,8 @@ scripts/ctrl-s.zsh`), and `WTR_BIN` overrides the binary path.
 ```
 cmd/what-to-run/   entry point (flag parsing only)
 internal/tui/tui.go       Bubble Tea model, views, and styles
-internal/tui/tasks.go     task discovery (package.json, Makefile, Cargo.toml)
+internal/tui/tasks.go     the Task model
+internal/tui/sources.go   discovery framework and the source registry
+internal/tui/source_*.go  one parser per source (package.json, Makefile, Cargo.toml)
 scripts/ctrl-s.zsh        local zsh harness for the inline mode
 ```

@@ -70,10 +70,10 @@ func TestDiscoverPackageScripts(t *testing.T) {
 				writeFile(t, dir, lock, "")
 			}
 
-			got, err := discoverPackageScripts(dir)
+			got, err := discoverSource(packageJSONSource(), dir)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatal("discoverPackageScripts() succeeded, want error")
+					t.Fatal("discoverSource() succeeded, want error")
 				}
 				if !strings.Contains(err.Error(), "package.json") {
 					t.Errorf("error = %q, want it to mention package.json", err)
@@ -81,19 +81,19 @@ func TestDiscoverPackageScripts(t *testing.T) {
 				return
 			}
 			if err != nil {
-				t.Fatalf("discoverPackageScripts() error = %v", err)
+				t.Fatalf("discoverSource() error = %v", err)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("discoverPackageScripts() = %+v, want %+v", got, tt.want)
+				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
 }
 
 func TestDiscoverPackageScriptsMissingFile(t *testing.T) {
-	got, err := discoverPackageScripts(t.TempDir())
+	got, err := discoverSource(packageJSONSource(), t.TempDir())
 	if err != nil || got != nil {
-		t.Errorf("discoverPackageScripts() on an empty dir = %v, %v; want nil, nil", got, err)
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}
 }
 
@@ -122,31 +122,31 @@ run: build
 
 func TestParseMakeTargets(t *testing.T) {
 	want := []Task{
-		{Source: "Makefile", Name: "build", Desc: "Build the application", Args: []string{"make", "build"}},
-		{Source: "Makefile", Name: "test", Desc: "Run the tests", Args: []string{"make", "test"}},
-		{Source: "Makefile", Name: "clean", Desc: "", Args: []string{"make", "clean"}},
-		{Source: "Makefile", Name: "run", Desc: "A comment describing run", Args: []string{"make", "run"}},
+		{Name: "build", Desc: "Build the application", Args: []string{"make", "build"}},
+		{Name: "test", Desc: "Run the tests", Args: []string{"make", "test"}},
+		{Name: "clean", Desc: "", Args: []string{"make", "clean"}},
+		{Name: "run", Desc: "A comment describing run", Args: []string{"make", "run"}},
 	}
 
-	got := parseMakeTargets([]byte(makefileFixture), "Makefile")
+	got := parseMakeTargets([]byte(makefileFixture))
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parseMakeTargets() = %+v, want %+v", got, want)
 	}
 }
 
 func TestParseMakeTargetsDeduplicates(t *testing.T) {
-	got := parseMakeTargets([]byte("build:\n\techo one\n\nbuild:\n\techo two\n"), "Makefile")
+	got := parseMakeTargets([]byte("build:\n\techo one\n\nbuild:\n\techo two\n"))
 	if len(got) != 1 || got[0].Name != "build" {
 		t.Errorf("parseMakeTargets() = %+v, want a single build task", got)
 	}
 }
 
-// TestDiscoverMakeTargetsOfThisRepo runs the parser over the project's own
+// TestDiscoverMakeTargetsOfThisRepo runs the source over the project's own
 // Makefile, where the "## name: description" convention is already in use.
 func TestDiscoverMakeTargetsOfThisRepo(t *testing.T) {
-	tasks, err := discoverMakeTargets("../..")
+	tasks, err := discoverSource(makeSource(), "../..")
 	if err != nil {
-		t.Fatalf("discoverMakeTargets() error = %v", err)
+		t.Fatalf("discoverSource() error = %v", err)
 	}
 
 	byName := map[string]Task{}
@@ -158,11 +158,30 @@ func TestDiscoverMakeTargetsOfThisRepo(t *testing.T) {
 			t.Errorf("task %q not found in this repo's Makefile, got %v", name, tasks)
 		}
 	}
+	if got := byName["build"].Source; got != "Makefile" {
+		t.Errorf("build source = %q, want %q", got, "Makefile")
+	}
 	if got := byName["build"].Desc; got != "Build the application" {
 		t.Errorf("build description = %q, want %q", got, "Build the application")
 	}
 	if got := byName["build"].Args; !reflect.DeepEqual(got, []string{"make", "build"}) {
 		t.Errorf("build args = %v, want [make build]", got)
+	}
+}
+
+// TestDiscoverSourceFirstFileWins pins the candidate-file preference: the
+// first name in source.Files that exists is the one parsed and shown.
+func TestDiscoverSourceFirstFileWins(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "makefile", "from-lower:\n\ttrue\n")
+	writeFile(t, dir, "Makefile", "from-upper:\n\ttrue\n")
+
+	tasks, err := discoverSource(makeSource(), dir)
+	if err != nil {
+		t.Fatalf("discoverSource() error = %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].Name != "from-lower" || tasks[0].Source != "makefile" {
+		t.Errorf("discoverSource() = %+v, want the makefile task with the makefile badge", tasks)
 	}
 }
 
@@ -181,16 +200,16 @@ command = "cargo"
 args = ["build", "--release"]
 `)
 
-	got, err := discoverCargoMakeTasks(dir)
+	got, err := discoverSource(cargoMakeSource(), dir)
 	if err != nil {
-		t.Fatalf("discoverCargoMakeTasks() error = %v", err)
+		t.Fatalf("discoverSource() error = %v", err)
 	}
 	want := []Task{
 		{Source: "Cargo.toml", Name: "build", Desc: "cargo build --release", Args: []string{"cargo", "make", "build"}},
 		{Source: "Cargo.toml", Name: "format", Desc: "Run rustfmt", Args: []string{"cargo", "make", "format"}},
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("discoverCargoMakeTasks() = %+v, want %+v", got, want)
+		t.Errorf("discoverSource() = %+v, want %+v", got, want)
 	}
 }
 
@@ -198,9 +217,9 @@ func TestDiscoverCargoMakeTasksBrokenToml(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Cargo.toml", "[tasks\n")
 
-	_, err := discoverCargoMakeTasks(dir)
+	_, err := discoverSource(cargoMakeSource(), dir)
 	if err == nil || !strings.Contains(err.Error(), "Cargo.toml") {
-		t.Errorf("discoverCargoMakeTasks() error = %v, want a Cargo.toml parse error", err)
+		t.Errorf("discoverSource() error = %v, want a Cargo.toml parse error", err)
 	}
 }
 

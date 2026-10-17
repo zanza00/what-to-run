@@ -184,7 +184,7 @@ and the previous shell contents are restored on quit.
 ```sh
 make test    # run tests with the race detector and coverage
 make build   # build the binary into bin/
-make try     # build + open a clean zsh with the Ctrl-S widget bound
+make bind    # build + print the source line: eval "$(make bind)"
 make run     # go run, without building a binary
 make fmt     # gofmt and go vet
 make lint    # golangci-lint (requires golangci-lint installed)
@@ -198,14 +198,16 @@ plus the Ctrl-S harness), and check the row math in
 ### Trying the inline UI from the shell
 
 ```sh
-make try                     # build + a clean interactive zsh with Ctrl-S bound
+eval "$(make bind)"        # build + bind Ctrl-S in the current shell
 ```
 
-or, in your own shell:
+The widget runs `bin/what-to-run` on every invocation, so the binding
+survives a rebuild: after editing Go code, `make build` is enough. The
+`wtr-refresh` function (defined by the script) rebuilds and rebinds in one
+command, for changes to the script itself:
 
 ```sh
-make build
-source scripts/ctrl-s.zsh   # binds Ctrl-S to bin/what-to-run --inline
+wtr-refresh
 ```
 
 Ctrl-S then opens the UI just below the prompt. The script disables `stty ixon`

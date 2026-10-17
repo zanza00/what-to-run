@@ -3,7 +3,7 @@ BINARY_NAME := what-to-run
 GO := go
 CMD := ./cmd/what-to-run
 
-.PHONY: all build run test fmt lint tidy clean try help
+.PHONY: all build run test fmt lint tidy clean bind help
 
 all: fmt test build
 
@@ -12,13 +12,10 @@ build:
 	@echo "Building $(BINARY_NAME)..."
 	$(GO) build -o bin/$(BINARY_NAME) $(CMD)
 
-## try: Build and open a clean interactive zsh with the Ctrl-S widget bound
-try: build
-	@dir=$$(mktemp -d); \
-	printf 'source %s/scripts/ctrl-s.zsh\n' '$(CURDIR)' > $$dir/.zshrc; \
-	echo "try: Ctrl-S opens the picker, exit (or ctrl+d) leaves the test shell"; \
-	ZDOTDIR=$$dir zsh -i; \
-	status=$$?; rm -rf $$dir; exit $$status
+## bind: Build and print the source command for the calling shell (eval "$(make bind)")
+bind:
+	@$(MAKE) --no-print-directory build 1>&2
+	@echo "source $(CURDIR)/scripts/ctrl-s.zsh"
 
 ## run: Run the application without building a binary
 run:

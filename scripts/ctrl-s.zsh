@@ -20,17 +20,27 @@
 # Extra flags for the widget, e.g. to see the managed area border:
 #   WTR_FLAGS=--debug-area source scripts/ctrl-s.zsh
 #
+# The binding survives a rebuild: the widget runs bin/what-to-run every
+# time, so after editing Go code `make build` is enough. The wtr-refresh
+# function rebuilds and rebinds in one go, for script or Makefile changes.
+#
 # NOTE: Ctrl-S is the XOFF flow-control character, so the harness disables
 # IXON for the session (otherwise the terminal freezes instead of delivering
 # the key to zle). Run `stty ixon` to restore the default behaviour.
 
-typeset -g WTR_BIN="${WTR_BIN:-${${(%):-%x}:A:h:h}/bin/what-to-run}"
+typeset -g STR_SCRIPT="${${(%):-%x}:A}"
+typeset -g WTR_BIN="${WTR_BIN:-${STR_SCRIPT:h:h}/bin/what-to-run}"
 typeset -g WTR_FLAGS="${WTR_FLAGS:-}"
 
 if [[ ! -x $WTR_BIN ]]; then
   print -u2 "ctrl-s.zsh: $WTR_BIN not found or not executable — run 'make build' first"
   return 1
 fi
+
+# wtr-refresh: rebuild the binary and re-source this script.
+wtr-refresh() {
+  make -C "$STR_SCRIPT:h:h" build && source "$STR_SCRIPT"
+}
 
 stty -ixon 2>/dev/null
 

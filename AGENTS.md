@@ -56,5 +56,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `scripts/ctrl-s.zsh` redirects `< /dev/tty` and disables `stty -ixon` because
   Ctrl-S is the XOFF flow-control character.
 - No PTY tests: verify inline behavior end-to-end in tmux (zsh + the Ctrl-S
-  harness); `make try` builds and opens a clean interactive zsh with the widget
-  bound, `--debug-area` draws a border around the managed area.
+  harness); `eval "$(make bind)"` builds and binds the widget in the current
+  shell, and the `wtr-refresh` function from the script rebuilds and rebinds —
+  plain `make build` is enough for Go-only changes, since the widget runs
+  `bin/what-to-run` on every invocation. `--debug-area` draws a border
+  around the managed area.

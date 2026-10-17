@@ -83,14 +83,35 @@ type Options struct {
 // the terminal is handed over to the task (tea.ExecProcess) and taken back
 // afterwards, with the outcome shown in the status line.
 //
-// In inline mode the picker only chooses: the UI leaves the screen first and
-// the task then runs at the prompt like a hand-typed command, so its output
-// lands in the normal shell scrollback. The task's exit code becomes the exit
-// code of what-to-run. This is the mode used by scripts/ctrl-s.zsh.
+// In inline mode the picker only chooses. A shell widget (see
+// scripts/ctrl-s.zsh) runs it with stdout captured, so Bubble Tea renders on
+// the terminal itself and the result is reported on stdout as two lines: the
+// mode ("run" after enter, "insert" after tab) and the command line. The
+// widget then executes the command or places it in the prompt, so the
+// command is visible and lands in the shell history. When stdout is the
+// terminal (no widget), enter runs the task here at the prompt like a
+// hand-typed command, propagating its exit code, and tab prints the command
+// line, as there is no prompt to insert it into.
 func Run(opts Options) error {
 	if opts.Inline && !inlineInputAvailable() {
 		fmt.Fprintln(os.Stderr, "what-to-run: --inline requires an interactive terminal, running fullscreen")
 		opts.Inline = false
+	}
+
+	// A widget captures stdout to receive the result; the UI then renders on
+	// the terminal itself, like fzf does inside shell integrations.
+	var progOpts []tea.ProgramOption
+	out := io.Writer(os.Stdout)
+	if opts.Inline && !term.IsTerminal(os.Stdout.Fd()) {
+		in, ttyOut, err := tea.OpenTTY()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "what-to-run: cannot open the terminal, running fullscreen")
+			opts.Inline = false
+		} else {
+			defer func() { _ = in.Close(); _ = ttyOut.Close() }()
+			progOpts = []tea.ProgramOption{tea.WithInput(in), tea.WithOutput(ttyOut)}
+			out = ttyOut
+		}
 	}
 
 	cfg, warnings := loadConfig(defaultConfigFiles("."))
@@ -103,24 +124,50 @@ func Run(opts Options) error {
 		return errors.New("no tasks found: no package.json scripts, Makefile targets, cargo-make tasks or rc file tasks")
 	}
 
-	final, err := tea.NewProgram(newModel(opts, tasks, warnings)).Run()
-	if opts.Inline && term.IsTerminal(os.Stdout.Fd()) {
+	final, err := tea.NewProgram(newModel(opts, tasks, warnings), progOpts...).Run()
+	if opts.Inline {
 		if m, ok := final.(model); ok {
-			restoreCursor(os.Stdout, m)
+			restoreCursor(out, m)
 		}
 	}
 	if err != nil {
 		return fmt.Errorf("run tui: %w", err)
 	}
 
-	if m, ok := final.(model); ok && m.chosen != nil {
-		cmd := m.chosen.command()
-		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("task %s: %w", m.chosen.Name, err)
-		}
+	m, ok := final.(model)
+	if !ok || m.chosen == nil {
+		return nil
+	}
+
+	if opts.Inline && out != io.Writer(os.Stdout) {
+		// Widget mode: the shell runs the command (enter) or inserts it in
+		// the prompt (tab).
+		reportChoice(os.Stdout, *m.chosen, m.chosenInsert)
+		return nil
+	}
+
+	if m.chosenInsert {
+		// No widget to insert into: print the command line.
+		fmt.Println(m.chosen.commandLine())
+		return nil
+	}
+
+	cmd := m.chosen.command()
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("task %s: %w", m.chosen.Name, err)
 	}
 	return nil
+}
+
+// reportChoice writes the picker result for the calling shell widget: the
+// mode line ("run" or "insert") followed by the command line.
+func reportChoice(w io.Writer, t Task, insert bool) {
+	mode := "run"
+	if insert {
+		mode = "insert"
+	}
+	fmt.Fprintf(w, "%s\n%s\n", mode, t.commandLine())
 }
 
 // inlineInputAvailable reports whether Bubble Tea will be able to read input
@@ -181,7 +228,11 @@ type model struct {
 
 	status  string    // outcome of the last in-place run, shown in the help line
 	started time.Time // when the current in-place run started
-	chosen  *Task     // task to run after the picker quits (inline mode only)
+	chosen  *Task     // task chosen in inline mode, to run or insert after quitting
+
+	// chosenInsert reports that chosen was picked with tab: the command goes
+	// to the shell prompt instead of being executed.
+	chosenInsert bool
 }
 
 func newModel(opts Options, tasks []Task, warnings []error) model {
@@ -243,6 +294,14 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m.run()
 
+	case "tab":
+		// Inline only: put the command in the shell prompt without running it.
+		// There is no prompt to fill in fullscreen mode, so tab does nothing.
+		if m.opts.Inline {
+			return m.pick(true)
+		}
+		return m, nil
+
 	case "up", "ctrl+k", "ctrl+p":
 		m.cursor--
 
@@ -291,10 +350,9 @@ func (m model) run() (tea.Model, tea.Cmd) {
 	t := vis[m.cursor]
 
 	if m.opts.Inline {
-		// The picker is only a launcher here: it quits and Run executes the
-		// task at the prompt, after the UI has left the screen.
-		m.chosen = &t
-		return m, tea.Quit
+		// The picker is only a launcher here: it quits and the shell (or Run,
+		// when there is no widget) deals with the task afterwards.
+		return m.pick(false)
 	}
 
 	m.status = dimStyle.Render("running " + t.Name + "…")
@@ -302,6 +360,20 @@ func (m model) run() (tea.Model, tea.Cmd) {
 	return m, tea.ExecProcess(t.command(), func(err error) tea.Msg {
 		return taskDoneMsg{task: t, err: err}
 	})
+}
+
+// pick marks the task under the cursor as the picker's result and quits.
+// insert selects the tab behaviour: the command goes to the prompt instead
+// of being executed.
+func (m model) pick(insert bool) (tea.Model, tea.Cmd) {
+	vis := m.visible()
+	if len(vis) == 0 {
+		return m, nil
+	}
+	t := vis[m.cursor]
+	m.chosen = &t
+	m.chosenInsert = insert
+	return m, tea.Quit
 }
 
 // visible returns the tasks matching the current filter, in display order.
@@ -542,6 +614,9 @@ func (m model) helpLine() string {
 	if m.filter != "" {
 		count = fmt.Sprintf("%d/%d tasks", len(m.visible()), len(m.tasks))
 		keys = "↑/↓ select · enter run · esc clear filter"
+	}
+	if m.opts.Inline {
+		keys = strings.Replace(keys, "enter run", "enter run · tab to prompt", 1)
 	}
 	return dimStyle.Render(count + "   " + keys)
 }

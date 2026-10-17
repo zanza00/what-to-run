@@ -357,3 +357,26 @@ func TestTaskCommand(t *testing.T) {
 		t.Errorf("command().Dir = %q, want %q", got, "ops")
 	}
 }
+
+func TestCommandLine(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"plain words pass through", []string{"make", "test"}, "make test"},
+		{"path and flag characters pass through", []string{"./bin/tool", "--flag=x,y"}, "./bin/tool --flag=x,y"},
+		{"argument with spaces is quoted", []string{"echo", "a b"}, "echo 'a b'"},
+		{"single quotes are escaped", []string{"echo", "it's"}, `echo 'it'\''s'`},
+		{"empty argument", []string{"cmd", ""}, "cmd ''"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := Task{Source: "rc", Name: "t", Args: tt.args}
+			if got := task.commandLine(); got != tt.want {
+				t.Errorf("commandLine() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

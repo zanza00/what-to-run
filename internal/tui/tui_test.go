@@ -47,6 +47,7 @@ func sized(opts Options) model {
 
 var (
 	enterKey  = tea.KeyPressMsg{Code: tea.KeyEnter}
+	tabKey    = tea.KeyPressMsg{Code: tea.KeyTab}
 	escKey    = tea.KeyPressMsg{Code: tea.KeyEscape}
 	ctrlCKey  = tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	ctrlUKey  = tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}
@@ -359,5 +360,80 @@ func TestEnterWithoutMatchesDoesNothing(t *testing.T) {
 	m := press(sized(Options{}), "zzz")
 	if _, cmd := m.Update(enterKey); cmd != nil {
 		t.Errorf("enter with no matches returned %T, want no command", cmd)
+	}
+}
+
+func TestTabChoosesInsertInline(t *testing.T) {
+	next, cmd := sized(Options{Inline: true}).Update(tabKey)
+	if cmd == nil {
+		t.Fatal("inline tab returned no command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Errorf("inline tab command returned %T, want tea.QuitMsg", cmd())
+	}
+
+	m := next.(model)
+	if m.chosen == nil || m.chosen.Name != "build" {
+		t.Fatalf("chosen task = %+v, want build", m.chosen)
+	}
+	if !m.chosenInsert {
+		t.Error("chosenInsert after tab = false, want true")
+	}
+	if got, want := m.chosen.commandLine(), "npm run build"; got != want {
+		t.Errorf("chosen command line = %q, want %q", got, want)
+	}
+}
+
+func TestTabIgnoredFullscreen(t *testing.T) {
+	next, cmd := sized(Options{}).Update(tabKey)
+	if cmd != nil {
+		t.Errorf("fullscreen tab returned %T, want no command", cmd)
+	}
+	if m := next.(model); m.chosen != nil {
+		t.Errorf("fullscreen tab chose %+v, want nothing", m.chosen)
+	}
+}
+
+func TestTabWithoutMatchesDoesNothing(t *testing.T) {
+	m := press(sized(Options{Inline: true}), "zzz")
+	if _, cmd := m.Update(tabKey); cmd != nil {
+		t.Errorf("tab with no matches returned %T, want no command", cmd)
+	}
+}
+
+func TestEnterChosenIsRunInline(t *testing.T) {
+	next, _ := sized(Options{Inline: true}).Update(enterKey)
+	if m := next.(model); m.chosenInsert {
+		t.Error("chosenInsert after enter = true, want false")
+	}
+}
+
+func TestReportChoice(t *testing.T) {
+	tests := []struct {
+		name   string
+		insert bool
+		want   string
+	}{
+		{"run", false, "run\nnpm run build\n"},
+		{"insert", true, "insert\nnpm run build\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			reportChoice(&buf, sampleTasks()[0], tt.insert)
+			if got := buf.String(); got != tt.want {
+				t.Errorf("reportChoice wrote %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestViewInlineHelpMentionsTab(t *testing.T) {
+	if got := sized(Options{Inline: true}).View().Content; !strings.Contains(got, "tab to prompt") {
+		t.Errorf("inline help line does not mention tab:\n%s", got)
+	}
+	if got := sized(Options{}).View().Content; strings.Contains(got, "tab to prompt") {
+		t.Errorf("fullscreen help line mentions tab:\n%s", got)
 	}
 }

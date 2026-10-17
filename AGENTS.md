@@ -4,7 +4,9 @@ TUI in Go (Bubble Tea v2 + Lip Gloss v2) to run the scripts declared in a
 project's `package.json`, `Makefile`, or `Cargo.toml` (cargo-make). Discovery
 and execution are implemented: a filterable list runs the selected task, in
 place in fullscreen (tea.ExecProcess) or at the prompt after quitting with
-`--inline` (the Ctrl-S widget flow), propagating the task's exit code.
+`--inline` (the Ctrl-S widget flow), propagating the task's exit code. In
+inline mode `tab` instead places the command line in the shell prompt without
+running it.
 
 ## Go development
 
@@ -31,8 +33,13 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 - Do not run tasks in place with `tea.ExecProcess` from the inline picker: the
   renderer cannot reposition the frame after the child scrolls the screen
   (verified in tmux: the child output gets erased and dead frame rows remain).
-  That is why the inline picker quits and `Run` executes the task after
-  `restoreCursor`.
+  That is why the inline picker quits and the task runs afterwards.
+- The inline widget protocol (fzf-style): `scripts/ctrl-s.zsh` captures
+  stdout, the picker renders on the terminal via `tea.OpenTTY`/`tea.WithOutput`
+  and reports its result on stdout (`run`/`insert` line + the command line from
+  `Task.commandLine`); the widget fills the zle buffer and accepts the line.
+  With stdout on the terminal (no widget) `Run` executes the task itself after
+  `restoreCursor`, and `tab` just prints the command line.
 - `.agents/skills/` is committed on purpose (see `skills-lock.json`);
   `bubbletea-tfe` is a manual rename of `ggprompts/tfe` to avoid an id collision
   with `bubbletea` — don't reinstall it unrenamed.
@@ -49,4 +56,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `scripts/ctrl-s.zsh` redirects `< /dev/tty` and disables `stty -ixon` because
   Ctrl-S is the XOFF flow-control character.
 - No PTY tests: verify inline behavior end-to-end in tmux (zsh + the Ctrl-S
-  harness); `--debug-area` draws a border around the managed area.
+  harness); `eval "$(make bind)"` builds and binds the widget in the current
+  shell, and the `wtr-refresh` function from the script rebuilds and rebinds —
+  plain `make build` is enough for Go-only changes, since the widget runs
+  `bin/what-to-run` on every invocation. `--debug-area` draws a border
+  around the managed area.

@@ -26,8 +26,9 @@ right below the prompt (see [`scripts/ctrl-s.zsh`](scripts/ctrl-s.zsh)).
 
 Task discovery and execution are implemented: the picker lists what it finds,
 filters as you type, and runs the selected task. In full screen it runs in
-place and returns to the list; in inline mode it quits first and runs the task
-at the prompt, propagating its exit code. An optional [rc file](#rc-file) can
+place and returns to the list; in inline mode it quits first and the task then
+runs at the prompt, propagating its exit code. `tab` inserts the chosen command
+in the prompt without running it. An optional [rc file](#rc-file) can
 add custom tasks, force a package manager, or disable sources. See
 [Roadmap](#roadmap) for what is still open.
 
@@ -62,6 +63,7 @@ go run ./cmd/what-to-run
 | `↑`/`↓`, `ctrl+p`/`ctrl+n` | move the selection |
 | `pgup`/`pgdown`, `home`/`end` | jump in the list |
 | `enter` | run the selected task |
+| `tab` | inline only: place the command in the shell prompt without running it |
 | `esc` | clear the filter, or quit when the filter is empty |
 | `ctrl+u` | clear the filter |
 | `ctrl+c` | quit |
@@ -131,6 +133,17 @@ what-to-run. This is also the only way it can work: the inline renderer
 cannot reposition its frame after another process scrolls the screen, so the
 task must run after the picker has left it.
 
+`tab` does the same up to the point of running: the chosen command line is
+placed in the shell prompt, ready to be edited or deleted. Both keys go through
+the shell when the picker is launched by a widget (see
+[`scripts/ctrl-s.zsh`](scripts/ctrl-s.zsh)): the widget captures stdout, the
+picker renders on the terminal itself and reports its result on stdout (a mode
+line, `run` or `insert`, then the command line), and the widget fills the zle
+buffer and accepts the line — so the command is visible at the prompt and lands
+in the shell history, and `enter` executes it as if it had been typed. Without
+a widget (stdout is the terminal), `enter` executes the task directly and `tab`
+prints the command line.
+
 ### Inline mode
 
 Start the binary with `--inline` from a shell widget and the UI fills only the
@@ -159,6 +172,8 @@ and the previous shell contents are restored on quit.
 - [x] Present them in a navigable, filterable list
 - [x] Run the selected task and return to the list when it finishes
       (full screen; inline mode runs the task at the prompt instead)
+- [x] `tab` in inline mode: place the command in the shell prompt without
+      running it (zsh widget flow)
 - [x] rc file (`.what-to-run.toml`, global `config.toml`): custom tasks,
       package manager override, disabled sources
 - [ ] More sources: `justfile`, `Makefile.toml`
@@ -169,6 +184,7 @@ and the previous shell contents are restored on quit.
 ```sh
 make test    # run tests with the race detector and coverage
 make build   # build the binary into bin/
+make bind    # build + print the source line: eval "$(make bind)"
 make run     # go run, without building a binary
 make fmt     # gofmt and go vet
 make lint    # golangci-lint (requires golangci-lint installed)
@@ -182,8 +198,16 @@ plus the Ctrl-S harness), and check the row math in
 ### Trying the inline UI from the shell
 
 ```sh
-make build
-source scripts/ctrl-s.zsh   # binds Ctrl-S to bin/what-to-run --inline
+eval "$(make bind)"        # build + bind Ctrl-S in the current shell
+```
+
+The widget runs `bin/what-to-run` on every invocation, so the binding
+survives a rebuild: after editing Go code, `make build` is enough. The
+`wtr-refresh` function (defined by the script) rebuilds and rebinds in one
+command, for changes to the script itself:
+
+```sh
+wtr-refresh
 ```
 
 Ctrl-S then opens the UI just below the prompt. The script disables `stty ixon`

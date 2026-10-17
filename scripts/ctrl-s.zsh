@@ -10,16 +10,26 @@
 # right below the prompt, filling the space down to the bottom of the screen
 # (same idea as television's --inline). q, esc or ctrl+c close it.
 #
+# enter writes the chosen command at the prompt and runs it (it lands in the
+# shell history like a typed command); tab only places it in the prompt, ready
+# to be edited. The picker reports the choice on stdout (captured below) and
+# renders on the terminal itself.
+#
 # Override the binary path with:
 #   WTR_BIN=/path/to/binary source scripts/ctrl-s.zsh
 # Extra flags for the widget, e.g. to see the managed area border:
 #   WTR_FLAGS=--debug-area source scripts/ctrl-s.zsh
 #
+# The binding survives a rebuild: the widget runs bin/what-to-run every
+# time, so after editing Go code `make build` is enough. The wtr-refresh
+# function rebuilds and rebinds in one go, for script or Makefile changes.
+#
 # NOTE: Ctrl-S is the XOFF flow-control character, so the harness disables
 # IXON for the session (otherwise the terminal freezes instead of delivering
 # the key to zle). Run `stty ixon` to restore the default behaviour.
 
-typeset -g WTR_BIN="${WTR_BIN:-${${(%):-%x}:A:h:h}/bin/what-to-run}"
+typeset -g STR_SCRIPT="${${(%):-%x}:A}"
+typeset -g WTR_BIN="${WTR_BIN:-${STR_SCRIPT:h:h}/bin/what-to-run}"
 typeset -g WTR_FLAGS="${WTR_FLAGS:-}"
 
 if [[ ! -x $WTR_BIN ]]; then
@@ -27,13 +37,36 @@ if [[ ! -x $WTR_BIN ]]; then
   return 1
 fi
 
+# wtr-refresh: rebuild the binary and re-source this script.
+wtr-refresh() {
+  make -C "$STR_SCRIPT:h:h" build && source "$STR_SCRIPT"
+}
+
 stty -ixon 2>/dev/null
 
 _what_to_run_widget() {
   zle -I
   # zle runs commands with stdin not connected to the terminal; use /dev/tty
-  # explicitly (same as television's shell integration).
-  "$WTR_BIN" --inline ${=WTR_FLAGS} < /dev/tty
+  # explicitly (same as television's shell integration). stdout is captured:
+  # the picker renders on the terminal and prints its result here — a mode
+  # line ("run" or "insert") followed by the command line.
+  local out
+  out=$("$WTR_BIN" --inline ${=WTR_FLAGS} < /dev/tty)
+
+  local -a lines
+  lines=("${(@f)out}")
+  if (( ${#lines} >= 2 )); then
+    case ${lines[1]} in
+      run)
+        BUFFER=${lines[2]}
+        zle accept-line
+        return
+        ;;
+      insert)
+        LBUFFER+=${lines[2]}
+        ;;
+    esac
+  fi
   zle reset-prompt
 }
 

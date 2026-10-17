@@ -18,7 +18,7 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
   `tasks.go` = the Task model, `sources.go` = the discovery framework and the
   source registry, `source_*.go` = one parser per source, `zshinit.go` = the
-  zsh widget printed by `init zsh`); `cmd/what-to-run` only parses
+  zsh widget printed by `init zsh`); `cmd/wtr` only parses
   flags/subcommands and calls `tui.Run` / `tui.ZshInit`. Adding a source: a
   `source` literal and its parser in a new `source_<name>.go`, one line in
   `defaultSources`, and table-driven tests next to them. Unknown `package.json`
@@ -60,6 +60,6 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   character.
 - No PTY tests: verify inline behavior end-to-end in tmux (zsh + the widget
   from `eval "$(make bind)"`, with `KEY=ctrl-g` to bind another combo); the
-  widget runs `bin/what-to-run` on every invocation, so plain
+  widget runs `bin/wtr` on every invocation, so plain
   `make build` is enough for Go-only changes. `--debug-area` draws a border
   around the managed area.

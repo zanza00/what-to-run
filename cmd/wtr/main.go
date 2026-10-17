@@ -1,5 +1,5 @@
-// Command what-to-run is a TUI for running the scripts declared in a
-// project's package.json, Makefile, or Cargo.toml (cargo-make).
+// Command wtr is a TUI for running the scripts declared in a project's
+// package.json, Makefile, or Cargo.toml (cargo-make).
 package main
 
 import (
@@ -15,7 +15,7 @@ func main() {
 	// A subcommand comes first; everything else is the picker's own flags.
 	if len(os.Args) > 1 && os.Args[1] == "init" {
 		if err := runInit(os.Args[2:]); err != nil {
-			fmt.Fprintf(os.Stderr, "what-to-run: %v\n", err)
+			fmt.Fprintf(os.Stderr, "wtr: %v\n", err)
 			os.Exit(1)
 		}
 		return
@@ -24,12 +24,12 @@ func main() {
 	inline := flag.Bool("inline", false,
 		"render between the current line and the bottom of the screen instead\n"+
 			"of taking over the whole screen (for shell widgets that launch the\n"+
-			"binary right below the prompt, see 'what-to-run init zsh')")
+			"binary right below the prompt, see 'wtr init zsh')")
 	debugArea := flag.Bool("debug-area", false,
 		"draw a border around the area managed in inline mode (development aid)")
 	flag.Usage = func() {
-		fmt.Fprint(flag.CommandLine.Output(), "usage: what-to-run [flags]\n"+
-			"       what-to-run init zsh [--key combo]\n\nFlags:\n")
+		fmt.Fprint(flag.CommandLine.Output(), "usage: wtr [flags]\n"+
+			"       wtr init zsh [--key combo]\n\nFlags:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -50,24 +50,24 @@ func main() {
 		os.Exit(code)
 	}
 
-	fmt.Fprintf(os.Stderr, "what-to-run: %v\n", err)
+	fmt.Fprintf(os.Stderr, "wtr: %v\n", err)
 	os.Exit(1)
 }
 
-// runInit implements the init subcommand, `what-to-run init zsh
-// [--key combo]`: it prints to stdout the zsh integration for the running
-// binary, ready to be evaluated by an interactive shell:
+// runInit implements the init subcommand, `wtr init zsh [--key combo]`: it
+// prints to stdout the zsh integration for the running binary, ready to be
+// evaluated by an interactive shell:
 //
-//	eval "$(what-to-run init zsh --key ctrl-s)"
+//	eval "$(wtr init zsh --key ctrl-s)"
 func runInit(args []string) error {
-	fs := flag.NewFlagSet("what-to-run init", flag.ExitOnError)
+	fs := flag.NewFlagSet("wtr init", flag.ExitOnError)
 	key := fs.String("key", tui.DefaultKey,
 		"combo that opens the picker: a name like ctrl-s or alt-x, or a raw\n"+
 			"zsh key sequence as bindkey takes it, like ^[x")
 	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), "usage: what-to-run init zsh [--key combo]\n\n"+
+		fmt.Fprint(fs.Output(), "usage: wtr init zsh [--key combo]\n\n"+
 			"Print the zsh integration to stdout, for eval:\n\n"+
-			"  eval \"$(what-to-run init zsh --key ctrl-s)\"\n\nFlags:\n")
+			"  eval \"$(wtr init zsh --key ctrl-s)\"\n\nFlags:\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -76,7 +76,7 @@ func runInit(args []string) error {
 
 	rest := fs.Args()
 	if len(rest) == 0 {
-		return errors.New("missing shell argument: use 'what-to-run init zsh [--key combo]'")
+		return errors.New("missing shell argument: use 'wtr init zsh [--key combo]'")
 	}
 	shell, tail := rest[0], rest[1:]
 	if shell != "zsh" {
@@ -96,7 +96,7 @@ func runInit(args []string) error {
 	bin, err := os.Executable()
 	if err != nil {
 		// Fall back to a PATH lookup when the widget launches the binary.
-		bin = "what-to-run"
+		bin = "wtr"
 	}
 	script, err := tui.ZshInit(bin, *key)
 	if err != nil {

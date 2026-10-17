@@ -43,14 +43,14 @@ func TestParseBindKeyInvalid(t *testing.T) {
 }
 
 func TestZshInitScript(t *testing.T) {
-	got, err := ZshInit("/opt/wtr/what-to-run", "ctrl-g")
+	got, err := ZshInit("/opt/wtr/wtr", "ctrl-g")
 	if err != nil {
 		t.Fatalf("ZshInit() error: %v", err)
 	}
 	for _, want := range []string{
-		"zle -N what-to-run-widget _what_to_run_widget",
-		"bindkey '^G' what-to-run-widget",
-		`typeset -g WTR_BIN="${WTR_BIN:-/opt/wtr/what-to-run}"`,
+		"zle -N wtr-widget _wtr_widget",
+		"bindkey '^G' wtr-widget",
+		`typeset -g WTR_BIN="${WTR_BIN:-/opt/wtr/wtr}"`,
 		"out=$(\"$WTR_BIN\" --inline ${=WTR_FLAGS} < /dev/tty)",
 		"Ctrl-G opens",
 	} {
@@ -65,7 +65,7 @@ func TestZshInitScript(t *testing.T) {
 
 func TestZshInitFlowControlKeyDisablesIXON(t *testing.T) {
 	for _, key := range []string{"ctrl-s", "ctrl-q", "^s", "^Q"} {
-		got, err := ZshInit("/bin/what-to-run", key)
+		got, err := ZshInit("/bin/wtr", key)
 		if err != nil {
 			t.Fatalf("ZshInit(%q) error: %v", key, err)
 		}
@@ -77,8 +77,8 @@ func TestZshInitFlowControlKeyDisablesIXON(t *testing.T) {
 
 func TestZshInitErrors(t *testing.T) {
 	for _, tt := range []struct{ bin, key string }{
-		{"/bin/what-to-run", "bogus"},
-		{"/bin/what-to-run", ""},
+		{"/bin/wtr", "bogus"},
+		{"/bin/wtr", ""},
 		{"", "ctrl-s"},
 	} {
 		if _, err := ZshInit(tt.bin, tt.key); err == nil {
@@ -95,7 +95,7 @@ func TestZshInitParsesAsZsh(t *testing.T) {
 		t.Skip("zsh not installed")
 	}
 	for _, key := range []string{"ctrl-s", "alt-x", "^[[15~"} {
-		script, err := ZshInit("/bin/what-to-run", key)
+		script, err := ZshInit("/bin/wtr", key)
 		if err != nil {
 			t.Fatalf("ZshInit(%q) error: %v", key, err)
 		}

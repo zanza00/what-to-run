@@ -1,4 +1,4 @@
-// Package tui implements the terminal user interface of what-to-run.
+// Package tui implements the terminal user interface of wtr.
 package tui
 
 import (
@@ -67,7 +67,7 @@ type Options struct {
 	// Inline renders the UI between the current cursor line and the bottom of
 	// the screen instead of taking over the whole screen. It is meant for
 	// shell widgets that launch the binary right below the prompt (the zsh
-	// integration from 'what-to-run init zsh', see ZshInit) so that
+	// integration from 'wtr init zsh', see ZshInit) so that
 	// the shell history above stays visible.
 	Inline bool
 
@@ -95,7 +95,7 @@ type Options struct {
 // line, as there is no prompt to insert it into.
 func Run(opts Options) error {
 	if opts.Inline && !inlineInputAvailable() {
-		fmt.Fprintln(os.Stderr, "what-to-run: --inline requires an interactive terminal, running fullscreen")
+		fmt.Fprintln(os.Stderr, "wtr: --inline requires an interactive terminal, running fullscreen")
 		opts.Inline = false
 	}
 
@@ -106,7 +106,7 @@ func Run(opts Options) error {
 	if opts.Inline && !term.IsTerminal(os.Stdout.Fd()) {
 		in, ttyOut, err := tea.OpenTTY()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "what-to-run: cannot open the terminal, running fullscreen")
+			fmt.Fprintln(os.Stderr, "wtr: cannot open the terminal, running fullscreen")
 			opts.Inline = false
 		} else {
 			defer func() { _ = in.Close(); _ = ttyOut.Close() }()
@@ -497,7 +497,7 @@ func (m model) listHeight() int {
 func (m model) render(h, w int) string {
 	lines := make([]string, 0, h)
 	lines = append(lines,
-		titleStyle.Render("what-to-run"),
+		titleStyle.Render("wtr"),
 		m.filterLine(),
 		"",
 	)

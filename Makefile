@@ -1,7 +1,7 @@
 # Variables
-BINARY_NAME := what-to-run
+BINARY_NAME := wtr
 GO := go
-CMD := ./cmd/what-to-run
+CMD := ./cmd/wtr
 KEY ?= ctrl-s
 
 .PHONY: all build run test fmt lint tidy clean bind help

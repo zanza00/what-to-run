@@ -14,7 +14,7 @@ const DefaultKey = "ctrl-s"
 // ZshInit returns the zsh integration script, the output of `init zsh`: a
 // script meant to be evaluated by an interactive zsh,
 //
-//	eval "$(what-to-run init zsh --key ctrl-s)"
+//	eval "$(wtr init zsh --key ctrl-s)"
 //
 // which binds key to a zle widget opening the inline picker of bin right
 // below the prompt. The widget implements the flow described in Run: it
@@ -34,11 +34,11 @@ func ZshInit(bin, key string) (string, error) {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `# what-to-run: zsh integration, %s opens the inline picker.
+	fmt.Fprintf(&b, `# wtr: zsh integration, %s opens the inline picker.
 #
 # Evaluate it in an interactive shell:
 #
-#   eval "$(what-to-run init zsh --key %s)"
+#   eval "$(wtr init zsh --key %s)"
 #
 # WTR_BIN overrides the binary the widget launches, WTR_FLAGS passes it extra
 # flags, e.g. WTR_FLAGS=--debug-area to see the border of the managed area.
@@ -59,7 +59,7 @@ stty -ixon 2>/dev/null
 	}
 
 	b.WriteString(`
-_what_to_run_widget() {
+_wtr_widget() {
   zle -I
   # zle runs commands with stdin not connected to the terminal; use /dev/tty
   # explicitly (same as television's shell integration). stdout is captured:
@@ -85,15 +85,15 @@ _what_to_run_widget() {
   zle reset-prompt
 }
 
-zle -N what-to-run-widget _what_to_run_widget
+zle -N wtr-widget _wtr_widget
 `)
 
 	note := ""
 	if ixon {
 		note = " (IXON off)"
 	}
-	fmt.Fprintf(&b, "bindkey '%s' what-to-run-widget\n\n", seq)
-	fmt.Fprintf(&b, "print \"what-to-run: %s opens ${WTR_BIN} --inline%s\"\n", name, note)
+	fmt.Fprintf(&b, "bindkey '%s' wtr-widget\n\n", seq)
+	fmt.Fprintf(&b, "print \"wtr: %s opens ${WTR_BIN} --inline%s\"\n", name, note)
 
 	return b.String(), nil
 }

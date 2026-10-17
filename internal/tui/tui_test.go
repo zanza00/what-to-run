@@ -61,7 +61,7 @@ var (
 
 func TestViewRendersTasks(t *testing.T) {
 	got := sized(Options{}).View().Content
-	for _, want := range []string{"what-to-run", "build", "test", "clean", "type to filter", "4 tasks"} {
+	for _, want := range []string{"wtr", "build", "test", "clean", "type to filter", "4 tasks"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("View() content does not contain %q:\n%s", want, got)
 		}

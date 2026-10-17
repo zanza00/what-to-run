@@ -9,12 +9,13 @@ v2 and [Lip Gloss](https://charm.land/lipgloss/v2) v2. It runs either full
 screen, or **inline**: anchored between the shell prompt and the bottom of the
 screen, with the scrollback above left intact. The inline mode is the same idea
 as `television --inline` and is meant for shell widgets that launch the binary
-right below the prompt (see [shell integration](#shell-integration-zsh)).
+right below the prompt (see [shell integration](#shell-integration-zsh)). The
+built executable is called `wtr`.
 
 ```
    shell history + prompt      ← never touched (no alternate screen)
    ───────────────────────────
-   what-to-run          ← rendered from the line right below the
+   wtr                         ← rendered from the line right below the
    » type to filter▏              prompt down to the bottom of the screen
    › build      go build ./...      package.json
      test       go test ./...       Makefile
@@ -39,15 +40,15 @@ add custom tasks, force a package manager, or disable sources. See
 Requirements: Go 1.27 or later.
 
 ```sh
-make build                        # build bin/what-to-run
-bin/what-to-run            # full screen
-bin/what-to-run --inline   # anchored below the prompt
+make build        # build bin/wtr
+bin/wtr           # full screen
+bin/wtr --inline  # anchored below the prompt
 ```
 
 Or without building a binary:
 
 ```sh
-go run ./cmd/what-to-run
+go run ./cmd/wtr
 ```
 
 ### Flags
@@ -78,8 +79,8 @@ go run ./cmd/what-to-run
 a key in the current shell (the same pattern as `tv init zsh`):
 
 ```sh
-eval "$(what-to-run init zsh)"               # default: Ctrl-S
-eval "$(what-to-run init zsh --key ctrl-g)"  # bind another combo
+eval "$(wtr init zsh)"               # default: Ctrl-S
+eval "$(wtr init zsh --key ctrl-g)"  # bind another combo
 ```
 
 `--key` takes a combo name (`ctrl-s`, `alt-x`) or a raw zsh key sequence as
@@ -151,7 +152,7 @@ scrollback, so it can be reviewed after quitting the picker.
 In **inline** mode, `enter` quits the picker first and the task then runs at
 the prompt like a hand-typed command, so its output is ordinary shell output in
 the normal scrollback; the task's exit code becomes the exit code of
-what-to-run. This is also the only way it can work: the inline renderer
+`wtr`. This is also the only way it can work: the inline renderer
 cannot reposition its frame after another process scrolls the screen, so the
 task must run after the picker has left it.
 
@@ -198,7 +199,7 @@ and the previous shell contents are restored on quit.
       running it (zsh widget flow)
 - [x] rc file (`.what-to-run.toml`, global `config.toml`): custom tasks,
       package manager override, disabled sources
-- [x] zsh integration: `eval "$(what-to-run init zsh)"`, with a
+- [x] zsh integration: `eval "$(wtr init zsh)"`, with a
       configurable key combo (`--key ctrl-g`)
 - [ ] More sources: `justfile`, `Makefile.toml`
 - [ ] `ctrl+r` to refresh the list after editing a task file
@@ -226,7 +227,7 @@ eval "$(make bind)"             # build + bind Ctrl-S in the current shell
 eval "$(make bind KEY=ctrl-g)"  # bind another combo
 ```
 
-The widget runs `bin/what-to-run` on every invocation, so the binding
+The widget runs `bin/wtr` on every invocation, so the binding
 survives a rebuild: after editing Go code, `make build` is enough. After
 editing the integration itself (`internal/tui/zshinit.go`), evaluate `make
 bind` again to re-bind. The chosen key then opens the UI just below the prompt
@@ -237,7 +238,7 @@ Extra flags can be passed to the widget with `WTR_FLAGS` (e.g.
 ## Repository layout
 
 ```
-cmd/what-to-run/   entry point (flags and the init subcommand)
+cmd/wtr/                  entry point (flags and the init subcommand)
 internal/tui/tui.go       Bubble Tea model, views, and styles
 internal/tui/tasks.go     the Task model
 internal/tui/sources.go   discovery framework and the source registry

@@ -170,7 +170,7 @@ func TestDiscoverMakeTargetsOfThisRepo(t *testing.T) {
 	for _, task := range tasks {
 		byName[task.Name] = task
 	}
-	for _, name := range []string{"all", "build", "run", "test", "fmt", "lint", "tidy", "clean", "help"} {
+	for _, name := range []string{"all", "build", "run", "test", "fmt", "lint", "tidy", "clean", "install", "help"} {
 		if _, ok := byName[name]; !ok {
 			t.Errorf("task %q not found in this repo's Makefile, got %v", name, tasks)
 		}

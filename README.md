@@ -48,6 +48,10 @@ bin/wtr                           # full screen
 bin/wtr --inline                  # anchored below the prompt
 ```
 
+For a permanent setup, `make install` copies both names into `~/.local/bin`
+(`PREFIX=...` to install elsewhere), so they work from any directory; re-run
+it after rebuilding.
+
 Or without building a binary:
 
 ```sh
@@ -220,6 +224,7 @@ and the previous shell contents are restored on quit.
 ```sh
 make test    # run tests with the race detector and coverage
 make build   # build both binaries into bin/
+make install # install both names into ~/.local/bin (PREFIX=... to change)
 make bind    # build + print the zsh integration for eval (KEY=combo)
 make run     # go run, without building a binary
 make fmt     # gofmt and go vet

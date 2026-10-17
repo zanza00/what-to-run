@@ -6,8 +6,10 @@ BINARY_ALIAS := what-to-run
 GO := go
 CMD := ./cmd/wtr
 KEY ?= ctrl-s
+# Where `make install` puts the binaries (override: PREFIX=/usr/local/bin).
+PREFIX ?= $(HOME)/.local/bin
 
-.PHONY: all build run test fmt lint tidy clean bind help
+.PHONY: all build run test fmt lint tidy clean bind install help
 
 all: fmt test build
 
@@ -21,6 +23,15 @@ build:
 bind:
 	@$(MAKE) --no-print-directory build 1>&2
 	@bin/$(BINARY_NAME) init zsh --key $(KEY)
+
+## install: Install both names into PREFIX (default ~/.local/bin)
+install: build
+	mkdir -p $(PREFIX)
+	install -m755 bin/$(BINARY_NAME) $(PREFIX)/$(BINARY_NAME)
+	install -m755 bin/$(BINARY_ALIAS) $(PREFIX)/$(BINARY_ALIAS)
+	@echo "Installed $(BINARY_NAME) and $(BINARY_ALIAS) into $(PREFIX)"
+	@case ":$$PATH:" in *:$(PREFIX):*) ;; \
+	  *) echo "Note: $(PREFIX) is not in your PATH" ;; esac
 
 ## run: Run the application without building a binary
 run:

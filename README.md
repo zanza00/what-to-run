@@ -13,20 +13,22 @@ right below the prompt (see [`scripts/ctrl-s.zsh`](scripts/ctrl-s.zsh)).
 
 ```
    shell history + prompt      ← never touched (no alternate screen)
-   ────────────────────────
+   ───────────────────────────
    what-to-run          ← rendered from the line right below the
-   ╭───────────────────╮          prompt down to the bottom of the screen
-   │    Hello, World!  │
-   ╰───────────────────╯
-   press q to quit
+   » type to filter▏              prompt down to the bottom of the screen
+   › build      go build ./...      package.json
+     test       go test ./...       Makefile
+     fmt        Format the code     Cargo.toml
+   3 tasks   ↑/↓ select · enter run · esc quit
 ```
 
 ## Status
 
-Early skeleton. It currently renders a hello world, quits on `q`, `esc` or
-`ctrl+c`, and implements the two rendering modes (full screen and inline,
-including the cursor anchoring and restore). Task discovery and execution are
-not implemented yet — see [Roadmap](#roadmap).
+Task discovery and execution are implemented: the picker lists what it finds,
+filters as you type, and runs the selected task. In full screen it runs in
+place and returns to the list; in inline mode it quits first and runs the task
+at the prompt, propagating its exit code. See [Roadmap](#roadmap) for what is
+still open.
 
 ## Getting started
 
@@ -51,7 +53,48 @@ go run ./cmd/what-to-run
 | `--inline` | Render between the current cursor line (the prompt) and the bottom of the screen instead of taking over the terminal. Requires an interactive terminal; falls back to full screen with a warning otherwise. |
 | `--debug-area` | Draw a border around the whole area managed in inline mode (development aid; ignored in full screen). |
 
+### Keys
+
+| Key | Action |
+| --- | --- |
+| typing | filter the list (case-insensitive subsequence of the task names) |
+| `↑`/`↓`, `ctrl+p`/`ctrl+n` | move the selection |
+| `pgup`/`pgdown`, `home`/`end` | jump in the list |
+| `enter` | run the selected task |
+| `esc` | clear the filter, or quit when the filter is empty |
+| `ctrl+u` | clear the filter |
+| `ctrl+c` | quit |
+
+`q` types into the filter; it does not quit.
+
 ## Features
+
+### Task sources
+
+| Source | Discovered | Runs as |
+| --- | --- | --- |
+| `package.json` | `scripts`, sorted by name; the script body is shown as its description | `<pm> run NAME`, with `pm` from the `packageManager` field, a lock file (`bun.lock`, `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`), or npm |
+| `Makefile` (or `makefile`, `GNUmakefile`) | targets, in file order; the comment directly above a target is its description, with the `## name: text` and `## name - text` conventions (`make help` style) cleaned up | `make NAME` |
+| `Cargo.toml` | cargo-make `[tasks]`, sorted by name; `description`, or `command` `args` when there is none | `cargo make NAME` |
+
+A source that fails to parse is skipped and reported in the status line; the
+tasks from the other sources still show up. With no tasks at all, the picker
+exits with an error.
+
+### Running a task
+
+In **full screen**, `enter` runs the task in place: the picker hands the
+terminal over to the task (Bubble Tea `tea.ExecProcess`) and takes it back when
+the task ends, showing the outcome in the status line (`✓ build (1.2s)`,
+`✗ test (0.4s): exit status 1`). The task's output stays in the terminal
+scrollback, so it can be reviewed after quitting the picker.
+
+In **inline** mode, `enter` quits the picker first and the task then runs at
+the prompt like a hand-typed command, so its output is ordinary shell output in
+the normal scrollback; the task's exit code becomes the exit code of
+what-to-run. This is also the only way it can work: the inline renderer
+cannot reposition its frame after another process scrolls the screen, so the
+task must run after the picker has left it.
 
 ### Inline mode
 
@@ -76,10 +119,13 @@ and the previous shell contents are restored on quit.
 
 ## Roadmap
 
-- [ ] Discover tasks from `scripts` in `package.json`, targets in `Makefile`,
+- [x] Discover tasks from `scripts` in `package.json`, targets in `Makefile`,
       and tasks in `Cargo.toml` (cargo-make)
-- [ ] Present them in a navigable, filterable list
-- [ ] Run the selected task and return to the list when it finishes
+- [x] Present them in a navigable, filterable list
+- [x] Run the selected task and return to the list when it finishes
+      (full screen; inline mode runs the task at the prompt instead)
+- [ ] More sources: `justfile`, `Makefile.toml`
+- [ ] `ctrl+r` to refresh the list after editing a task file
 
 ## Development
 
@@ -91,6 +137,10 @@ make fmt     # gofmt and go vet
 make lint    # golangci-lint (requires golangci-lint installed)
 make help    # list all targets
 ```
+
+There are no PTY tests for the inline mode: verify it end-to-end in tmux (zsh
+plus the Ctrl-S harness), and check the row math in
+`internal/tui/tui_test.go` after any layout change.
 
 ### Trying the inline UI from the shell
 
@@ -108,6 +158,7 @@ scripts/ctrl-s.zsh`), and `WTR_BIN` overrides the binary path.
 
 ```
 cmd/what-to-run/   entry point (flag parsing only)
-internal/tui/             Bubble Tea model, views, and styles
+internal/tui/tui.go       Bubble Tea model, views, and styles
+internal/tui/tasks.go     task discovery (package.json, Makefile, Cargo.toml)
 scripts/ctrl-s.zsh        local zsh harness for the inline mode
 ```

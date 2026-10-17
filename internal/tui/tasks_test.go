@@ -1,0 +1,246 @@
+package tui
+
+import (
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+)
+
+// writeFile writes a fixture file inside dir.
+func writeFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDiscoverPackageScripts(t *testing.T) {
+	tests := []struct {
+		name    string
+		pkg     string
+		locks   []string
+		want    []Task
+		wantErr bool
+	}{
+		{
+			name: "scripts sorted, npm by default",
+			pkg:  `{"scripts": {"test": "go test ./...", "build": "go build ./..."}}`,
+			want: []Task{
+				{Source: "package.json", Name: "build", Desc: "go build ./...", Args: []string{"npm", "run", "build"}},
+				{Source: "package.json", Name: "test", Desc: "go test ./...", Args: []string{"npm", "run", "test"}},
+			},
+		},
+		{
+			name: "packageManager field wins",
+			pkg:  `{"scripts": {"dev": "vite"}, "packageManager": "bun@1.2.3"}`,
+			want: []Task{
+				{Source: "package.json", Name: "dev", Desc: "vite", Args: []string{"bun", "run", "dev"}},
+			},
+		},
+		{
+			name:  "lock file decides",
+			pkg:   `{"scripts": {"dev": "vite"}}`,
+			locks: []string{"pnpm-lock.yaml"},
+			want: []Task{
+				{Source: "package.json", Name: "dev", Desc: "vite", Args: []string{"pnpm", "run", "dev"}},
+			},
+		},
+		{
+			name:  "yarn lock file",
+			pkg:   `{"scripts": {"dev": "vite"}}`,
+			locks: []string{"yarn.lock"},
+			want: []Task{
+				{Source: "package.json", Name: "dev", Desc: "vite", Args: []string{"yarn", "run", "dev"}},
+			},
+		},
+		{
+			name:    "broken json",
+			pkg:     `{"scripts": `,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "package.json", tt.pkg)
+			for _, lock := range tt.locks {
+				writeFile(t, dir, lock, "")
+			}
+
+			got, err := discoverPackageScripts(dir)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("discoverPackageScripts() succeeded, want error")
+				}
+				if !strings.Contains(err.Error(), "package.json") {
+					t.Errorf("error = %q, want it to mention package.json", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("discoverPackageScripts() error = %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("discoverPackageScripts() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDiscoverPackageScriptsMissingFile(t *testing.T) {
+	got, err := discoverPackageScripts(t.TempDir())
+	if err != nil || got != nil {
+		t.Errorf("discoverPackageScripts() on an empty dir = %v, %v; want nil, nil", got, err)
+	}
+}
+
+const makefileFixture = `# Variables
+NAME := app
+
+.PHONY: all build clean
+
+## build: Build the application
+build: bin/$(NAME)
+
+## test - Run the tests
+test:
+	go test ./...
+
+clean:
+	rm -rf bin
+
+%.o: %.c
+	cc -c $<
+
+# A comment describing run
+run: build
+	./bin/$(NAME)
+`
+
+func TestParseMakeTargets(t *testing.T) {
+	want := []Task{
+		{Source: "Makefile", Name: "build", Desc: "Build the application", Args: []string{"make", "build"}},
+		{Source: "Makefile", Name: "test", Desc: "Run the tests", Args: []string{"make", "test"}},
+		{Source: "Makefile", Name: "clean", Desc: "", Args: []string{"make", "clean"}},
+		{Source: "Makefile", Name: "run", Desc: "A comment describing run", Args: []string{"make", "run"}},
+	}
+
+	got := parseMakeTargets([]byte(makefileFixture), "Makefile")
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("parseMakeTargets() = %+v, want %+v", got, want)
+	}
+}
+
+func TestParseMakeTargetsDeduplicates(t *testing.T) {
+	got := parseMakeTargets([]byte("build:\n\techo one\n\nbuild:\n\techo two\n"), "Makefile")
+	if len(got) != 1 || got[0].Name != "build" {
+		t.Errorf("parseMakeTargets() = %+v, want a single build task", got)
+	}
+}
+
+// TestDiscoverMakeTargetsOfThisRepo runs the parser over the project's own
+// Makefile, where the "## name: description" convention is already in use.
+func TestDiscoverMakeTargetsOfThisRepo(t *testing.T) {
+	tasks, err := discoverMakeTargets("../..")
+	if err != nil {
+		t.Fatalf("discoverMakeTargets() error = %v", err)
+	}
+
+	byName := map[string]Task{}
+	for _, task := range tasks {
+		byName[task.Name] = task
+	}
+	for _, name := range []string{"all", "build", "run", "test", "fmt", "lint", "tidy", "clean", "help"} {
+		if _, ok := byName[name]; !ok {
+			t.Errorf("task %q not found in this repo's Makefile, got %v", name, tasks)
+		}
+	}
+	if got := byName["build"].Desc; got != "Build the application" {
+		t.Errorf("build description = %q, want %q", got, "Build the application")
+	}
+	if got := byName["build"].Args; !reflect.DeepEqual(got, []string{"make", "build"}) {
+		t.Errorf("build args = %v, want [make build]", got)
+	}
+}
+
+func TestDiscoverCargoMakeTasks(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", `
+[package]
+name = "demo"
+
+[tasks.format]
+description = "Run rustfmt"
+command = "rustfmt"
+
+[tasks.build]
+command = "cargo"
+args = ["build", "--release"]
+`)
+
+	got, err := discoverCargoMakeTasks(dir)
+	if err != nil {
+		t.Fatalf("discoverCargoMakeTasks() error = %v", err)
+	}
+	want := []Task{
+		{Source: "Cargo.toml", Name: "build", Desc: "cargo build --release", Args: []string{"cargo", "make", "build"}},
+		{Source: "Cargo.toml", Name: "format", Desc: "Run rustfmt", Args: []string{"cargo", "make", "format"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("discoverCargoMakeTasks() = %+v, want %+v", got, want)
+	}
+}
+
+func TestDiscoverCargoMakeTasksBrokenToml(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Cargo.toml", "[tasks\n")
+
+	_, err := discoverCargoMakeTasks(dir)
+	if err == nil || !strings.Contains(err.Error(), "Cargo.toml") {
+		t.Errorf("discoverCargoMakeTasks() error = %v, want a Cargo.toml parse error", err)
+	}
+}
+
+func TestDiscoverTasksMergesSources(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
+	writeFile(t, dir, "Makefile", "test:\n\tgo test ./...\n")
+	writeFile(t, dir, "Cargo.toml", "[tasks.fmt]\ndescription = \"Format\"\n")
+
+	tasks, errs := discoverTasks(dir)
+	if len(errs) != 0 {
+		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+	}
+
+	var sources []string
+	for _, task := range tasks {
+		sources = append(sources, task.Source)
+	}
+	if want := []string{"package.json", "Makefile", "Cargo.toml"}; !reflect.DeepEqual(sources, want) {
+		t.Errorf("task sources = %v, want %v", sources, want)
+	}
+}
+
+func TestDiscoverTasksSkipsBrokenSource(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `not json`)
+	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
+
+	tasks, errs := discoverTasks(dir)
+	if len(errs) != 1 {
+		t.Fatalf("discoverTasks() errors = %v, want exactly one", errs)
+	}
+	if len(tasks) != 1 || tasks[0].Name != "build" {
+		t.Errorf("discoverTasks() tasks = %+v, want the Makefile build task", tasks)
+	}
+}
+
+func TestTaskCommand(t *testing.T) {
+	task := Task{Args: []string{"make", "build", "GOFLAGS=-v"}}
+	if got, want := task.command().Args, []string{"make", "build", "GOFLAGS=-v"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("command().Args = %v, want %v", got, want)
+	}
+}

@@ -2,28 +2,48 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
 )
+
+// accent is the picker's accent color.
+var accent = lipgloss.Color("#7D56F4")
 
 // Styles are stateless and safe to reuse across model values.
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#7D56F4"))
+			Foreground(accent)
 
-	helloStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#7D56F4")).
-			Padding(1, 6)
+	// selectedStyle highlights the row under the cursor.
+	selectedStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("231")).
+			Background(accent)
 
-	helpStyle = lipgloss.NewStyle().
+	filterStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(accent)
+
+	dimStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241"))
+
+	okStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("2"))
+
+	errStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("1"))
 
 	// areaStyle draws the border around the inline area when DebugArea is
 	// set: a development aid to check that the UI covers exactly the rows
@@ -32,6 +52,10 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("240"))
 )
+
+// chromeRows is the number of rows the picker reserves around the task list:
+// title, filter line, blank separator and help line.
+const chromeRows = 4
 
 // minInlineHeight is the smallest area reserved for the inline UI. Television
 // uses the same value: when fewer rows are free below the cursor, the
@@ -52,15 +76,32 @@ type Options struct {
 	DebugArea bool
 }
 
-// Run starts the TUI and blocks until the user quits. It returns an error
-// only if the program fails to start or crashes.
+// Run starts the picker and blocks until the user quits or launches a task.
+// It returns an error only if the program fails to start or crashes.
+//
+// In fullscreen mode a task chosen with enter runs in place, in the picker:
+// the terminal is handed over to the task (tea.ExecProcess) and taken back
+// afterwards, with the outcome shown in the status line.
+//
+// In inline mode the picker only chooses: the UI leaves the screen first and
+// the task then runs at the prompt like a hand-typed command, so its output
+// lands in the normal shell scrollback. The task's exit code becomes the exit
+// code of what-to-run. This is the mode used by scripts/ctrl-s.zsh.
 func Run(opts Options) error {
 	if opts.Inline && !inlineInputAvailable() {
 		fmt.Fprintln(os.Stderr, "what-to-run: --inline requires an interactive terminal, running fullscreen")
 		opts.Inline = false
 	}
 
-	final, err := tea.NewProgram(newModel(opts)).Run()
+	tasks, warnings := discoverTasks(".")
+	if len(tasks) == 0 {
+		if len(warnings) > 0 {
+			return fmt.Errorf("no tasks found: %w", errors.Join(warnings...))
+		}
+		return errors.New("no tasks found: no package.json scripts, Makefile targets or cargo-make tasks")
+	}
+
+	final, err := tea.NewProgram(newModel(opts, tasks, warnings)).Run()
 	if opts.Inline && term.IsTerminal(os.Stdout.Fd()) {
 		if m, ok := final.(model); ok {
 			restoreCursor(os.Stdout, m)
@@ -68,6 +109,14 @@ func Run(opts Options) error {
 	}
 	if err != nil {
 		return fmt.Errorf("run tui: %w", err)
+	}
+
+	if m, ok := final.(model); ok && m.chosen != nil {
+		cmd := m.chosen.command()
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("task %s: %w", m.chosen.Name, err)
+		}
 	}
 	return nil
 }
@@ -101,10 +150,19 @@ func restoreCursor(w io.Writer, m model) {
 	fmt.Fprintf(w, "\x1b[%dA\x1b[J", h-1)
 }
 
-// model is the root Bubble Tea model. For now it renders a hello world and
-// quits on q/esc/ctrl+c; it will grow into the task list.
+// taskDoneMsg reports that a task run in place inside the fullscreen picker
+// has finished.
+type taskDoneMsg struct {
+	task Task
+	err  error
+}
+
+// model is the root Bubble Tea model: a filterable list of the project's
+// tasks.
 type model struct {
-	opts Options
+	opts     Options
+	tasks    []Task
+	warnings []error
 
 	width  int
 	height int
@@ -114,10 +172,18 @@ type model struct {
 	// below the shell prompt, as reported by the terminal.
 	startRow      int
 	startRowKnown bool // true once tea.CursorPositionMsg has arrived
+
+	filter string // current filter text; empty means no filtering
+	cursor int    // index into visible()
+	offset int    // index of the first visible row of the list
+
+	status  string    // outcome of the last in-place run, shown in the help line
+	started time.Time // when the current in-place run started
+	chosen  *Task     // task to run after the picker quits (inline mode only)
 }
 
-func newModel(opts Options) model {
-	return model{opts: opts}
+func newModel(opts Options, tasks []Task, warnings []error) model {
+	return model{opts: opts, tasks: tasks, warnings: warnings}
 }
 
 // Init implements tea.Model.
@@ -136,25 +202,181 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.ready = true
+		m.keepCursorVisible()
 
 	case tea.CursorPositionMsg:
 		m.startRow = msg.Y
 		m.startRowKnown = true
+		m.keepCursorVisible()
 
 	case tea.KeyPressMsg:
-		switch msg.String() {
-		case "q", "esc", "ctrl+c":
-			return m, tea.Quit
+		return m.handleKey(msg)
+
+	case taskDoneMsg:
+		elapsed := time.Since(m.started).Round(100 * time.Millisecond)
+		if msg.err != nil {
+			m.status = errStyle.Render(fmt.Sprintf("✗ %s (%s): %v", msg.task.Name, elapsed, msg.err))
+		} else {
+			m.status = okStyle.Render(fmt.Sprintf("✓ %s (%s)", msg.task.Name, elapsed))
 		}
 	}
 
 	return m, nil
 }
 
+// handleKey reacts to a key press.
+func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+
+	case "esc":
+		if m.filter != "" {
+			m.filter = ""
+			m.cursor, m.offset = 0, 0
+			return m, nil
+		}
+		return m, tea.Quit
+
+	case "enter":
+		return m.run()
+
+	case "up", "ctrl+k", "ctrl+p":
+		m.cursor--
+
+	case "down", "ctrl+j", "ctrl+n":
+		m.cursor++
+
+	case "pgup":
+		m.cursor -= m.listHeight()
+
+	case "pgdown":
+		m.cursor += m.listHeight()
+
+	case "home":
+		m.cursor = 0
+
+	case "end":
+		m.cursor = len(m.visible()) - 1
+
+	case "ctrl+u":
+		m.filter = ""
+		m.cursor, m.offset = 0, 0
+
+	case "backspace":
+		m.filter = trimLastRune(m.filter)
+		m.cursor, m.offset = 0, 0
+
+	default:
+		// Printable input goes into the filter: q types, it does not quit.
+		if msg.Text == "" || msg.Text == "\t" || msg.Mod&(tea.ModCtrl|tea.ModAlt) != 0 {
+			return m, nil
+		}
+		m.filter += msg.Text
+		m.cursor, m.offset = 0, 0
+	}
+
+	m.keepCursorVisible()
+	return m, nil
+}
+
+// run starts the task under the cursor.
+func (m model) run() (tea.Model, tea.Cmd) {
+	vis := m.visible()
+	if len(vis) == 0 {
+		return m, nil
+	}
+	t := vis[m.cursor]
+
+	if m.opts.Inline {
+		// The picker is only a launcher here: it quits and Run executes the
+		// task at the prompt, after the UI has left the screen.
+		m.chosen = &t
+		return m, tea.Quit
+	}
+
+	m.status = dimStyle.Render("running " + t.Name + "…")
+	m.started = time.Now()
+	return m, tea.ExecProcess(t.command(), func(err error) tea.Msg {
+		return taskDoneMsg{task: t, err: err}
+	})
+}
+
+// visible returns the tasks matching the current filter, in display order.
+func (m model) visible() []Task {
+	if m.filter == "" {
+		return m.tasks
+	}
+
+	tokens := strings.Fields(strings.ToLower(m.filter))
+	matches := make([]Task, 0, len(m.tasks))
+	for _, t := range m.tasks {
+		if t.matches(tokens) {
+			matches = append(matches, t)
+		}
+	}
+	return matches
+}
+
+// matches reports whether the task matches all tokens, as case-insensitive
+// subsequences of its name.
+func (t Task) matches(tokens []string) bool {
+	name := strings.ToLower(t.Name)
+	for _, token := range tokens {
+		if !subsequence(name, token) {
+			return false
+		}
+	}
+	return true
+}
+
+// subsequence reports whether needle is a subsequence of the lowercase
+// haystack.
+func subsequence(haystack, needle string) bool {
+	rest := needle
+	for _, r := range haystack {
+		if rest == "" {
+			return true
+		}
+		if r == rune(rest[0]) {
+			rest = rest[1:]
+		}
+	}
+	return rest == ""
+}
+
+// keepCursorVisible clamps the cursor and scrolls the list so that the
+// cursor row is inside the window.
+func (m *model) keepCursorVisible() {
+	vis := m.visible()
+	if len(vis) == 0 {
+		m.cursor, m.offset = 0, 0
+		return
+	}
+
+	m.cursor = min(max(m.cursor, 0), len(vis)-1)
+
+	h := m.listHeight()
+	m.offset = min(max(m.offset, 0), max(len(vis)-h, 0))
+	if m.cursor < m.offset {
+		m.offset = m.cursor
+	}
+	if m.cursor >= m.offset+h {
+		m.offset = m.cursor - h + 1
+	}
+}
+
+// trimLastRune removes the last rune of s.
+func trimLastRune(s string) string {
+	if s == "" {
+		return s
+	}
+	_, size := utf8.DecodeLastRuneInString(s)
+	return s[:len(s)-size]
+}
+
 // View implements tea.Model.
 func (m model) View() tea.View {
-	body := m.body()
-
 	if m.opts.Inline {
 		h := m.areaHeight()
 		if h <= 0 {
@@ -164,33 +386,162 @@ func (m model) View() tea.View {
 		}
 		if m.opts.DebugArea {
 			// The border takes 2 columns and 2 rows of the area for itself.
-			inner := lipgloss.Place(max(m.width-2, 0), max(h-2, 0), lipgloss.Center, lipgloss.Center, body)
-			return tea.NewView(areaStyle.Render(inner))
+			return tea.NewView(areaStyle.Render(m.render(max(h-2, 0), max(m.width-2, 0))))
 		}
-		body = lipgloss.Place(m.width, h, lipgloss.Center, lipgloss.Center, body)
-		return tea.NewView(body)
+		return tea.NewView(m.render(h, m.width))
 	}
 
-	if m.ready {
-		body = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, body)
-	}
-
-	v := tea.NewView(body)
+	v := tea.NewView(m.render(m.viewHeight(), m.width))
 	v.AltScreen = true
 	return v
 }
 
-// body renders the UI content without padding; View places it in the area
-// available in the current mode.
-func (m model) body() string {
-	return lipgloss.JoinVertical(
-		lipgloss.Center,
+// viewHeight returns the number of rows the fullscreen view occupies, or the
+// natural size while the terminal size is still unknown.
+func (m model) viewHeight() int {
+	if !m.ready {
+		return chromeRows + m.listHeight()
+	}
+	return m.height
+}
+
+// listHeight returns the number of task rows the list can show.
+func (m model) listHeight() int {
+	switch {
+	case m.opts.Inline:
+		return max(m.areaHeight()-chromeRows, 1)
+	case !m.ready:
+		return max(len(m.visible()), 1)
+	default:
+		return max(m.height-chromeRows, 1)
+	}
+}
+
+// render lays the picker out in exactly h rows and w columns: title, filter
+// line, task list and help line, padded or trimmed to fit.
+func (m model) render(h, w int) string {
+	lines := make([]string, 0, h)
+	lines = append(lines,
 		titleStyle.Render("what-to-run"),
+		m.filterLine(),
 		"",
-		helloStyle.Render("Hello, World!"),
-		"",
-		helpStyle.Render("press q to quit"),
 	)
+	lines = append(lines, m.listLines(w)...)
+	lines = append(lines, m.helpLine())
+
+	if len(lines) > h {
+		lines = lines[:h]
+	}
+	for len(lines) < h {
+		lines = append(lines, "")
+	}
+	for i, line := range lines {
+		if w > 0 {
+			// One row per line, no wrapping, whatever the content.
+			lines[i] = ansi.Truncate(line, w, "…")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// filterLine renders the filter input.
+func (m model) filterLine() string {
+	if m.filter == "" {
+		return filterStyle.Render("» ") + dimStyle.Render("type to filter")
+	}
+	return filterStyle.Render("» ") + m.filter + filterStyle.Render("▏")
+}
+
+// listLines renders the visible window of the filtered task list.
+func (m model) listLines(w int) []string {
+	vis := m.visible()
+	if len(vis) == 0 {
+		if m.filter != "" {
+			return []string{dimStyle.Render("no task matches " + strconv.Quote(m.filter))}
+		}
+		return []string{dimStyle.Render("no tasks found")}
+	}
+
+	h := m.listHeight()
+	off := min(m.offset, max(len(vis)-h, 0))
+	end := min(off+h, len(vis))
+
+	rows := make([]string, 0, end-off)
+	for i, t := range vis[off:end] {
+		rows = append(rows, m.taskRow(t, off+i == m.cursor, w))
+	}
+	return rows
+}
+
+// taskRow renders one list row: cursor marker, task name, description and the
+// source file, right-aligned.
+func (m model) taskRow(t Task, selected bool, w int) string {
+	badge := t.Source
+	badgeW := lipgloss.Width(badge)
+
+	marker := "  "
+	if selected {
+		marker = "› "
+	}
+
+	nameW := m.nameWidth(w)
+	name := t.Name
+	if lipgloss.Width(name) > nameW {
+		name = ansi.Truncate(name, nameW, "…")
+	}
+	name += strings.Repeat(" ", max(nameW-lipgloss.Width(name), 0))
+
+	// marker(2) + name(nameW) + space(1) + description, padded to leave room
+	// for a space and the badge at the right edge.
+	room := max(w-badgeW-1, 0)
+	var desc string
+	if descW := room - 2 - nameW - 1; descW > 0 {
+		desc = ansi.Truncate(t.Desc, descW, "…")
+	}
+
+	if selected {
+		left := marker + name + " " + desc
+		pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
+		return selectedStyle.Render(left + pad + " " + badge)
+	}
+
+	left := marker + name + " " + dimStyle.Render(desc)
+	pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
+	return left + pad + " " + dimStyle.Render(badge)
+}
+
+// nameWidth returns the width of the name column: wide enough for the widest
+// visible task name, capped to a third of the available width.
+func (m model) nameWidth(w int) int {
+	nameW := 0
+	for _, t := range m.visible() {
+		nameW = max(nameW, lipgloss.Width(t.Name))
+	}
+	return min(nameW, max(w/3, 12))
+}
+
+// helpLine renders the bottom line: the outcome of the last in-place run if
+// there is one, then the discovery warnings, then the help text.
+func (m model) helpLine() string {
+	switch {
+	case m.status != "":
+		return m.status
+
+	case len(m.warnings) > 0:
+		s := m.warnings[0].Error()
+		if n := len(m.warnings) - 1; n > 0 {
+			s += fmt.Sprintf(" (+%d more)", n)
+		}
+		return errStyle.Render(s)
+	}
+
+	count := fmt.Sprintf("%d tasks", len(m.tasks))
+	keys := "type to filter · ↑/↓ select · enter run · esc quit"
+	if m.filter != "" {
+		count = fmt.Sprintf("%d/%d tasks", len(m.visible()), len(m.tasks))
+		keys = "↑/↓ select · enter run · esc clear filter"
+	}
+	return dimStyle.Render(count + "   " + keys)
 }
 
 // areaHeight returns the number of rows the inline UI occupies: the space

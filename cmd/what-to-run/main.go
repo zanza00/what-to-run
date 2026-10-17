@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -19,8 +20,22 @@ func main() {
 		"draw a border around the area managed in inline mode (development aid)")
 	flag.Parse()
 
-	if err := tui.Run(tui.Options{Inline: *inline, DebugArea: *debugArea}); err != nil {
-		fmt.Fprintf(os.Stderr, "what-to-run: %v\n", err)
-		os.Exit(1)
+	err := tui.Run(tui.Options{Inline: *inline, DebugArea: *debugArea})
+	if err == nil {
+		return
 	}
+
+	// A task launched from the inline picker failed: exit with the task's
+	// own code and stay quiet, the task already reported its error.
+	var exit interface{ ExitCode() int }
+	if errors.As(err, &exit) {
+		code := exit.ExitCode()
+		if code < 1 {
+			code = 1
+		}
+		os.Exit(code)
+	}
+
+	fmt.Fprintf(os.Stderr, "what-to-run: %v\n", err)
+	os.Exit(1)
 }

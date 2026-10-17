@@ -1,9 +1,10 @@
 # what-to-run
 
 TUI in Go (Bubble Tea v2 + Lip Gloss v2) to run the scripts declared in a
-project's `package.json`, `Makefile`, or `Cargo.toml` (cargo-make).
-Current state: hello-world skeleton; task discovery and execution are not
-implemented yet (see `README.md`).
+project's `package.json`, `Makefile`, or `Cargo.toml` (cargo-make). Discovery
+and execution are implemented: a filterable list runs the selected task, in
+place in fullscreen (tea.ExecProcess) or at the prompt after quitting with
+`--inline` (the Ctrl-S widget flow), propagating the task's exit code.
 
 ## Go development
 
@@ -12,10 +13,18 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 - `make all` is the full check (fmt + vet, race tests, build); no CI runs it, so
   run it before committing. A single test:
   `go test -race ./internal/tui -run TestViewInlineHeight`.
-- All runtime code lives in `internal/tui`; `cmd/what-to-run` only parses
-  flags and calls `tui.Run`. The inline row math (`areaHeight`, `restoreCursor`)
-  is pinned in `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests
-  in sync with any layout change.
+- All runtime code lives in `internal/tui` (`tui.go` = model and layout,
+  `tasks.go` = discovery); `cmd/what-to-run` only parses flags and calls
+  `tui.Run`. Unknown `package.json` shapes etc. belong in `tasks.go` with
+  table-driven tests.
+- The inline row math (`areaHeight`, `restoreCursor`) is pinned in
+  `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests in sync with
+  any layout change.
+- Do not run tasks in place with `tea.ExecProcess` from the inline picker: the
+  renderer cannot reposition the frame after the child scrolls the screen
+  (verified in tmux: the child output gets erased and dead frame rows remain).
+  That is why the inline picker quits and `Run` executes the task after
+  `restoreCursor`.
 - `.agents/skills/` is committed on purpose (see `skills-lock.json`);
   `bubbletea-tfe` is a manual rename of `ggprompts/tfe` to avoid an id collision
   with `bubbletea` — don't reinstall it unrenamed.

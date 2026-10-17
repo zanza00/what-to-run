@@ -178,8 +178,9 @@ func TestDiscoverMakeTargetsOfThisRepo(t *testing.T) {
 	if got := byName["build"].Source; got != "Makefile" {
 		t.Errorf("build source = %q, want %q", got, "Makefile")
 	}
-	if got := byName["build"].Desc; got != "Build the application" {
-		t.Errorf("build description = %q, want %q", got, "Build the application")
+	const wantDesc = "Build bin/wtr and bin/what-to-run"
+	if got := byName["build"].Desc; got != wantDesc {
+		t.Errorf("build description = %q, want %q", got, wantDesc)
 	}
 	if got := byName["build"].Args; !reflect.DeepEqual(got, []string{"make", "build"}) {
 		t.Errorf("build args = %v, want [make build]", got)

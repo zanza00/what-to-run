@@ -1,5 +1,8 @@
 # Variables
 BINARY_NAME := wtr
+# The same program is also built under its explicit name, meant for shell rc
+# files (the invoked name is the one shown in messages and in the picker).
+BINARY_ALIAS := what-to-run
 GO := go
 CMD := ./cmd/wtr
 KEY ?= ctrl-s
@@ -8,10 +11,11 @@ KEY ?= ctrl-s
 
 all: fmt test build
 
-## build: Build the application
+## build: Build bin/wtr and bin/what-to-run
 build:
-	@echo "Building $(BINARY_NAME)..."
+	@echo "Building $(BINARY_NAME) and $(BINARY_ALIAS)..."
 	$(GO) build -o bin/$(BINARY_NAME) $(CMD)
+	$(GO) build -o bin/$(BINARY_ALIAS) $(CMD)
 
 ## bind: Build and print the zsh integration for eval (eval "$(make bind)", KEY=combo)
 bind:

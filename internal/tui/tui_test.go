@@ -68,6 +68,13 @@ func TestViewRendersTasks(t *testing.T) {
 	}
 }
 
+func TestViewTitleUsesInvokedName(t *testing.T) {
+	got := sized(Options{Prog: "what-to-run"}).View().Content
+	if !strings.Contains(got, "what-to-run") {
+		t.Errorf("View() content does not contain the invoked name:\n%s", got)
+	}
+}
+
 func TestViewFullscreenUsesAltScreen(t *testing.T) {
 	if !sized(Options{}).View().AltScreen {
 		t.Error("View() in fullscreen mode should set AltScreen")

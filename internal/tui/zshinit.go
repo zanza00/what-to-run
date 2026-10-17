@@ -11,10 +11,10 @@ import (
 // given.
 const DefaultKey = "ctrl-s"
 
-// ZshInit returns the zsh integration script, the output of `init zsh`: a
-// script meant to be evaluated by an interactive zsh,
+// ZshInit returns the zsh integration script, the output of `<prog> init
+// zsh`: a script meant to be evaluated by an interactive zsh,
 //
-//	eval "$(wtr init zsh --key ctrl-s)"
+//	eval "$(what-to-run init zsh --key ctrl-s)"
 //
 // which binds key to a zle widget opening the inline picker of bin right
 // below the prompt. The widget implements the flow described in Run: it
@@ -22,11 +22,18 @@ const DefaultKey = "ctrl-s"
 // as a mode line ("run" or "insert") followed by the command line, and the
 // widget then runs it (enter) or inserts it in the prompt (tab).
 //
-// key is a combo name ("ctrl-s", "alt-x") or a raw zsh key sequence as
-// bindkey takes it ("^[[15~" for F5).
-func ZshInit(bin, key string) (string, error) {
+// prog is the name the binary was invoked as ("wtr" or
+// "what-to-run"): it appears in the script's comments and in the
+// message printed when the integration is evaluated. bin is the command the
+// widget launches — the invoked name, resolved through PATH at press time,
+// or an absolute path. key is a combo name ("ctrl-s", "alt-x") or a raw zsh
+// key sequence as bindkey takes it ("^[[15~" for F5).
+func ZshInit(prog, bin, key string) (string, error) {
 	if bin == "" {
 		return "", errors.New("empty binary path")
+	}
+	if prog == "" {
+		prog = "wtr"
 	}
 	seq, name, err := parseBindKey(key)
 	if err != nil {
@@ -34,18 +41,18 @@ func ZshInit(bin, key string) (string, error) {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `# wtr: zsh integration, %s opens the inline picker.
+	fmt.Fprintf(&b, `# %s: zsh integration, %s opens the inline picker.
 #
 # Evaluate it in an interactive shell:
 #
-#   eval "$(wtr init zsh --key %s)"
+#   eval "$(%s init zsh --key %s)"
 #
 # WTR_BIN overrides the binary the widget launches, WTR_FLAGS passes it extra
 # flags, e.g. WTR_FLAGS=--debug-area to see the border of the managed area.
 
 typeset -g WTR_BIN="${WTR_BIN:-%s}"
 typeset -g WTR_FLAGS="${WTR_FLAGS:-}"
-`, name, name, bin)
+`, prog, name, prog, name, bin)
 
 	ixon := disablesIXON(seq)
 	if ixon {
@@ -93,7 +100,7 @@ zle -N wtr-widget _wtr_widget
 		note = " (IXON off)"
 	}
 	fmt.Fprintf(&b, "bindkey '%s' wtr-widget\n\n", seq)
-	fmt.Fprintf(&b, "print \"wtr: %s opens ${WTR_BIN} --inline%s\"\n", name, note)
+	fmt.Fprintf(&b, "print \"%s: %s opens ${WTR_BIN} --inline%s\"\n", prog, name, note)
 
 	return b.String(), nil
 }

@@ -43,11 +43,12 @@ func TestParseBindKeyInvalid(t *testing.T) {
 }
 
 func TestZshInitScript(t *testing.T) {
-	got, err := ZshInit("/opt/wtr/wtr", "ctrl-g")
+	got, err := ZshInit("wtr", "/opt/wtr/wtr", "ctrl-g")
 	if err != nil {
 		t.Fatalf("ZshInit() error: %v", err)
 	}
 	for _, want := range []string{
+		"# wtr: zsh integration",
 		"zle -N wtr-widget _wtr_widget",
 		"bindkey '^G' wtr-widget",
 		`typeset -g WTR_BIN="${WTR_BIN:-/opt/wtr/wtr}"`,
@@ -63,9 +64,43 @@ func TestZshInitScript(t *testing.T) {
 	}
 }
 
+// TestZshInitNamesTheInvokedProgram pins the mnemonic rule: the script keeps
+// the name it was generated with, so the integration is self-explaining in
+// the rc file and in the message printed at shell startup.
+func TestZshInitNamesTheInvokedProgram(t *testing.T) {
+	tests := []struct {
+		prog string
+		want []string
+	}{
+		{
+			prog: "what-to-run",
+			want: []string{
+				"# what-to-run: zsh integration, Ctrl-G opens the inline picker.",
+				`eval "$(what-to-run init zsh --key Ctrl-G)"`,
+				`print "what-to-run: Ctrl-G opens ${WTR_BIN} --inline"`,
+			},
+		},
+		{
+			prog: "",
+			want: []string{"# wtr: zsh integration"},
+		},
+	}
+	for _, tt := range tests {
+		got, err := ZshInit(tt.prog, "/bin/wtr", "ctrl-g")
+		if err != nil {
+			t.Fatalf("ZshInit(%q) error: %v", tt.prog, err)
+		}
+		for _, want := range tt.want {
+			if !strings.Contains(got, want) {
+				t.Errorf("ZshInit(%q) script does not contain %q:\n%s", tt.prog, want, got)
+			}
+		}
+	}
+}
+
 func TestZshInitFlowControlKeyDisablesIXON(t *testing.T) {
 	for _, key := range []string{"ctrl-s", "ctrl-q", "^s", "^Q"} {
-		got, err := ZshInit("/bin/wtr", key)
+		got, err := ZshInit("wtr", "/bin/wtr", key)
 		if err != nil {
 			t.Fatalf("ZshInit(%q) error: %v", key, err)
 		}
@@ -81,7 +116,7 @@ func TestZshInitErrors(t *testing.T) {
 		{"/bin/wtr", ""},
 		{"", "ctrl-s"},
 	} {
-		if _, err := ZshInit(tt.bin, tt.key); err == nil {
+		if _, err := ZshInit("wtr", tt.bin, tt.key); err == nil {
 			t.Errorf("ZshInit(%q, %q) should fail", tt.bin, tt.key)
 		}
 	}
@@ -95,7 +130,7 @@ func TestZshInitParsesAsZsh(t *testing.T) {
 		t.Skip("zsh not installed")
 	}
 	for _, key := range []string{"ctrl-s", "alt-x", "^[[15~"} {
-		script, err := ZshInit("/bin/wtr", key)
+		script, err := ZshInit("wtr", "/bin/wtr", key)
 		if err != nil {
 			t.Fatalf("ZshInit(%q) error: %v", key, err)
 		}

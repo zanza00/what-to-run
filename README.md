@@ -212,18 +212,27 @@ and the previous shell contents are restored on quit.
 
 ### Themes
 
-The look of the picker is one of a handful of named themes — palettes plus a
-couple of structural variants (a filled selection row, an accent bar over a
-lighter tinted row, reverse video):
+The look of the picker is one of these named themes — palettes plus a couple
+of structural variants (a filled selection row, an accent bar over a lighter
+tinted row, reverse video):
 
 | Theme | Look |
 | --- | --- |
 | `classic` | the default violet look, filled selection row |
-| `nord` | arctic blues and frost, bar selection on a tinted row |
-| `dracula` | high-contrast plum, bar selection on a tinted row |
-| `tokyo` | night blues on ink, bar selection on a tinted row |
-| `gruvbox` | warm retro amber, bar selection on a tinted row |
+| `nord` | arctic blues and frost |
+| `dracula` | high-contrast plum |
+| `tokyo` | night blues on ink |
+| `gruvbox` | warm retro amber |
+| `catppuccin` | soft pastel mocha |
+| `one-dark` | the editor classic: cool grays and blue |
+| `monokai` | vivid pink, orange and green |
+| `solarized` | the low-contrast classic: teal and blue |
+| `everforest` | muted forest greens |
+| `kanagawa` | ukiyo-e ink blues and sakura |
+| `rose-pine` | dusty rose, pine and iris |
 | `mono` | no colors at all, reverse-video selection |
+
+Every theme but `classic` and `mono` uses the bar-and-tinted-row selection.
 
 Pick one with `--theme nord`, or cycle them live in the picker with `ctrl+t`
 (the title shows the active one; the choice lasts for the session). To compare

@@ -2,6 +2,8 @@ package tui
 
 import (
 	"bytes"
+	"image/color"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +37,42 @@ func TestThemeRegistry(t *testing.T) {
 		}
 		seen[th.name] = true
 	}
+}
+
+// TestThemeContrast keeps the selected row readable: the light text of a bar
+// theme must stand out from its tint (WCAG AA, 4.5:1). The nord theme once
+// failed this with the dim color on a nearly identical tint.
+func TestThemeContrast(t *testing.T) {
+	for _, th := range themes {
+		if th.sel != selBar {
+			continue
+		}
+		if got := contrastRatio(th.selFg, th.selBg); got < 4.5 {
+			t.Errorf("theme %q: selFg on selBg contrast = %.1f:1, want at least 4.5:1", th.name, got)
+		}
+	}
+}
+
+// contrastRatio returns the WCAG contrast ratio between two colors.
+func contrastRatio(a, b color.Color) float64 {
+	la, lb := relativeLuminance(a), relativeLuminance(b)
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
+}
+
+// relativeLuminance returns the WCAG relative luminance of a color.
+func relativeLuminance(c color.Color) float64 {
+	r, g, b, _ := c.RGBA() // 16-bit channels
+	linear := func(v uint32) float64 {
+		s := float64(v) / 0xFFFF
+		if s <= 0.04045 {
+			return s / 12.92
+		}
+		return math.Pow((s+0.055)/1.055, 2.4)
+	}
+	return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
 }
 
 func TestThemeIndex(t *testing.T) {

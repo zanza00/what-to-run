@@ -20,6 +20,11 @@ import (
 // whatever it was renamed to) and identifies itself with.
 var prog = progName(os.Args[0])
 
+// version is the release version, injected at build time with
+// `-X main.version` (see the Makefile and .goreleaser.yaml); local builds
+// report "dev".
+var version = "dev"
+
 func main() {
 	// A subcommand comes first; everything else is the picker's own flags.
 	if len(os.Args) > 1 && os.Args[1] == "init" {
@@ -41,6 +46,8 @@ func main() {
 			"ctrl+t opens the theme picker")
 	listThemes := flag.Bool("list-themes", false,
 		"list the available themes and exit")
+	showVersion := flag.Bool("version", false,
+		"print the version and exit")
 	preview := flag.Bool("preview", false,
 		"print one static frame of the picker to stdout and exit (theming\n"+
 			"aid: compare themes side by side, e.g. with --theme)")
@@ -54,6 +61,11 @@ func main() {
 		}
 	}
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(versionLine(prog, version))
+		return
+	}
 
 	if *listThemes {
 		tui.ListThemes(os.Stdout)
@@ -142,6 +154,12 @@ func progName(arg0 string) string {
 		return "wtr"
 	}
 	return filepath.Base(arg0)
+}
+
+// versionLine is what --version prints: the invoked name and the release
+// version, so a copy-pasted bug report says both.
+func versionLine(prog, ver string) string {
+	return prog + " " + ver
 }
 
 // helpHint is the line appended to the usage of the explicit name, so the

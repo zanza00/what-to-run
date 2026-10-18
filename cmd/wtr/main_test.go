@@ -22,6 +22,22 @@ func TestProgName(t *testing.T) {
 	}
 }
 
+func TestVersionLine(t *testing.T) {
+	tests := []struct {
+		prog    string
+		version string
+		want    string
+	}{
+		{"wtr", "0.1.0", "wtr 0.1.0"},
+		{"what-to-run", "dev", "what-to-run dev"},
+	}
+	for _, tt := range tests {
+		if got := versionLine(tt.prog, tt.version); got != tt.want {
+			t.Errorf("versionLine(%q, %q) = %q; want %q", tt.prog, tt.version, got, tt.want)
+		}
+	}
+}
+
 func TestWidgetBin(t *testing.T) {
 	// A bare name is kept: the widget resolves it through PATH when the key
 	// is pressed, so it keeps calling the binary by the invoked name.

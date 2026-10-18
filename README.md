@@ -23,6 +23,13 @@ On macOS or Linux with Homebrew (installs both `wtr` and `what-to-run`):
 brew install zanza00/tap/what-to-run
 ```
 
+On macOS or Linux with [mise](https://mise.jdx.dev/) (installs both binaries
+from the GitHub releases):
+
+```sh
+mise use -g github:zanza00/what-to-run
+```
+
 On Ubuntu and Debian, from the `.deb` packages attached to each
 [release](https://github.com/zanza00/what-to-run/releases) (use the `arm64`
 file on ARM machines):

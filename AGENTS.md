@@ -70,7 +70,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   what is left — dropped before the command shrinks. A description already
   contained in the command line is hidden (an rc task without a custom
   description defaults to its own command). The filter matches tokens against
-  the task name or the command line, since the name is not a column.
+  the task name, the command line or the description, highlighting the matched
+  characters in the row.
 - The inline row math (`areaHeight`, `restoreCursor`) is pinned in
   `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests in sync with
   any layout change.

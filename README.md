@@ -74,7 +74,7 @@ go run ./cmd/wtr
 
 | Key | Action |
 | --- | --- |
-| typing | filter the list (case-insensitive subsequence of the task names) |
+| typing | filter the list (case-insensitive subsequence of the command or description, with matches highlighted) |
 | `↑`/`↓`, `ctrl+p`/`ctrl+n` | move the selection |
 | `pgup`/`pgdown`, `home`/`end` | jump in the list |
 | `enter` | run the selected task |

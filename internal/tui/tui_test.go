@@ -100,6 +100,203 @@ func TestFilteringByCommandLine(t *testing.T) {
 	}
 }
 
+func TestFilteringByDescription(t *testing.T) {
+	tasks := []Task{
+		{Source: "package.json", Name: "build", Desc: "tsc && vite build", Args: []string{"npm", "run", "build"}},
+		{Source: "Makefile", Name: "test", Desc: "Run the tests", Args: []string{"make", "test"}},
+	}
+	base := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10})
+
+	for _, query := range []string{"tsc", "vite", "npm vite", "run tests"} {
+		t.Run(query, func(t *testing.T) {
+			m := press(base, query)
+			vis := m.visible()
+			if len(vis) != 1 {
+				t.Fatalf("visible tasks with filter %q = %+v, want 1 match", query, vis)
+			}
+			want := "build"
+			if query == "run tests" {
+				want = "test"
+			}
+			if vis[0].Name != want {
+				t.Errorf("matched task for %q = %q, want %q", query, vis[0].Name, want)
+			}
+		})
+	}
+}
+
+func TestFilteringRanksAndRejectsScatteredCrossWordNoise(t *testing.T) {
+	tasks := []Task{
+		{
+			Source: "package.json",
+			Name:   "test:watch",
+			Desc:   "vitest",
+			Args:   []string{"pnpm", "run", "test:watch"},
+		},
+		{
+			Source: "package.json",
+			Name:   "type-strict-check",
+			Desc:   "check types",
+			Args:   []string{"pnpm", "run", "type-strict-check"},
+		},
+		{
+			Source: "package.json",
+			Name:   "build",
+			Desc:   "tsc --noEmit && tsc --noEmit -p src/edge && vite build",
+			Args:   []string{"pnpm", "run", "build"},
+		},
+		{
+			Source: "package.json",
+			Name:   "codes",
+			Desc:   "node scripts/codes.mjs",
+			Args:   []string{"pnpm", "run", "codes"},
+		},
+		{
+			Source: "package.json",
+			Name:   "icons",
+			Desc:   "node scripts/icons.mjs",
+			Args:   []string{"pnpm", "run", "icons"},
+		},
+		{
+			Source: "package.json",
+			Name:   "check",
+			Desc:   "biome check && eslint src && pnpm run knip",
+			Args:   []string{"pnpm", "run", "check"},
+		},
+		{
+			Source: "package.json",
+			Name:   "preview",
+			Desc:   "vite --mode dev",
+			Args:   []string{"pnpm", "run", "preview"},
+		},
+		{
+			Source: "package.json",
+			Name:   "dev:edge",
+			Desc:   "wrangler dev",
+			Args:   []string{"pnpm", "run", "dev:edge"},
+		},
+		{
+			Source: "package.json",
+			Name:   "dev",
+			Desc:   "vite --host 0.0.0.0",
+			Args:   []string{"pnpm", "run", "dev"},
+		},
+	}
+	base := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 15})
+
+	// "dev": exact task name first, then prefix name ("dev:edge"), then
+	// description match ("preview"), while "build" ("src/edge && vite") is
+	// rejected as cross-word mid-word noise.
+	m := press(base, "dev")
+	vis := m.visible()
+	var names []string
+	for _, task := range vis {
+		names = append(names, task.Name)
+	}
+	if want := []string{"dev", "dev:edge", "preview"}; !slices.Equal(names, want) {
+		t.Errorf("ranked tasks for %q = %v, want %v", "dev", names, want)
+	}
+
+	// "tsc": contiguous "tsc" in build's description beats a non-contiguous
+	// acronym match in a task name ("type-strict-check"), and scattered
+	// cross-word noise ("test:watch", "codes", "icons", "check") is rejected.
+	m = press(base, "tsc")
+	vis = m.visible()
+	names = nil
+	for _, task := range vis {
+		names = append(names, task.Name)
+	}
+	if want := []string{"build", "type-strict-check"}; !slices.Equal(names, want) {
+		t.Errorf("ranked tasks for %q = %v, want %v", "tsc", names, want)
+	}
+}
+
+func TestMatchPositionsPrefersContiguousAndWordBoundaries(t *testing.T) {
+	tests := []struct {
+		name   string
+		text   string
+		tokens []string
+		want   string // matched runes uppercased in text
+	}{
+		{
+			name:   "contiguous substring wins over earlier scattered letter",
+			text:   "env=dev && vite build",
+			tokens: []string{"vite"},
+			want:   "env=dev && VITE build",
+		},
+		{
+			name:   "word boundaries win for initials",
+			text:   "npm run build",
+			tokens: []string{"nb"},
+			want:   "Npm run Build",
+		},
+		{
+			name:   "multiple tokens highlight both",
+			text:   "tsc && vite build",
+			tokens: []string{"tsc", "vite"},
+			want:   "TSC && VITE build",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mask := matchPositions(tt.text, tt.tokens)
+			runes := []rune(tt.text)
+			var b strings.Builder
+			for i, r := range runes {
+				if i < len(mask) && mask[i] {
+					b.WriteString(strings.ToUpper(string(r)))
+				} else {
+					b.WriteRune(r)
+				}
+			}
+			if got := b.String(); got != tt.want {
+				t.Errorf("matchPositions(%q, %v) marked %q, want %q", tt.text, tt.tokens, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestViewHighlightsMatches(t *testing.T) {
+	tasks := []Task{
+		{Source: "package.json", Name: "build", Desc: "tsc && vite build", Args: []string{"npm", "run", "build"}},
+		{Source: "package.json", Name: "dev", Desc: "vite --open", Args: []string{"npm", "run", "dev"}},
+	}
+	m := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10})
+	m = press(m, "vite")
+
+	got := m.View().Content
+	// Selected row (build) highlights "vite" with selectedMatch; unselected
+	// row (dev) highlights "vite" with match.
+	wantSel := m.styles.selectedMatch.Render("vite")
+	wantUnsel := m.styles.match.Render("vite")
+	if !strings.Contains(got, wantSel) {
+		t.Errorf("View() does not highlight %q on the selected row:\n%q", "vite", got)
+	}
+	if !strings.Contains(got, wantUnsel) {
+		t.Errorf("View() does not highlight %q on the unselected row:\n%q", "vite", got)
+	}
+}
+
+func TestViewWindowsLongDescriptionAroundMatch(t *testing.T) {
+	tasks := []Task{
+		{
+			Source: "package.json",
+			Name:   "build",
+			Desc:   "tsc --noEmit && vite build --mode production && node scripts/postbuild.mjs",
+			Args:   []string{"npm", "run", "build"},
+		},
+	}
+	m := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 50, Height: 10})
+	m = press(m, "postbuild")
+
+	got := m.View().Content
+	want := m.styles.selectedMatch.Render("postbuild")
+	if !strings.Contains(got, want) {
+		t.Errorf("narrow View() did not keep the matched description span visible:\n%s", got)
+	}
+}
+
 func TestViewKeepsCommandOnNarrowTerminals(t *testing.T) {
 	// At 44 columns the description barely fits: the command must stay
 	// readable, since it is what will actually run.

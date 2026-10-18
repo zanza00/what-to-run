@@ -199,15 +199,17 @@ func ListThemes(w io.Writer) {
 // derived from a theme and stateless once built, so a model can swap them
 // (ctrl+t) without touching anything else.
 type styles struct {
-	title        lipgloss.Style // the program name
-	filter       lipgloss.Style // the filter prompt and its cursor
-	selectedName lipgloss.Style // the command on the selected row
-	selectedText lipgloss.Style // desc and badge on the selected row
-	selectedPad  lipgloss.Style // the padding between them
-	marker       lipgloss.Style // the cursor marker
-	dim          lipgloss.Style
-	ok           lipgloss.Style
-	err          lipgloss.Style
+	title         lipgloss.Style // the program name
+	filter        lipgloss.Style // the filter prompt and its cursor
+	selectedName  lipgloss.Style // the command on the selected row
+	selectedText  lipgloss.Style // desc and badge on the selected row
+	selectedMatch lipgloss.Style // matched filter characters on the selected row
+	selectedPad   lipgloss.Style // the padding between them
+	marker        lipgloss.Style // the cursor marker
+	match         lipgloss.Style // matched filter characters on unselected rows
+	dim           lipgloss.Style
+	ok            lipgloss.Style
+	err           lipgloss.Style
 }
 
 // newStyles builds the styles for a theme. A nil color leaves the
@@ -216,6 +218,11 @@ func newStyles(t theme) styles {
 	accent := lipgloss.NewStyle()
 	if t.accent != nil {
 		accent = accent.Foreground(t.accent)
+	}
+
+	match := accent.Bold(true)
+	if t.accent == nil {
+		match = match.Underline(true)
 	}
 
 	colour := func(c color.Color, fallback lipgloss.Style) lipgloss.Style {
@@ -246,14 +253,16 @@ func newStyles(t theme) styles {
 	}
 
 	return styles{
-		title:        accent.Bold(true),
-		filter:       accent.Bold(true),
-		dim:          colour(t.dim, lipgloss.NewStyle().Faint(true)),
-		ok:           colour(t.ok, lipgloss.NewStyle()),
-		err:          colour(t.err, lipgloss.NewStyle()),
-		marker:       onRow(t.accent, true),
-		selectedName: onRow(t.selFg, true),
-		selectedText: onRow(t.selFg, false),
-		selectedPad:  onRow(nil, false),
+		title:         accent.Bold(true),
+		filter:        accent.Bold(true),
+		dim:           colour(t.dim, lipgloss.NewStyle().Faint(true)),
+		ok:            colour(t.ok, lipgloss.NewStyle()),
+		err:           colour(t.err, lipgloss.NewStyle()),
+		marker:        onRow(t.accent, true),
+		match:         match,
+		selectedName:  onRow(t.selFg, true),
+		selectedText:  onRow(t.selFg, false),
+		selectedMatch: onRow(t.accent, true).Underline(true),
+		selectedPad:   onRow(nil, false),
 	}
 }

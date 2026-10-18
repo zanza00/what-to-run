@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -594,49 +596,306 @@ func (m model) pick(insert bool) (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-// visible returns the tasks matching the current filter, in display order.
+// filterTokens returns the lowercase whitespace-separated tokens of the
+// current filter.
+func (m model) filterTokens() []string {
+	return strings.Fields(strings.ToLower(m.filter))
+}
+
+// visible returns the tasks matching the current filter, ranked from best to
+// worst match (ties keep discovery order).
 func (m model) visible() []Task {
-	if m.filter == "" {
+	tokens := m.filterTokens()
+	if len(tokens) == 0 {
 		return m.tasks
 	}
 
-	tokens := strings.Fields(strings.ToLower(m.filter))
-	matches := make([]Task, 0, len(m.tasks))
+	type scoredTask struct {
+		task  Task
+		score int
+	}
+	matches := make([]scoredTask, 0, len(m.tasks))
 	for _, t := range m.tasks {
-		if t.matches(tokens) {
-			matches = append(matches, t)
+		if score, ok := t.matchScore(tokens); ok {
+			matches = append(matches, scoredTask{task: t, score: score})
 		}
 	}
-	return matches
+	slices.SortStableFunc(matches, func(a, b scoredTask) int {
+		return b.score - a.score
+	})
+
+	out := make([]Task, len(matches))
+	for i, m := range matches {
+		out[i] = m.task
+	}
+	return out
 }
 
 // matches reports whether the task matches all tokens, as case-insensitive
-// subsequences of its name or of the command line shown in the list: the
-// rows show the command, so typing "npm" or "cargo" must find it.
+// subsequences of its name, command line or description: the rows show the
+// command and the description (e.g. a package.json script body), so typing
+// "npm", "tsc" or "vite" must find it.
 func (t Task) matches(tokens []string) bool {
-	name := strings.ToLower(t.Name)
-	cmd := strings.ToLower(t.commandLine())
+	_, ok := t.matchScore(tokens)
+	return ok
+}
+
+// matchScore scores how well t matches all tokens. Contiguous matches always
+// outrank non-contiguous subsequence matches, and within the same tier a
+// match in the task name or command line outranks one in the description.
+func (t Task) matchScore(tokens []string) (int, bool) {
+	const (
+		contigCmdTier  = 2000
+		contigDescTier = 1000
+		fuzzyCmdTier   = 500
+		nameTierBonus  = 300
+		exactNameBonus = 500
+		prefixBonus    = 200
+	)
+
+	cmdLine := t.commandLine()
+	nameLower := strings.ToLower(t.Name)
+	total := 0
+
 	for _, token := range tokens {
-		if !subsequence(name, token) && !subsequence(cmd, token) {
+		nameScore, nameContig, nameOK := scoreSubsequence(t.Name, token)
+		cmdScore, cmdContig, cmdOK := scoreSubsequence(cmdLine, token)
+		descScore, descContig, descOK := scoreSubsequence(t.Desc, token)
+		if !nameOK && !cmdOK && !descOK {
+			return 0, false
+		}
+
+		best := -1 << 30
+		if nameOK || cmdOK {
+			tier := fuzzyCmdTier
+			if nameContig || cmdContig {
+				tier = contigCmdTier
+			}
+			score := tier + cmdScore - min(len(cmdLine), 80)
+			if nameOK {
+				score += nameTierBonus + nameScore - min(len(t.Name), 50)
+				switch {
+				case nameLower == token:
+					score += exactNameBonus
+				case strings.HasPrefix(nameLower, token):
+					score += prefixBonus
+				}
+			}
+			best = max(best, score)
+		}
+		if descOK {
+			score := descScore
+			if descContig {
+				score += contigDescTier
+			}
+			best = max(best, score)
+		}
+		total += best
+	}
+	return total, true
+}
+
+// scoreSubsequence reports the best alignment score of needle (already
+// lowercase) in s, whether the match is contiguous, and whether it matched.
+func scoreSubsequence(s, needle string) (int, bool, bool) {
+	if s == "" || needle == "" {
+		return 0, false, false
+	}
+	runes := []rune(s)
+	lower := make([]rune, len(runes))
+	for i, r := range runes {
+		lower[i] = unicode.ToLower(r)
+	}
+	pos, score, contig := subsequenceMatch(runes, lower, []rune(needle))
+	if len(pos) == 0 {
+		return 0, false, false
+	}
+	return score, contig, true
+}
+
+// matchPositions returns a boolean mask over the runes of s marking the
+// characters matched by any token in tokens, or nil when no token matches s.
+func matchPositions(s string, tokens []string) []bool {
+	if s == "" || len(tokens) == 0 {
+		return nil
+	}
+	runes := []rune(s)
+	lower := make([]rune, len(runes))
+	for i, r := range runes {
+		lower[i] = unicode.ToLower(r)
+	}
+
+	var matched []bool
+	for _, token := range tokens {
+		pos, _, _ := subsequenceMatch(runes, lower, []rune(token))
+		if len(pos) == 0 {
+			continue
+		}
+		if matched == nil {
+			matched = make([]bool, len(runes))
+		}
+		for _, idx := range pos {
+			matched[idx] = true
+		}
+	}
+	return matched
+}
+
+// subsequenceMatch finds the best fzf-style alignment of needle (already
+// lowercase) in lower. It prefers contiguous substring matches first; when no
+// contiguous match exists, it falls back to a word-anchored subsequence
+// (starting at a word boundary, advancing within the same word or jumping to
+// later word boundaries) so scattered mid-word letters across unrelated words
+// do not produce false positives.
+func subsequenceMatch(runes, lower, needle []rune) ([]int, int, bool) {
+	m, n := len(needle), len(lower)
+	if m == 0 || m > n {
+		return nil, 0, false
+	}
+
+	const (
+		unmatched        = -1 << 30
+		baseBonus        = 16
+		consecutiveBonus = 16
+		boundaryBonus    = 10
+		wholeWordBonus   = 12
+	)
+
+	// 1. Prefer a contiguous substring match anywhere in lower.
+	bestStart := -1
+	bestScore := unmatched
+	for i := 0; i <= n-m; i++ {
+		if !slices.Equal(lower[i:i+m], needle) {
+			continue
+		}
+		score := m*baseBonus + (m-1)*consecutiveBonus
+		if isWordBoundary(runes, i) {
+			score += boundaryBonus
+			if isWordEnd(runes, i+m-1) {
+				score += wholeWordBonus
+			}
+		}
+		if i == 0 {
+			score += 4
+		}
+		if score > bestScore {
+			bestScore = score
+			bestStart = i
+		}
+	}
+	if bestStart >= 0 {
+		pos := make([]int, m)
+		for k := range m {
+			pos[k] = bestStart + k
+		}
+		return pos, bestScore, true
+	}
+
+	// 2. Fall back to a word-anchored subsequence: the match must start on a
+	// word boundary and may only skip characters within the same word or jump
+	// to the boundary of a later word.
+	scores := make([]int, m*n)
+	prev := make([]int, m*n)
+	for i := range scores {
+		scores[i] = unmatched
+		prev[i] = -1
+	}
+
+	for j := range n {
+		if lower[j] == needle[0] && isWordBoundary(runes, j) {
+			scores[j] = baseBonus + boundaryBonus
+		}
+	}
+
+	for k := 1; k < m; k++ {
+		row := k * n
+		prevRow := (k - 1) * n
+		for j := k; j < n; j++ {
+			if lower[j] != needle[k] {
+				continue
+			}
+			bestScore := unmatched
+			bestPrev := -1
+			jBoundary := isWordBoundary(runes, j)
+			for p := k - 1; p < j; p++ {
+				pScore := scores[prevRow+p]
+				if pScore == unmatched {
+					continue
+				}
+				var candidate int
+				switch {
+				case p == j-1:
+					candidate = pScore + baseBonus + consecutiveBonus
+				case jBoundary:
+					candidate = pScore + baseBonus + boundaryBonus - (j - p - 1)
+				case sameWord(runes, p, j):
+					candidate = pScore + baseBonus - (j - p - 1)
+				default:
+					continue
+				}
+				if candidate > bestScore || (candidate == bestScore && p > bestPrev) {
+					bestScore = candidate
+					bestPrev = p
+				}
+			}
+			scores[row+j] = bestScore
+			prev[row+j] = bestPrev
+		}
+	}
+
+	lastRow := (m - 1) * n
+	bestEnd := -1
+	bestScore = unmatched
+	for j := m - 1; j < n; j++ {
+		if scores[lastRow+j] > bestScore {
+			bestScore = scores[lastRow+j]
+			bestEnd = j
+		}
+	}
+	if bestEnd < 0 {
+		return nil, 0, false
+	}
+
+	pos := make([]int, m)
+	curr := bestEnd
+	for k := m - 1; k >= 0; k-- {
+		pos[k] = curr
+		curr = prev[k*n+curr]
+	}
+	return pos, bestScore, false
+}
+
+// isWordBoundary reports whether rune j sits at the start of a word (start of
+// string, after a non-alphanumeric separator, or a camelCase transition).
+func isWordBoundary(runes []rune, j int) bool {
+	if j == 0 {
+		return true
+	}
+	prev := runes[j-1]
+	if !unicode.IsLetter(prev) && !unicode.IsDigit(prev) {
+		return true
+	}
+	return unicode.IsLower(prev) && unicode.IsUpper(runes[j])
+}
+
+// isWordEnd reports whether rune j sits at the end of a word.
+func isWordEnd(runes []rune, j int) bool {
+	if j+1 >= len(runes) {
+		return true
+	}
+	next := runes[j+1]
+	return !unicode.IsLetter(next) && !unicode.IsDigit(next)
+}
+
+// sameWord reports whether all runes in runes[start:end+1] belong to the same
+// alphanumeric word.
+func sameWord(runes []rune, start, end int) bool {
+	for i := start; i <= end; i++ {
+		if !unicode.IsLetter(runes[i]) && !unicode.IsDigit(runes[i]) {
 			return false
 		}
 	}
 	return true
-}
-
-// subsequence reports whether needle is a subsequence of the lowercase
-// haystack.
-func subsequence(haystack, needle string) bool {
-	rest := needle
-	for _, r := range haystack {
-		if rest == "" {
-			return true
-		}
-		if r == rune(rest[0]) {
-			rest = rest[1:]
-		}
-	}
-	return rest == ""
 }
 
 // keepCursorVisible clamps the cursor and scrolls the list so that the
@@ -854,31 +1113,39 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 
 	room := max(w-badgeW-1, 0) // columns left of the badge separator
 	avail := max(room-2, 0)    // columns after the marker
+	tokens := m.filterTokens()
 
 	cmdW := min(m.commandWidth(), avail)
-	cmd := t.commandLine()
-	if lipgloss.Width(cmd) > cmdW {
-		cmd = ansi.Truncate(cmd, cmdW, "…")
-	}
+	cmdRaw := t.commandLine()
+	cmd, cmdMatch := truncateMatched(cmdRaw, matchPositions(cmdRaw, tokens), cmdW)
 	cmd += strings.Repeat(" ", max(cmdW-lipgloss.Width(cmd), 0))
 
 	desc := t.Desc
-	if desc != "" && strings.Contains(strings.ToLower(t.commandLine()), strings.ToLower(desc)) {
+	if desc != "" && strings.Contains(strings.ToLower(cmdRaw), strings.ToLower(desc)) {
 		// The command already says it: rc tasks without a custom
 		// description default to their own command.
 		desc = ""
 	}
-	var descLine string
+	var (
+		descLine  string
+		descMatch []bool
+	)
 	if descW := avail - cmdW - 1; desc != "" && descW > 0 {
-		descLine = " " + ansi.Truncate(desc, descW, "…")
+		var dm []bool
+		desc, dm = truncateMatched(desc, matchPositions(desc, tokens), descW)
+		descLine = " " + desc
+		if dm != nil {
+			descMatch = append([]bool{false}, dm...)
+		}
 	}
 
 	if selected {
 		// The marker in the accent color, the rest of the row in the
 		// theme's light tone over its tint (reverse video, in mono).
-		left := m.styles.marker.Render(marker) + m.styles.selectedName.Render(cmd)
+		left := m.styles.marker.Render(marker) +
+			renderMatched(cmd, cmdMatch, m.styles.selectedName, m.styles.selectedMatch)
 		if descLine != "" {
-			left += m.styles.selectedText.Render(descLine)
+			left += renderMatched(descLine, descMatch, m.styles.selectedText, m.styles.selectedMatch)
 		}
 		pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
 		if pad != "" {
@@ -887,12 +1154,131 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 		return left + pad + m.styles.selectedText.Render(" "+badge)
 	}
 
-	left := marker + cmd
+	left := marker + renderMatched(cmd, cmdMatch, lipgloss.Style{}, m.styles.match)
 	if descLine != "" {
-		left += m.styles.dim.Render(descLine)
+		left += renderMatched(descLine, descMatch, m.styles.dim, m.styles.match)
 	}
 	pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
 	return left + pad + " " + m.styles.dim.Render(badge)
+}
+
+// truncateMatched fits s within maxW terminal columns while keeping any
+// matched runes visible: if right-truncating would cut off a match, the
+// visible window shifts toward the matched span with a leading ellipsis.
+func truncateMatched(s string, matched []bool, maxW int) (string, []bool) {
+	if maxW <= 0 || s == "" {
+		return "", nil
+	}
+	if lipgloss.Width(s) <= maxW {
+		return s, matched
+	}
+	if maxW == 1 {
+		return "…", nil
+	}
+
+	firstMatch, lastMatch := -1, -1
+	for i, ok := range matched {
+		if ok {
+			if firstMatch < 0 {
+				firstMatch = i
+			}
+			lastMatch = i
+		}
+	}
+
+	runes := []rune(s)
+	width, end := 0, 0
+	for end < len(runes) {
+		rw := ansi.StringWidth(string(runes[end]))
+		if width+rw > maxW-1 {
+			break
+		}
+		width += rw
+		end++
+	}
+	if firstMatch < 0 || lastMatch < end {
+		var m []bool
+		if len(matched) > 0 {
+			m = append(slices.Clone(matched[:end]), false)
+		}
+		return string(runes[:end]) + "…", m
+	}
+
+	// A match lies past the right truncation point: try a suffix anchored
+	// to the end of s first, then a middle window framed by two ellipses.
+	suffixW := 0
+	start := len(runes)
+	for start > 0 {
+		rw := ansi.StringWidth(string(runes[start-1]))
+		if 1+suffixW+rw > maxW {
+			break
+		}
+		suffixW += rw
+		start--
+	}
+	if start <= firstMatch {
+		m := make([]bool, 1+len(runes)-start)
+		copy(m[1:], matched[start:])
+		return "…" + string(runes[start:]), m
+	}
+
+	if maxW < 3 {
+		return ansi.Truncate(s, maxW, "…"), nil
+	}
+	start, end = firstMatch, firstMatch
+	midW := 0
+	for end < len(runes) {
+		rw := ansi.StringWidth(string(runes[end]))
+		if midW+rw > maxW-2 {
+			break
+		}
+		midW += rw
+		end++
+	}
+	for start > 0 {
+		rw := ansi.StringWidth(string(runes[start-1]))
+		if midW+rw > maxW-2 {
+			break
+		}
+		midW += rw
+		start--
+	}
+	m := make([]bool, 0, (end-start)+2)
+	m = append(m, false)
+	m = append(m, matched[start:end]...)
+	m = append(m, false)
+	return "…" + string(runes[start:end]) + "…", m
+}
+
+// renderMatched renders s applying highlight to the runes marked in matched
+// and base to the rest. Adjacent runes with the same state are grouped into a
+// single segment so no unnecessary ANSI resets are emitted.
+func renderMatched(s string, matched []bool, base, highlight lipgloss.Style) string {
+	if s == "" {
+		return ""
+	}
+	if !slices.Contains(matched, true) {
+		return base.Render(s)
+	}
+
+	runes := []rune(s)
+	var b strings.Builder
+	start := 0
+	for start < len(runes) {
+		isMatch := start < len(matched) && matched[start]
+		end := start + 1
+		for end < len(runes) && (end < len(matched) && matched[end]) == isMatch {
+			end++
+		}
+		seg := string(runes[start:end])
+		if isMatch {
+			b.WriteString(highlight.Render(seg))
+		} else {
+			b.WriteString(base.Render(seg))
+		}
+		start = end
+	}
+	return b.String()
 }
 
 // commandWidth returns the width of the command column: the widest visible

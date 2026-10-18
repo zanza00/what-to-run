@@ -216,6 +216,7 @@ func TestViewFullscreenFillsHeightAndScrolls(t *testing.T) {
 }
 
 func TestViewShowsWarnings(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Cargo.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 30})
 	if got := m.View().Content; !strings.Contains(got, "Cargo.toml: boom") {

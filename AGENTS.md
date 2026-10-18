@@ -19,8 +19,9 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `tasks.go` = the Task model, `sources.go` = the discovery framework and the
   source registry, `source_*.go` = one parser per source, `theme.go` = the
   named looks and the styles derived from them, `theme_modal.go` = the ctrl+t
-  theme picker overlay, `notice.go` = the transient toast, `zshinit.go` = the
-  zsh widget printed by `init zsh`); `cmd/wtr` only parses flags/subcommands
+  theme picker overlay, `warning_modal.go` = the ctrl+w warning modal and
+  dismissed-warnings cache, `notice.go` = the transient toast, `zshinit.go` =
+  the zsh widget printed by `init zsh`); `cmd/wtr` only parses flags/subcommands
   and calls `tui.Run` / `tui.Preview` / `tui.ZshInit`. Adding a source: a
   `source` literal and its parser in a new `source_<name>.go`, one line in
   `defaultSources`, and table-driven tests next to them. Unknown `package.json`
@@ -32,11 +33,16 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   absolute path — in `WTR_BIN`; with the explicit name, `--help` and the
   generated script also point at `wtr` when it is on PATH. `cmd/wtr/main_test.go`
   pins the helpers.
-- The optional rc file (`config.go`; `.what-to-run.toml` in the project,
+- The optional rc file (`config.go`, documented in `docs/config.md`;
+  `.what-to-run.toml` in the project,
   `$XDG_CONFIG_HOME/what-to-run/config.toml` globally) adds `[[tasks]]`,
-  overrides `package_manager` and disables sources; its problems are warnings
-  (status line), never fatal, like broken sources. Its tasks are assembled in
-  `discoverTasks` and shadow same-named source tasks. The theme is a user
+  overrides `package_manager`, disables sources, and supports per-project
+  overrides (`[projects."<path>"]`) in the user file. It is parsed in
+  best-effort mode so unknown keys, wrong types, or invalid entries warn and
+  drop only the offending item while keeping the rest of the file. Warnings open
+  the `ctrl+w` warning modal (`warning_modal.go`, dismissible with `d` into
+  `$XDG_CACHE_HOME/what-to-run/dismissed-warnings`) and show a warning
+  count in the bottom help line without hiding the chrome. The theme is a user
   setting like OpenCode's `cli.json`: only the global file sets it (a project
   `theme` warns and is ignored) and `saveTheme` writes it there.
 - The look is a named theme (`theme.go`): the registry order is the order of

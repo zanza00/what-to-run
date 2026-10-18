@@ -115,6 +115,7 @@ func TestListThemes(t *testing.T) {
 }
 
 func TestUnknownThemeWarnsAndFallsBack(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	m := newModel(Options{Theme: "nope"}, sampleTasks(), nil)
 	if got := themes[m.themeIdx].name; got != defaultTheme {
 		t.Errorf("theme after an unknown name = %q, want %q", got, defaultTheme)

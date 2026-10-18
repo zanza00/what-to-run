@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -75,14 +76,162 @@ command = "project build"
 
 func TestLoadConfigUnknownField(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "project.toml", "packge_manager = \"bun\"\n")
+	writeFile(t, dir, "project.toml", `
+packge_manager = "bun"
+package_manager = "pnpm"
+disable = ["Makefile", 42]
+
+[[tasks]]
+name = "ok"
+command = "echo ok"
+extra_key = "ignored"
+
+[[tasks]]
+name = 123
+command = "bad"
+`)
 
 	cfg, errs := loadConfig(filepath.Join(dir, "project.toml"), "")
-	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "project.toml") {
-		t.Errorf("loadConfig() warnings = %v, want one about project.toml", errs)
+	if len(errs) != 4 {
+		t.Fatalf("loadConfig() warnings = %v, want 4", errs)
 	}
-	if !reflect.DeepEqual(cfg, config{}) {
-		t.Errorf("loadConfig() = %+v, want the zero config", cfg)
+	for _, wantErr := range []string{
+		"disable entries must be strings",
+		`unknown key "packge_manager"`,
+		`task has unknown key "extra_key"`,
+		`task field "name" must be a string`,
+	} {
+		if !slices.ContainsFunc(errs, func(err error) bool { return strings.Contains(err.Error(), wantErr) }) {
+			t.Errorf("loadConfig() warnings = %v, missing %q", errs, wantErr)
+		}
+	}
+	want := config{
+		PackageManager: "pnpm",
+		Disable:        []string{"Makefile"},
+		Tasks:          []configTask{{Name: "ok", Command: "echo ok"}},
+	}
+	if !reflect.DeepEqual(cfg, want) {
+		t.Errorf("loadConfig() = %+v, want %+v", cfg, want)
+	}
+}
+
+func TestLoadConfigProjectsSubtreeAndPrecedence(t *testing.T) {
+	root := t.TempDir()
+	realHome := filepath.Join(root, "var", "home", "user")
+	linkHome := filepath.Join(root, "home", "user")
+	if err := os.MkdirAll(filepath.Join(realHome, "work", "api", "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(realHome, "work", "api-2"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(linkHome), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(realHome, linkHome); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", linkHome)
+
+	globalFile := filepath.Join(root, "global.toml")
+	writeFile(t, root, "global.toml", `
+theme = "dracula"
+package_manager = "npm"
+disable = ["Cargo.toml"]
+
+[[tasks]]
+name = "shared"
+command = "global shared"
+
+[projects."~/work"]
+package_manager = "pnpm"
+disable = ["Makefile"]
+
+[[projects."~/work".tasks]]
+name = "shared"
+command = "work shared"
+
+[[projects."~/work".tasks]]
+name = "work-only"
+command = "echo work"
+
+[projects."~/work/api"]
+package_manager = "bun"
+
+[[projects."~/work/api".tasks]]
+name = "shared"
+command = "api shared"
+`)
+
+	apiSub := filepath.Join(realHome, "work", "api", "sub")
+	writeFile(t, apiSub, ".what-to-run.toml", `
+package_manager = "yarn"
+
+[[tasks]]
+name = "shared"
+command = "local shared"
+
+[[tasks]]
+name = "local-only"
+command = "echo local"
+`)
+
+	// Inside ~/work/api/sub (accessed via the real /var/home path while
+	// config uses ~/ through the /home symlink): global < local < ~/work < ~/work/api.
+	cfg, errs := loadConfig(filepath.Join(apiSub, ".what-to-run.toml"), globalFile)
+	if len(errs) != 0 {
+		t.Fatalf("loadConfig() warnings = %v, want none", errs)
+	}
+	want := config{
+		Theme:          "dracula",
+		PackageManager: "bun",
+		Disable:        []string{"Cargo.toml", "Makefile"},
+		Tasks: []configTask{
+			{Name: "shared", Command: "api shared"},
+			{Name: "work-only", Command: "echo work"},
+			{Name: "local-only", Command: "echo local"},
+		},
+	}
+	if !reflect.DeepEqual(cfg, want) {
+		t.Errorf("loadConfig(api/sub) = %+v, want %+v", cfg, want)
+	}
+
+	// Inside ~/work/api-2: ~/work matches, but ~/work/api must NOT match on
+	// a prefix that is not a directory boundary.
+	api2 := filepath.Join(realHome, "work", "api-2")
+	cfg2, errs := loadConfig(filepath.Join(api2, ".what-to-run.toml"), globalFile)
+	if len(errs) != 0 {
+		t.Fatalf("loadConfig(api-2) warnings = %v, want none", errs)
+	}
+	if cfg2.PackageManager != "pnpm" {
+		t.Errorf("api-2 PackageManager = %q, want %q (from ~/work, not ~/work/api)", cfg2.PackageManager, "pnpm")
+	}
+}
+
+func TestLoadConfigProjectsValidation(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	writeFile(t, dir, "global.toml", `
+[projects."relative/path"]
+package_manager = "bun"
+
+[projects."~"]
+package_manager = "pnpm"
+theme = "nord"
+unknown = 1
+`)
+	writeFile(t, dir, ".what-to-run.toml", `
+[projects."~"]
+package_manager = "yarn"
+`)
+
+	cfg, errs := loadConfig(filepath.Join(dir, ".what-to-run.toml"), filepath.Join(dir, "global.toml"))
+	if len(errs) != 4 {
+		t.Fatalf("loadConfig() warnings = %v, want 4", errs)
+	}
+	if cfg.PackageManager != "pnpm" {
+		t.Errorf("PackageManager = %q, want %q from valid [projects.\"~\"]", cfg.PackageManager, "pnpm")
 	}
 }
 

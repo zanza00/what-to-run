@@ -280,6 +280,13 @@ type model struct {
 	themeModal  bool
 	themeBefore int
 	themeOffset int
+
+	// warningModal reports that the warning box (ctrl+w, or opened at
+	// startup when a warning has not been dismissed) is shown over the
+	// list, and warningIdx is the warning currently displayed when there is
+	// more than one.
+	warningModal bool
+	warningIdx   int
 }
 
 func newModel(opts Options, tasks []Task, warnings []error) model {
@@ -289,12 +296,15 @@ func newModel(opts Options, tasks []Task, warnings []error) model {
 			"unknown theme %q, using %q (--list-themes shows the available ones)",
 			opts.Theme, defaultTheme)}, warnings...)
 	}
+	warnOpen, warnIdx := openWarningsAtStart(warnings)
 	return model{
-		opts:     opts,
-		tasks:    tasks,
-		warnings: warnings,
-		themeIdx: idx,
-		styles:   newStyles(themes[idx]),
+		opts:         opts,
+		tasks:        tasks,
+		warnings:     warnings,
+		themeIdx:     idx,
+		styles:       newStyles(themes[idx]),
+		warningModal: warnOpen,
+		warningIdx:   warnIdx,
 	}
 }
 
@@ -347,6 +357,9 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if key == "ctrl+c" {
 		return m, tea.Quit
 	}
+	if m.warningModal {
+		return m.handleWarningKey(msg)
+	}
 	if m.themeModal {
 		return m.handleThemeKey(msg)
 	}
@@ -393,6 +406,12 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.filter = ""
 		m.cursor, m.offset = 0, 0
 
+	case "ctrl+w":
+		if len(m.warnings) > 0 {
+			m.warningModal = true
+		}
+		return m, nil
+
 	// Open the theme picker over the list; the theme in use is kept if the
 	// choice is cancelled with esc.
 	case "ctrl+t":
@@ -417,6 +436,32 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleWarningKey reacts to a key while the warning box is open: enter, esc
+// and ctrl+w close it, d marks the current warning as dismissed so future runs
+// do not pop the box open for it, and ↑/↓ step through multiple warnings.
+func (m model) handleWarningKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "enter", "ctrl+w":
+		m.warningModal = false
+
+	case "d":
+		m.dismissCurrentWarning()
+
+	case "up", "ctrl+k", "ctrl+p", "left", "ctrl+h":
+		m.warningIdx = max(m.warningIdx-1, 0)
+
+	case "down", "ctrl+j", "ctrl+n", "right", "ctrl+l":
+		m.warningIdx = min(m.warningIdx+1, len(m.warnings)-1)
+
+	case "home":
+		m.warningIdx = 0
+
+	case "end":
+		m.warningIdx = max(len(m.warnings)-1, 0)
+	}
+	return m, nil
+}
+
 // handleThemeKey reacts to a key while the theme picker is open: ↑/↓ scroll
 // the list and preview each theme live, enter and ctrl+t keep the previewed
 // one, esc restores the theme that was active when the picker opened.
@@ -429,7 +474,8 @@ func (m model) handleThemeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case "enter", "ctrl+t":
 		m.themeModal = false
-		return m, m.persistTheme()
+		cmd := m.persistTheme()
+		return m, cmd
 
 	case "up", "ctrl+k", "ctrl+p":
 		m.setTheme(max(m.themeIdx-1, 0))
@@ -465,10 +511,12 @@ func (m *model) setTheme(i int) {
 }
 
 // persistTheme saves the previewed theme when it differs from the one that
-// was active when the picker opened. A saved theme is confirmed with a toast
-// (showNotice); a failure is a status message, never fatal, and stays there.
+// was active when the picker opened (or when a theme warning is active). A
+// saved theme re-parses the rc files to clear resolved warnings and confirms
+// the save with a toast (showNotice); a failure is a status message, never
+// fatal, and stays there.
 func (m *model) persistTheme() tea.Cmd {
-	if m.themeIdx == m.themeBefore {
+	if m.themeIdx == m.themeBefore && !m.hasThemeWarning() {
 		return nil
 	}
 	name := themes[m.themeIdx].name
@@ -477,7 +525,38 @@ func (m *model) persistTheme() tea.Cmd {
 		m.status = m.styles.err.Render(fmt.Sprintf("cannot save theme %s: %v", name, err))
 		return nil
 	}
+	m.opts.Theme = name
+	m.refreshConfigWarnings()
 	return m.showNotice(fmt.Sprintf("theme %s saved to %s", name, shortPath(path)))
+}
+
+// hasThemeWarning reports whether any current warning is about a theme.
+func (m model) hasThemeWarning() bool {
+	for _, w := range m.warnings {
+		if strings.Contains(w.Error(), "theme") {
+			return true
+		}
+	}
+	return false
+}
+
+// refreshConfigWarnings re-parses the rc files and task sources after an
+// action that modifies the config file, dropping resolved warnings.
+func (m *model) refreshConfigWarnings() {
+	old := m.warnings
+	tasks, _, warnings := discover()
+	if len(tasks) > 0 {
+		m.tasks = tasks
+	}
+	clearResolvedDismissals(old, warnings)
+	m.warnings = warnings
+	if len(m.warnings) == 0 {
+		m.warningModal = false
+		m.warningIdx = 0
+	} else {
+		m.warningIdx = min(m.warningIdx, len(m.warnings)-1)
+	}
+	m.keepCursorVisible()
 }
 
 // run starts the task under the cursor.
@@ -681,11 +760,20 @@ func overlay(lines []string, boxes ...placedBox) string {
 }
 
 // boxes returns the overlays to draw over the picker: the transient notice in
-// the top-right corner and the centered theme picker.
+// the top-right corner, the warning box, and the centered theme picker.
 func (m model) boxes(h, w int) []placedBox {
 	var boxes []placedBox
 	if box := m.noticeBox(w); box != nil {
 		boxes = append(boxes, *box)
+	}
+	if m.warningModal {
+		if lines := m.warningModalLines(h, w); lines != nil {
+			boxes = append(boxes, placedBox{
+				lines: lines,
+				x:     max((w-lipgloss.Width(lines[0]))/2, 0),
+				y:     m.warningModalY(h, w, len(lines)),
+			})
+		}
 	}
 	if m.themeModal {
 		if lines := m.themeModalLines(h, w); lines != nil {
@@ -697,6 +785,22 @@ func (m model) boxes(h, w int) []placedBox {
 		}
 	}
 	return boxes
+}
+
+// warningModalY places the warning box so the bottom help line stays visible:
+// centered above the help line when the task list is tall enough, right below
+// it when only a couple of tasks are present, or centered in the view on tiny
+// terminals.
+func (m model) warningModalY(h, w, boxH int) int {
+	helpRow := min(3+len(m.listLines(w)), max(h-1, 0))
+	switch {
+	case helpRow >= boxH:
+		return max((helpRow-boxH)/2, min(1, helpRow-boxH))
+	case helpRow+1+boxH <= h:
+		return helpRow + 1
+	default:
+		return max((h-boxH)/2, 0)
+	}
 }
 
 // titleLine renders the picker's title: the invoked name.
@@ -803,20 +907,13 @@ func (m model) commandWidth() int {
 }
 
 // helpLine renders the bottom line in w columns: the outcome of the last
-// in-place run if there is one, then the discovery warnings, then the help
-// text. The ctrl+t hint is dropped when the line would not fit (inline mode
-// on a narrow terminal), so the keys before it stay readable.
+// in-place run if there is one, otherwise the task count (and warning count,
+// when present) followed by the key hints. Optional hints are dropped when the
+// line would not fit (inline mode or narrow terminals), so the keys before
+// them stay readable.
 func (m model) helpLine(w int) string {
-	switch {
-	case m.status != "":
+	if m.status != "" {
 		return m.status
-
-	case len(m.warnings) > 0:
-		s := m.warnings[0].Error()
-		if n := len(m.warnings) - 1; n > 0 {
-			s += fmt.Sprintf(" (+%d more)", n)
-		}
-		return m.styles.err.Render(s)
 	}
 
 	count := fmt.Sprintf("%d tasks", len(m.tasks))
@@ -828,10 +925,28 @@ func (m model) helpLine(w int) string {
 	if m.opts.Inline {
 		keys = strings.Replace(keys, "enter run", "enter run · tab to prompt", 1)
 	}
-	if hint := " · ctrl+t theme"; w <= 0 || ansi.StringWidth(count+"   "+keys+hint) <= w {
+
+	leftPlain := count
+	left := m.styles.dim.Render(count)
+	if len(m.warnings) > 0 {
+		wc := warningCount(len(m.warnings))
+		leftPlain += " · " + wc
+		left += m.styles.dim.Render(" · ") + m.styles.err.Render(wc)
+
+		warnHint := " · ctrl+w warnings"
+		if w > 0 && ansi.StringWidth(leftPlain+"   "+keys+warnHint) > w {
+			keys = strings.TrimPrefix(keys, "type to filter · ")
+			keys = strings.Replace(keys, "esc clear filter", "esc clear", 1)
+		}
+		if w <= 0 || ansi.StringWidth(leftPlain+"   "+keys+warnHint) <= w {
+			keys += warnHint
+		}
+	}
+
+	if hint := " · ctrl+t theme"; w <= 0 || ansi.StringWidth(leftPlain+"   "+keys+hint) <= w {
 		keys += hint
 	}
-	return m.styles.dim.Render(count + "   " + keys)
+	return left + m.styles.dim.Render("   "+keys)
 }
 
 // areaHeight returns the number of rows the inline UI occupies: the space

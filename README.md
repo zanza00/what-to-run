@@ -81,6 +81,7 @@ go run ./cmd/wtr
 | `tab` | inline only: place the command in the shell prompt without running it |
 | `esc` | clear the filter, or quit when the filter is empty |
 | `ctrl+u` | clear the filter |
+| `ctrl+w` | open the warning box when warnings are present (`d` inside it dismisses for future runs) |
 | `ctrl+t` | open the theme picker: ↑/↓ preview live, enter keep, esc cancel |
 | `ctrl+c` | quit |
 
@@ -138,17 +139,28 @@ Two optional TOML files extend what the picker finds:
 - `$XDG_CONFIG_HOME/what-to-run/config.toml`, usually
   `~/.config/what-to-run/config.toml` (your personal settings).
 
-The project file wins on `package_manager`, `disable` entries are merged, and
-its tasks shadow same-named global ones. The theme is a user setting, like
-OpenCode's `cli.json`: only the global file sets it, and the picker saves the
-choice there (a `theme` in a project file is a warning, ignored). A broken
-file is reported in the status line and skipped, like a broken task source.
+The global file can also define per-project overrides under
+`[projects."<path>"]` (matched against the current directory and its
+subdirectories, from outermost parent to deepest match, with `~` and symlinks
+resolved). Layers apply from general to specific: global top-level, then
+`.what-to-run.toml`, then matching `[projects."<path>"]` blocks. The
+theme is a user setting, like OpenCode's `cli.json`: only the global file sets
+it, and the picker saves the choice there (a `theme` in a project file is a
+warning, ignored). Problems in an rc file open the warning modal (`ctrl+w`,
+dismissible with `d`) while keeping every valid setting in the file; see
+[`docs/config.md`](docs/config.md) for the full specification.
 
 ```toml
 # ~/.config/what-to-run/config.toml: start with a theme instead of the
 # default one (see Themes). Choosing one in the picker (ctrl+t, then enter)
 # saves it here; --theme wins for a single run.
 theme = "nord"
+
+# Override settings or add tasks for a directory tree without creating a local
+# .what-to-run.toml inside the repository.
+[projects."~/work/my-app"]
+package_manager = "pnpm"
+disable = ["Makefile"]
 ```
 
 ```toml

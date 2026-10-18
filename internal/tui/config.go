@@ -80,7 +80,7 @@ type configTask struct {
 // cannot be resolved.
 func defaultConfigFiles(dir string) (project, global string) {
 	project = filepath.Join(dir, ".what-to-run.toml")
-	if configDir, err := os.UserConfigDir(); err == nil {
+	if configDir, err := userConfigDir(); err == nil {
 		global = filepath.Join(configDir, "what-to-run", "config.toml")
 	}
 	return project, global

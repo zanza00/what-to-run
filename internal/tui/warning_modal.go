@@ -202,7 +202,7 @@ func warningKey(err error) string {
 // dismissedWarningsFile returns the path of the file that stores dismissed
 // warnings in the user's cache directory.
 func dismissedWarningsFile() string {
-	cacheDir, err := os.UserCacheDir()
+	cacheDir, err := userCacheDir()
 	if err != nil || cacheDir == "" {
 		return ""
 	}

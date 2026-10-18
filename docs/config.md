@@ -3,8 +3,10 @@
 `what-to-run` (`wtr`) reads two optional TOML configuration files:
 
 1. **User global config:** `$XDG_CONFIG_HOME/what-to-run/config.toml`
-   (normally `~/.config/what-to-run/config.toml`) — personal preferences,
-   global custom tasks, and per-project overrides (`[projects."<path>"]`).
+   (normally `~/.config/what-to-run/config.toml`; on macOS with
+   `XDG_CONFIG_HOME` unset, `~/Library/Application Support/what-to-run/config.toml`)
+   — personal preferences, global custom tasks, and per-project overrides
+   (`[projects."<path>"]`).
 2. **Project local config:** `.what-to-run.toml` in the current working
    directory — project settings shared with the repository.
 

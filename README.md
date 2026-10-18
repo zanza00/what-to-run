@@ -10,8 +10,7 @@ normal terminal history.
 
 ## Screenshot
 
-<!-- Add a screenshot at docs/images/what-to-run.png, then uncomment this line. -->
-<!-- ![what-to-run running in a terminal](docs/images/what-to-run.png) -->
+![what-to-run running in a terminal](docs/images/what-to-run.png)
 
 ## Get started
 
@@ -132,4 +131,3 @@ instructions.
 ## License
 
 [MIT](LICENSE)
-

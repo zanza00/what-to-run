@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// DefaultKey is the key combo bound by the zsh integration when --key is not
-// given.
+// DefaultKey is the key combo bound by the shell integrations (ZshInit,
+// BashInit) when --key is not given.
 const DefaultKey = "ctrl-s"
 
 // ZshInit returns the zsh integration script, the output of `<prog> init

@@ -4,9 +4,9 @@ TUI in Go (Bubble Tea v2 + Lip Gloss v2) to run the scripts declared in a
 project's `package.json`, `Makefile`, or `Cargo.toml` (cargo-make). Discovery
 and execution are implemented: a filterable list runs the selected task, in
 place in fullscreen (tea.ExecProcess) or at the prompt after quitting with
-`--inline` (the widget flow from `init zsh`), propagating the task's exit
-code. In inline mode `tab` instead places the command line in the shell prompt
-without running it.
+`--inline` (the widget flow from `init zsh` and `init bash`), propagating the
+task's exit code. In inline mode `tab` instead places the command line in the
+shell prompt without running it.
 
 ## Go development
 
@@ -22,19 +22,20 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   source registry, `source_*.go` = one parser per source, `theme.go` = the
   named looks and the styles derived from them, `theme_modal.go` = the ctrl+t
   theme picker overlay, `warning_modal.go` = the ctrl+w warning modal and
-  dismissed-warnings cache, `notice.go` = the transient toast, `zshinit.go` =
-  the zsh widget printed by `init zsh`); `cmd/wtr` only parses flags/subcommands
-  and calls `tui.Run` / `tui.Preview` / `tui.ZshInit`. Adding a source: a
+  dismissed-warnings cache, `notice.go` = the transient toast, `zshinit.go`
+  and `bashinit.go` = the shell widgets printed by `init zsh` and `init bash`);
+  `cmd/wtr` only parses flags/subcommands and calls `tui.Run` / `tui.Preview` /
+  `tui.ZshInit` / `tui.BashInit`. Adding a source: a
   `source` literal and its parser in a new `source_<name>.go`, one line in
   `defaultSources`, and table-driven tests next to them. Unknown `package.json`
   shapes etc. belong in the matching `source_*.go`.
 - `make build` compiles `cmd/wtr` twice: `bin/wtr` is the CLI name and
   `bin/what-to-run` the explicit one for shell rc files. The invoked
   name is the one shown in usage, messages and the picker title, and
-  `init zsh` embeds the invoked command — the bare name via PATH, or the
-  absolute path — in `WTR_BIN`; with the explicit name, `--help` and the
-  generated script also point at `wtr` when it is on PATH. `cmd/wtr/main_test.go`
-  pins the helpers.
+  `init zsh` and `init bash` embed the invoked command — the bare name via
+  PATH, or the absolute path — in `WTR_BIN`; with the explicit name, `--help`
+  and the generated script also point at `wtr` when it is on PATH.
+  `cmd/wtr/main_test.go` pins the helpers.
 - Releases are tag-driven: `.github/workflows/release.yml` runs on `vX.Y.Z`
   tags whose commit is in `main`, builds the linux+darwin archives holding both
   binaries plus the linux `.deb` packages through `.goreleaser.yaml`, and
@@ -93,13 +94,20 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   renderer cannot reposition the frame after the child scrolls the screen
   (verified in tmux: the child output gets erased and dead frame rows remain).
   That is why the inline picker quits and the task runs afterwards.
-- The inline widget protocol (fzf-style): the generated zsh widget (`init
-  zsh`) captures stdout, the picker renders on the terminal via
+- The inline widget protocol (fzf-style): the generated widgets (`init zsh`,
+  `init bash`) capture stdout, the picker renders on the terminal via
   `tea.OpenTTY`/`tea.WithOutput` and reports its result on stdout
-  (`run`/`insert` line + the command line from `Task.commandLine`); the widget
-  fills the zle buffer and accepts the line. With stdout on the terminal (no
-  widget) `Run` executes the task itself after `restoreCursor`, and `tab` just
-  prints the command line.
+  (`run`/`insert` line + the command line from `Task.commandLine`). The zsh
+  widget fills the zle buffer and submits it with `zle accept-line`; the bash
+  widget puts the command in `READLINE_LINE` and points the second half of the
+  key's readline macro at `accept-line` — readline has no way to submit a line
+  from shell code: the key expands to two invisible sequences and the widget
+  rebinds the tail of the chain at press time. The chain needs bash 4.3 or
+  later (`bind -x` takes only two-byte sequences before), and the binds sit
+  inside an `[[ $- == *i* ]]` guard, so a non-interactive shell sourcing the
+  rc file stays quiet. With stdout on the terminal (no widget) `Run` executes
+  the task itself after `restoreCursor`, and `tab` just prints the command
+  line.
 - `.agents/skills/` is committed on purpose (see `skills-lock.json`);
   `bubbletea-tfe` is a manual rename of `ggprompts/tfe` to avoid an id collision
   with `bubbletea` — don't reinstall it unrenamed.
@@ -112,12 +120,12 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `tea.RequestCursorPosition` / `tea.CursorPositionMsg`; load the `bubbletea`
   skill for layout rules before writing UI code.
 - `--inline` requires an interactive terminal (warns and falls back to
-  fullscreen otherwise). Inside a zle widget stdin is not the tty: the
-  generated zsh widget redirects `< /dev/tty` and disables `stty -ixon` when
-  Ctrl-S or Ctrl-Q is bound, because Ctrl-S is the XOFF flow-control
-  character.
+  fullscreen otherwise). Inside a zle widget or a readline keybinding stdin is
+  not the tty: both generated widgets redirect `< /dev/tty` and disable
+  `stty -ixon` when Ctrl-S or Ctrl-Q is bound, because Ctrl-S is the XOFF
+  flow-control character.
 - No PTY tests: verify inline behavior end-to-end in tmux (zsh + the widget
-  from `eval "$(make bind)"`, with `KEY=ctrl-g` to bind another combo); the
-  widget runs `bin/wtr` on every invocation, so plain
-  `make build` is enough for Go-only changes. `--debug-area` draws a border
-  around the managed area.
+  from `eval "$(make bind)"`, bash + the one from `eval "$(make bind-bash)"`,
+  with `KEY=ctrl-g` to bind another combo); the widget runs `bin/wtr` on every
+  invocation, so plain `make build` is enough for Go-only changes.
+  `--debug-area` draws a border around the managed area.

@@ -68,13 +68,25 @@ eval "$(what-to-run init zsh --key ctrl-g)"
 Start a new shell, or evaluate the line in your current one, then press the
 chosen key at the prompt.
 
+### Set up the bash widget
+
+The same picker is available for bash; add this line to your `~/.bashrc`
+(bash 4.3 or later):
+
+```sh
+eval "$(what-to-run init bash)"
+```
+
+It behaves like the zsh widget, in the emacs and vi line editing modes alike,
+and takes the same `--key` option as `init zsh`.
+
 ### Use the picker
 
 Type to filter the task list and use the arrow keys to select a task. Press
-`enter` to run it: the widget submits the command through zsh, so it appears in
-your shell history and its output stays in the terminal. Press `tab` to put the
-selected command on the prompt without running it. Press `esc` to clear the
-filter or close the picker.
+`enter` to run it: the widget submits the command through your shell, so it
+appears in your shell history and its output stays in the terminal. Press `tab`
+to put the selected command on the prompt without running it. Press `esc` to
+clear the filter or close the picker.
 
 ### Choose a theme
 

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -147,5 +148,121 @@ command = "echo ok"
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Errorf("loadConfig() = %+v, want %+v", cfg, want)
+	}
+}
+
+// TestLoadConfigThemeIsAUserSetting: like OpenCode's cli.json, the theme is
+// personal. The user file sets it; a project theme is ignored with a warning.
+func TestLoadConfigThemeIsAUserSetting(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "global.toml", "theme = \"nord\"\n")
+
+	cfg, errs := loadConfig(filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
+	if len(errs) != 0 {
+		t.Fatalf("loadConfig() warnings = %v, want none", errs)
+	}
+	if cfg.Theme != "nord" {
+		t.Errorf("Theme = %q, want %q", cfg.Theme, "nord")
+	}
+
+	writeFile(t, dir, "project.toml", "theme = \"tokyo\"\n")
+	cfg, errs = loadConfig(filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "user setting") {
+		t.Errorf("loadConfig() warnings = %v, want one about the user setting", errs)
+	}
+	if cfg.Theme != "nord" {
+		t.Errorf("Theme = %q, want the global one %q", cfg.Theme, "nord")
+	}
+}
+
+func TestLoadConfigUnknownTheme(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "global.toml", "theme = \"nope\"\n")
+
+	cfg, errs := loadConfig(filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), `"nope"`) {
+		t.Errorf("loadConfig() warnings = %v, want one about %q", errs, "nope")
+	}
+	if cfg.Theme != "" {
+		t.Errorf("Theme = %q, want it dropped", cfg.Theme)
+	}
+}
+
+func TestSetThemeKey(t *testing.T) {
+	tests := []struct {
+		name, src, want string
+	}{
+		{
+			"empty file",
+			"",
+			"theme = \"nord\"\n",
+		},
+		{
+			"adds the key at the top",
+			"package_manager = \"bun\"\n",
+			"theme = \"nord\"\n\npackage_manager = \"bun\"\n",
+		},
+		{
+			"replaces an existing key",
+			"theme = \"classic\"\npackage_manager = \"bun\"\n",
+			"theme = \"nord\"\npackage_manager = \"bun\"\n",
+		},
+		{
+			"keeps comments and tables",
+			"# my rc\n[[tasks]]\nname = \"x\"\ncommand = \"y\"\n",
+			"theme = \"nord\"\n\n# my rc\n[[tasks]]\nname = \"x\"\ncommand = \"y\"\n",
+		},
+		{
+			"leaves a key inside a table alone",
+			"[[tasks]]\ntheme = \"classic\"\n",
+			"theme = \"nord\"\n\n[[tasks]]\ntheme = \"classic\"\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := string(setThemeKey([]byte(tt.src), "nord")); got != tt.want {
+				t.Errorf("setThemeKey(%q) = %q, want %q", tt.src, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSaveThemeWritesTheUserFile: the theme always goes to the user rc file,
+// like OpenCode's cli.json, and a project rc file is left alone.
+func TestSaveThemeWritesTheUserFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
+	writeFile(t, dir, ".what-to-run.toml", "package_manager = \"bun\"\n")
+
+	path, err := saveTheme("nord")
+	if err != nil {
+		t.Fatalf("saveTheme: %v", err)
+	}
+	want := filepath.Join(dir, "xdg", "what-to-run", "config.toml")
+	if path != want {
+		t.Errorf("saveTheme path = %q, want %q", path, want)
+	}
+	data, err := os.ReadFile(want)
+	if err != nil {
+		t.Fatalf("reading the user rc: %v", err)
+	}
+	if got := string(data); got != "theme = \"nord\"\n" {
+		t.Errorf("user rc = %q, want %q", got, "theme = \"nord\"\n")
+	}
+	info, err := os.Stat(want)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("user rc mode = %o, want 0600", perm)
+	}
+
+	project, err := os.ReadFile(filepath.Join(dir, ".what-to-run.toml"))
+	if err != nil {
+		t.Fatalf("reading the project rc: %v", err)
+	}
+	if got := string(project); got != "package_manager = \"bun\"\n" {
+		t.Errorf("project rc = %q, want it untouched", got)
 	}
 }

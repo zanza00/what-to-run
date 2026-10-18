@@ -17,41 +17,12 @@ import (
 	"github.com/charmbracelet/x/term"
 )
 
-// accent is the picker's accent color.
-var accent = lipgloss.Color("#7D56F4")
-
-// Styles are stateless and safe to reuse across model values.
-var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(accent)
-
-	// selectedStyle highlights the row under the cursor.
-	selectedStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("231")).
-			Background(accent)
-
-	filterStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(accent)
-
-	dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
-
-	okStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("2"))
-
-	errStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("1"))
-
-	// areaStyle draws the border around the inline area when DebugArea is
-	// set: a development aid to check that the UI covers exactly the rows
-	// between the prompt and the bottom of the screen.
-	areaStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240"))
-)
+// areaStyle draws the border around the inline area when DebugArea is set: a
+// development aid to check that the UI covers exactly the rows between the
+// prompt and the bottom of the screen.
+var areaStyle = lipgloss.NewStyle().
+	Border(lipgloss.RoundedBorder()).
+	BorderForeground(lipgloss.Color("240"))
 
 // chromeRows is the number of rows the picker reserves around the task list:
 // title, filter line, blank separator and help line.
@@ -80,6 +51,11 @@ type Options struct {
 	// managed by the app is visible. It is a development aid and is ignored
 	// in fullscreen mode.
 	DebugArea bool
+
+	// Theme selects one of the named looks (see ListThemes); empty means
+	// the default. An unknown name is a warning, not an error: the picker
+	// opens with the default and reports it in the help line.
+	Theme string
 }
 
 // prog is the name the program identifies with: the invoked name, or "wtr"
@@ -129,14 +105,13 @@ func Run(opts Options) error {
 		}
 	}
 
-	cfg, warnings := loadConfig(defaultConfigFiles("."))
-	tasks, discoveryWarnings := discoverTasks(".", cfg)
-	warnings = append(warnings, discoveryWarnings...)
+	tasks, cfg, warnings := discover()
 	if len(tasks) == 0 {
-		if len(warnings) > 0 {
-			return fmt.Errorf("no tasks found: %w", errors.Join(warnings...))
-		}
-		return errors.New("no tasks found: no package.json scripts, Makefile targets, cargo-make tasks or rc file tasks")
+		return noTasksError(warnings)
+	}
+	// The rc theme is the starting look; --theme wins for a single run.
+	if opts.Theme == "" {
+		opts.Theme = cfg.Theme
 	}
 
 	final, err := tea.NewProgram(newModel(opts, tasks, warnings), progOpts...).Run()
@@ -183,6 +158,47 @@ func reportChoice(w io.Writer, t Task, insert bool) {
 		mode = "insert"
 	}
 	fmt.Fprintf(w, "%s\n%s\n", mode, t.commandLine())
+}
+
+// discover gathers the tasks of the current directory and the rc settings:
+// the rc file first (its problems become warnings), then every source. The
+// warnings are returned even when tasks were found, for the picker's status
+// line.
+func discover() ([]Task, config, []error) {
+	cfg, warnings := loadConfig(defaultConfigFiles("."))
+	tasks, sourceWarnings := discoverTasks(".", cfg)
+	return tasks, cfg, append(warnings, sourceWarnings...)
+}
+
+// noTasksError is the error of a directory with nothing to run.
+func noTasksError(warnings []error) error {
+	if len(warnings) > 0 {
+		return fmt.Errorf("no tasks found: %w", errors.Join(warnings...))
+	}
+	return errors.New("no tasks found: no package.json scripts, Makefile targets, cargo-make tasks or rc file tasks")
+}
+
+// Preview renders one frame of the picker with the real tasks of the current
+// directory and writes it to w: a development and theming aid ('<prog>
+// --preview'), handy to compare themes side by side or paste a frame
+// somewhere. The frame is fixed at width×height cells, whatever the terminal
+// size, and is drawn fullscreen (no inline anchoring, no runner).
+func Preview(w io.Writer, opts Options, width, height int) error {
+	tasks, cfg, warnings := discover()
+	if len(tasks) == 0 {
+		return noTasksError(warnings)
+	}
+	// The rc theme is the starting look; --theme wins for a single run.
+	if opts.Theme == "" {
+		opts.Theme = cfg.Theme
+	}
+
+	opts.Inline = false
+	opts.DebugArea = false
+	m := newModel(opts, tasks, warnings)
+	m.width, m.height, m.ready = width, height, true
+	fmt.Fprintln(w, m.View().Content)
+	return nil
 }
 
 // inlineInputAvailable reports whether Bubble Tea will be able to read input
@@ -245,13 +261,41 @@ type model struct {
 	started time.Time // when the current in-place run started
 	chosen  *Task     // task chosen in inline mode, to run or insert after quitting
 
+	// notice is the transient confirmation shown as a toast (see notice.go);
+	// noticeID invalidates the timer of a replaced notice.
+	notice   string
+	noticeID int
+
 	// chosenInsert reports that chosen was picked with tab: the command goes
 	// to the shell prompt instead of being executed.
 	chosenInsert bool
+
+	// themeIdx is the active theme (an index into themes) and styles are
+	// its concrete styles. ctrl+t opens the theme picker: themeModal reports
+	// that it is open, themeBefore is the theme to restore when it is
+	// cancelled with esc, and themeOffset the first row shown while the
+	// list is windowed.
+	themeIdx    int
+	styles      styles
+	themeModal  bool
+	themeBefore int
+	themeOffset int
 }
 
 func newModel(opts Options, tasks []Task, warnings []error) model {
-	return model{opts: opts, tasks: tasks, warnings: warnings}
+	idx, ok := themeIndex(opts.Theme)
+	if !ok {
+		warnings = append([]error{fmt.Errorf(
+			"unknown theme %q, using %q (--list-themes shows the available ones)",
+			opts.Theme, defaultTheme)}, warnings...)
+	}
+	return model{
+		opts:     opts,
+		tasks:    tasks,
+		warnings: warnings,
+		themeIdx: idx,
+		styles:   newStyles(themes[idx]),
+	}
 }
 
 // Init implements tea.Model.
@@ -283,9 +327,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case taskDoneMsg:
 		elapsed := time.Since(m.started).Round(100 * time.Millisecond)
 		if msg.err != nil {
-			m.status = errStyle.Render(fmt.Sprintf("✗ %s (%s): %v", msg.task.Name, elapsed, msg.err))
+			m.status = m.styles.err.Render(fmt.Sprintf("✗ %s (%s): %v", msg.task.Name, elapsed, msg.err))
 		} else {
-			m.status = okStyle.Render(fmt.Sprintf("✓ %s (%s)", msg.task.Name, elapsed))
+			m.status = m.styles.ok.Render(fmt.Sprintf("✓ %s (%s)", msg.task.Name, elapsed))
+		}
+
+	case noticeExpiredMsg:
+		if msg.id == m.noticeID {
+			m.notice = ""
 		}
 	}
 
@@ -294,10 +343,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKey reacts to a key press.
 func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
+	key := msg.String()
+	if key == "ctrl+c" {
 		return m, tea.Quit
+	}
+	if m.themeModal {
+		return m.handleThemeKey(msg)
+	}
 
+	switch key {
 	case "esc":
 		if m.filter != "" {
 			m.filter = ""
@@ -339,6 +393,13 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.filter = ""
 		m.cursor, m.offset = 0, 0
 
+	// Open the theme picker over the list; the theme in use is kept if the
+	// choice is cancelled with esc.
+	case "ctrl+t":
+		m.themeModal = true
+		m.themeBefore = m.themeIdx
+		m.keepThemeVisible()
+
 	case "backspace":
 		m.filter = trimLastRune(m.filter)
 		m.cursor, m.offset = 0, 0
@@ -356,6 +417,69 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleThemeKey reacts to a key while the theme picker is open: ↑/↓ scroll
+// the list and preview each theme live, enter and ctrl+t keep the previewed
+// one, esc restores the theme that was active when the picker opened.
+func (m model) handleThemeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.themeModal = false
+		m.setTheme(m.themeBefore)
+		return m, nil
+
+	case "enter", "ctrl+t":
+		m.themeModal = false
+		return m, m.persistTheme()
+
+	case "up", "ctrl+k", "ctrl+p":
+		m.setTheme(max(m.themeIdx-1, 0))
+
+	case "down", "ctrl+j", "ctrl+n":
+		m.setTheme(min(m.themeIdx+1, len(themes)-1))
+
+	case "pgup":
+		m.setTheme(max(m.themeIdx-m.themeModalWindow(), 0))
+
+	case "pgdown":
+		m.setTheme(min(m.themeIdx+m.themeModalWindow(), len(themes)-1))
+
+	case "home":
+		m.setTheme(0)
+
+	case "end":
+		m.setTheme(len(themes) - 1)
+
+	default:
+		// The picker owns the keyboard: typing does not reach the filter.
+		return m, nil
+	}
+
+	m.keepThemeVisible()
+	return m, nil
+}
+
+// setTheme activates the theme at index i and rebuilds its styles.
+func (m *model) setTheme(i int) {
+	m.themeIdx = i
+	m.styles = newStyles(themes[i])
+}
+
+// persistTheme saves the previewed theme when it differs from the one that
+// was active when the picker opened. A saved theme is confirmed with a toast
+// (showNotice); a failure is a status message, never fatal, and stays there.
+func (m *model) persistTheme() tea.Cmd {
+	if m.themeIdx == m.themeBefore {
+		return nil
+	}
+	name := themes[m.themeIdx].name
+	path, err := saveTheme(name)
+	if err != nil {
+		m.status = m.styles.err.Render(fmt.Sprintf("cannot save theme %s: %v", name, err))
+		return nil
+	}
+	return m.showNotice(fmt.Sprintf("theme %s saved to %s", name, shortPath(path)))
+}
+
 // run starts the task under the cursor.
 func (m model) run() (tea.Model, tea.Cmd) {
 	vis := m.visible()
@@ -370,7 +494,7 @@ func (m model) run() (tea.Model, tea.Cmd) {
 		return m.pick(false)
 	}
 
-	m.status = dimStyle.Render("running " + t.Name + "…")
+	m.status = m.styles.dim.Render("running " + t.Name + "…")
 	m.started = time.Now()
 	return m, tea.ExecProcess(t.command(), func(err error) tea.Msg {
 		return taskDoneMsg{task: t, err: err}
@@ -408,11 +532,13 @@ func (m model) visible() []Task {
 }
 
 // matches reports whether the task matches all tokens, as case-insensitive
-// subsequences of its name.
+// subsequences of its name or of the command line shown in the list: the
+// rows show the command, so typing "npm" or "cargo" must find it.
 func (t Task) matches(tokens []string) bool {
 	name := strings.ToLower(t.Name)
+	cmd := strings.ToLower(t.commandLine())
 	for _, token := range tokens {
-		if !subsequence(name, token) {
+		if !subsequence(name, token) && !subsequence(cmd, token) {
 			return false
 		}
 	}
@@ -511,12 +637,12 @@ func (m model) listHeight() int {
 func (m model) render(h, w int) string {
 	lines := make([]string, 0, h)
 	lines = append(lines,
-		titleStyle.Render(m.opts.prog()),
+		m.titleLine(),
 		m.filterLine(),
 		"",
 	)
 	lines = append(lines, m.listLines(w)...)
-	lines = append(lines, m.helpLine())
+	lines = append(lines, m.helpLine(w))
 
 	if len(lines) > h {
 		lines = lines[:h]
@@ -530,15 +656,60 @@ func (m model) render(h, w int) string {
 			lines[i] = ansi.Truncate(line, w, "…")
 		}
 	}
+	if boxes := m.boxes(h, w); len(boxes) > 0 {
+		return overlay(lines, boxes...)
+	}
 	return strings.Join(lines, "\n")
+}
+
+// placedBox is a rendered box and the cell its first line starts on.
+type placedBox struct {
+	lines []string
+	x, y  int
+}
+
+// overlay draws the boxes over the rendered lines with the canvas compositor:
+// it replaces cell by cell, so a background that crosses a box edge is not
+// broken (splicing styled lines manually would). Later boxes draw on top.
+func overlay(lines []string, boxes ...placedBox) string {
+	layers := make([]*lipgloss.Layer, 0, len(boxes)+1)
+	layers = append(layers, lipgloss.NewLayer(strings.Join(lines, "\n")))
+	for i, b := range boxes {
+		layers = append(layers, lipgloss.NewLayer(strings.Join(b.lines, "\n")).X(b.x).Y(b.y).Z(i+1))
+	}
+	return lipgloss.NewCompositor(layers...).Render()
+}
+
+// boxes returns the overlays to draw over the picker: the transient notice in
+// the top-right corner and the centered theme picker.
+func (m model) boxes(h, w int) []placedBox {
+	var boxes []placedBox
+	if box := m.noticeBox(w); box != nil {
+		boxes = append(boxes, *box)
+	}
+	if m.themeModal {
+		if lines := m.themeModalLines(h, w); lines != nil {
+			boxes = append(boxes, placedBox{
+				lines: lines,
+				x:     max((w-lipgloss.Width(lines[0]))/2, 0),
+				y:     max((h-len(lines))/2, 0),
+			})
+		}
+	}
+	return boxes
+}
+
+// titleLine renders the picker's title: the invoked name.
+func (m model) titleLine() string {
+	return m.styles.title.Render(m.opts.prog())
 }
 
 // filterLine renders the filter input.
 func (m model) filterLine() string {
 	if m.filter == "" {
-		return filterStyle.Render("» ") + dimStyle.Render("type to filter")
+		return m.styles.filter.Render("» ") + m.styles.dim.Render("type to filter")
 	}
-	return filterStyle.Render("» ") + m.filter + filterStyle.Render("▏")
+	return m.styles.filter.Render("» ") + m.filter + m.styles.filter.Render("▏")
 }
 
 // listLines renders the visible window of the filtered task list.
@@ -546,9 +717,9 @@ func (m model) listLines(w int) []string {
 	vis := m.visible()
 	if len(vis) == 0 {
 		if m.filter != "" {
-			return []string{dimStyle.Render("no task matches " + strconv.Quote(m.filter))}
+			return []string{m.styles.dim.Render("no task matches " + strconv.Quote(m.filter))}
 		}
-		return []string{dimStyle.Render("no tasks found")}
+		return []string{m.styles.dim.Render("no tasks found")}
 	}
 
 	h := m.listHeight()
@@ -562,56 +733,80 @@ func (m model) listLines(w int) []string {
 	return rows
 }
 
-// taskRow renders one list row: cursor marker, task name, description and the
-// source file, right-aligned.
+// taskRow renders one list row: the cursor marker, the command line that will
+// run, the description and the source file, right-aligned. The command comes
+// first and keeps its whole text — it already contains the task name for
+// every runner — then the description takes the room that is left, and is
+// dropped before the command shrinks. The whole selected row carries the
+// theme's tint, or reverse video in the colorless theme.
 func (m model) taskRow(t Task, selected bool, w int) string {
 	badge := t.Source
 	badgeW := lipgloss.Width(badge)
 
 	marker := "  "
 	if selected {
-		marker = "› "
+		marker = "▌ "
 	}
 
-	nameW := m.nameWidth(w)
-	name := t.Name
-	if lipgloss.Width(name) > nameW {
-		name = ansi.Truncate(name, nameW, "…")
-	}
-	name += strings.Repeat(" ", max(nameW-lipgloss.Width(name), 0))
+	room := max(w-badgeW-1, 0) // columns left of the badge separator
+	avail := max(room-2, 0)    // columns after the marker
 
-	// marker(2) + name(nameW) + space(1) + description, padded to leave room
-	// for a space and the badge at the right edge.
-	room := max(w-badgeW-1, 0)
-	var desc string
-	if descW := room - 2 - nameW - 1; descW > 0 {
-		desc = ansi.Truncate(t.Desc, descW, "…")
+	cmdW := min(m.commandWidth(), avail)
+	cmd := t.commandLine()
+	if lipgloss.Width(cmd) > cmdW {
+		cmd = ansi.Truncate(cmd, cmdW, "…")
+	}
+	cmd += strings.Repeat(" ", max(cmdW-lipgloss.Width(cmd), 0))
+
+	desc := t.Desc
+	if desc != "" && strings.Contains(strings.ToLower(t.commandLine()), strings.ToLower(desc)) {
+		// The command already says it: rc tasks without a custom
+		// description default to their own command.
+		desc = ""
+	}
+	var descLine string
+	if descW := avail - cmdW - 1; desc != "" && descW > 0 {
+		descLine = " " + ansi.Truncate(desc, descW, "…")
 	}
 
 	if selected {
-		left := marker + name + " " + desc
+		// The marker in the accent color, the rest of the row in the
+		// theme's light tone over its tint (reverse video, in mono).
+		left := m.styles.marker.Render(marker) + m.styles.selectedName.Render(cmd)
+		if descLine != "" {
+			left += m.styles.selectedText.Render(descLine)
+		}
 		pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
-		return selectedStyle.Render(left + pad + " " + badge)
+		if pad != "" {
+			pad = m.styles.selectedPad.Render(pad)
+		}
+		return left + pad + m.styles.selectedText.Render(" "+badge)
 	}
 
-	left := marker + name + " " + dimStyle.Render(desc)
+	left := marker + cmd
+	if descLine != "" {
+		left += m.styles.dim.Render(descLine)
+	}
 	pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
-	return left + pad + " " + dimStyle.Render(badge)
+	return left + pad + " " + m.styles.dim.Render(badge)
 }
 
-// nameWidth returns the width of the name column: wide enough for the widest
-// visible task name, capped to a third of the available width.
-func (m model) nameWidth(w int) int {
-	nameW := 0
+// commandWidth returns the width of the command column: the widest visible
+// command line, so the descriptions of all rows start together. taskRow caps
+// it to the room the row has; only a command longer than that is truncated.
+func (m model) commandWidth() int {
+	cmdW := 0
 	for _, t := range m.visible() {
-		nameW = max(nameW, lipgloss.Width(t.Name))
+		cmdW = max(cmdW, lipgloss.Width(t.commandLine()))
 	}
-	return min(nameW, max(w/3, 12))
+	return cmdW
 }
 
-// helpLine renders the bottom line: the outcome of the last in-place run if
-// there is one, then the discovery warnings, then the help text.
-func (m model) helpLine() string {
+// helpLine renders the bottom line in w columns: the outcome of the last
+// in-place run if there is one, then the discovery warnings, then the help
+// text. The ctrl+t hint is dropped when the line would not fit (inline mode
+// on a narrow terminal), so the keys before it stay readable.
+func (m model) helpLine(w int) string {
 	switch {
 	case m.status != "":
 		return m.status
@@ -621,7 +816,7 @@ func (m model) helpLine() string {
 		if n := len(m.warnings) - 1; n > 0 {
 			s += fmt.Sprintf(" (+%d more)", n)
 		}
-		return errStyle.Render(s)
+		return m.styles.err.Render(s)
 	}
 
 	count := fmt.Sprintf("%d tasks", len(m.tasks))
@@ -633,7 +828,10 @@ func (m model) helpLine() string {
 	if m.opts.Inline {
 		keys = strings.Replace(keys, "enter run", "enter run · tab to prompt", 1)
 	}
-	return dimStyle.Render(count + "   " + keys)
+	if hint := " · ctrl+t theme"; w <= 0 || ansi.StringWidth(count+"   "+keys+hint) <= w {
+		keys += hint
+	}
+	return m.styles.dim.Render(count + "   " + keys)
 }
 
 // areaHeight returns the number of rows the inline UI occupies: the space

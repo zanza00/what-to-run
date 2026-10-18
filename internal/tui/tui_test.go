@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // update feeds msg to m and returns the resulting concrete model.
@@ -64,6 +65,52 @@ func TestViewRendersTasks(t *testing.T) {
 	for _, want := range []string{"wtr", "build", "test", "clean", "type to filter", "4 tasks"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("View() content does not contain %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestViewShowsCommandLines(t *testing.T) {
+	got := sized(Options{}).View().Content
+	for _, want := range []string{
+		"npm run build", "make build-all", "cargo make clean", // commands
+		"go build ./...", "Build everything", "Run the tests", // descriptions
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("View() does not show %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestViewHidesRepeatedDescription(t *testing.T) {
+	// An rc task without a custom description defaults to its command: the
+	// row must not print it twice.
+	tasks := []Task{{Source: "rc", Name: "status", Desc: "git status", Args: []string{"sh", "-c", "git status"}}}
+	got := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10}).View().Content
+	if n := strings.Count(got, "git status"); n != 1 {
+		t.Errorf("View() shows %q %d times, want once:\n%s", "git status", n, got)
+	}
+}
+
+func TestFilteringByCommandLine(t *testing.T) {
+	// The name is not a column any more: filtering has to find what the
+	// rows show, e.g. the runner.
+	m := press(sized(Options{}), "npm")
+	if vis := m.visible(); len(vis) != 1 || vis[0].Name != "build" {
+		t.Errorf("visible tasks with filter %q = %+v, want just the build task", m.filter, vis)
+	}
+}
+
+func TestViewKeepsCommandOnNarrowTerminals(t *testing.T) {
+	// At 44 columns the description barely fits: the command must stay
+	// readable, since it is what will actually run.
+	m := update(newModel(Options{}, sampleTasks(), nil), tea.WindowSizeMsg{Width: 44, Height: 10})
+	got := m.View().Content
+	if !strings.Contains(got, "npm run build") {
+		t.Errorf("narrow View() dropped the command line:\n%s", got)
+	}
+	for _, line := range strings.Split(got, "\n") {
+		if w := lipgloss.Width(line); w > 44 {
+			t.Errorf("narrow View() line is %d columns wide, want at most 44: %q", w, line)
 		}
 	}
 }

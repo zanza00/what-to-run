@@ -17,9 +17,11 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `go test -race ./internal/tui -run TestViewInlineHeight`.
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
   `tasks.go` = the Task model, `sources.go` = the discovery framework and the
-  source registry, `source_*.go` = one parser per source, `zshinit.go` = the
-  zsh widget printed by `init zsh`); `cmd/wtr` only parses
-  flags/subcommands and calls `tui.Run` / `tui.ZshInit`. Adding a source: a
+  source registry, `source_*.go` = one parser per source, `theme.go` = the
+  named looks and the styles derived from them, `theme_modal.go` = the ctrl+t
+  theme picker overlay, `notice.go` = the transient toast, `zshinit.go` = the
+  zsh widget printed by `init zsh`); `cmd/wtr` only parses flags/subcommands
+  and calls `tui.Run` / `tui.Preview` / `tui.ZshInit`. Adding a source: a
   `source` literal and its parser in a new `source_<name>.go`, one line in
   `defaultSources`, and table-driven tests next to them. Unknown `package.json`
   shapes etc. belong in the matching `source_*.go`.
@@ -34,7 +36,35 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `$XDG_CONFIG_HOME/what-to-run/config.toml` globally) adds `[[tasks]]`,
   overrides `package_manager` and disables sources; its problems are warnings
   (status line), never fatal, like broken sources. Its tasks are assembled in
-  `discoverTasks` and shadow same-named source tasks.
+  `discoverTasks` and shadow same-named source tasks. The theme is a user
+  setting like OpenCode's `cli.json`: only the global file sets it (a project
+  `theme` warns and is ignored) and `saveTheme` writes it there.
+- The look is a named theme (`theme.go`): the registry order is the order of
+  the `ctrl+t` picker, the first entry (`classic`) is the default, `--theme`
+  pins one and an unknown name is only a warning. `--list-themes` and
+  `--preview` (a static 80×24 frame) are the comparison aids. Every theme uses
+  the same bar selection: the selected row is painted segment by segment — the
+  `selBg` tint with the `selFg` light text, or reverse video for the colorless
+  `mono` — never the dim color, which can be nearly identical to the tint,
+  because a nested style's reset would drop the highlight before the row
+  padding.
+- `ctrl+t` opens the theme picker (`theme_modal.go`): a centered box listing
+  five theme names at a time, each in its own accent (the top border carries
+  the position and ↑/↓ when the list scrolls). ↑/↓ preview live, enter or
+  ctrl+t keep and save the choice (`saveTheme`: the user rc file, like
+  OpenCode's cli.json, confirmed by a transient toast — `notice.go`, 2s, top
+  right; failures stay in the status line), esc restores the theme that was
+  active when it opened. The notice and the box are composited cell by cell
+  over the rendered rows (the lipgloss canvas, `overlay`), so a tinted
+  background crossing their edges is not broken.
+- Rows show the command line (`Task.commandLine`), the description and the
+  source badge: no name column, the command already contains the name. The
+  command column is the widest visible command line, so descriptions start
+  together; it is capped to the room the row has, and the description takes
+  what is left — dropped before the command shrinks. A description already
+  contained in the command line is hidden (an rc task without a custom
+  description defaults to its own command). The filter matches tokens against
+  the task name or the command line, since the name is not a column.
 - The inline row math (`areaHeight`, `restoreCursor`) is pinned in
   `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests in sync with
   any layout change.

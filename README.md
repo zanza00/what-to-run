@@ -28,8 +28,10 @@ right below the prompt (see [shell integration](#shell-integration-zsh)).
 
 ## Status
 
-Task discovery and execution are implemented: the picker lists what it finds,
-filters as you type, and runs the selected task. In full screen it runs in
+Task discovery and execution are implemented: the picker lists what it finds —
+each row shows the command line that will run the task (`npm run build`,
+`make build`, `cargo make clean`, …), its description and the file it comes
+from — filters as you type, and runs the selected task. In full screen it runs in
 place and returns to the list; in inline mode it quits first and the task then
 runs at the prompt, propagating its exit code. `tab` inserts the chosen command
 in the prompt without running it, and an [`init zsh`](#shell-integration-zsh)
@@ -63,6 +65,9 @@ go run ./cmd/wtr
 | Flag | Description |
 | --- | --- |
 | `--inline` | Render between the current cursor line (the prompt) and the bottom of the screen instead of taking over the terminal. Requires an interactive terminal; falls back to full screen with a warning otherwise. |
+| `--theme NAME` | Render the picker with one of the [themes](#themes). An unknown name is a warning; the default look is used. |
+| `--list-themes` | Print the available themes and exit. |
+| `--preview` | Print one static 80×24 frame of the picker with the tasks of the current directory and exit (aiding to compare themes: `--preview --theme nord`). |
 | `--debug-area` | Draw a border around the whole area managed in inline mode (development aid; ignored in full screen). |
 
 ### Keys
@@ -76,6 +81,7 @@ go run ./cmd/wtr
 | `tab` | inline only: place the command in the shell prompt without running it |
 | `esc` | clear the filter, or quit when the filter is empty |
 | `ctrl+u` | clear the filter |
+| `ctrl+t` | open the theme picker: ↑/↓ preview live, enter keep, esc cancel |
 | `ctrl+c` | quit |
 
 `q` types into the filter; it does not quit.
@@ -103,7 +109,8 @@ point to `wtr`, when it is on `PATH`.
 right below the prompt: `enter` runs the chosen task at the prompt, so it
 lands in the shell history, and `tab` places the command line there without
 running it. The generated script honours `WTR_BIN` (the binary the widget
-launches) and `WTR_FLAGS` (extra flags, e.g. `WTR_FLAGS=--debug-area`).
+launches) and `WTR_FLAGS` (extra flags, e.g. `WTR_FLAGS=--debug-area`, or
+`WTR_FLAGS="--theme nord"` to pin a [theme](#themes)).
 Ctrl-S and Ctrl-Q are the XOFF and XON flow-control characters: when one of
 them is bound, the script turns IXON off (`stty -ixon`) so the key reaches zle
 instead of freezing the terminal, and `stty ixon` restores the default.
@@ -132,11 +139,20 @@ Two optional TOML files extend what the picker finds:
   `~/.config/what-to-run/config.toml` (your personal settings).
 
 The project file wins on `package_manager`, `disable` entries are merged, and
-its tasks shadow same-named global ones. A broken file is reported in the
-status line and skipped, like a broken task source.
+its tasks shadow same-named global ones. The theme is a user setting, like
+OpenCode's `cli.json`: only the global file sets it, and the picker saves the
+choice there (a `theme` in a project file is a warning, ignored). A broken
+file is reported in the status line and skipped, like a broken task source.
 
 ```toml
-# Force a package manager instead of detecting one.
+# ~/.config/what-to-run/config.toml: start with a theme instead of the
+# default one (see Themes). Choosing one in the picker (ctrl+t, then enter)
+# saves it here; --theme wins for a single run.
+theme = "nord"
+```
+
+```toml
+# .what-to-run.toml: force a package manager instead of detecting one.
 package_manager = "bun"
 
 # Skip a source, by any of the file names it looks for.
@@ -202,6 +218,52 @@ space below the prompt:
 
 The default mode: the UI takes over the terminal through the alternate screen
 and the previous shell contents are restored on quit.
+
+### Themes
+
+The look of the picker is one of these named themes — palettes sharing the
+same selection style, an accent bar over a lighter tinted row (the colorless
+`mono` tints the row with reverse video):
+
+| Theme | Look |
+| --- | --- |
+| `classic` | the default violet look |
+| `nord` | arctic blues and frost |
+| `dracula` | high-contrast plum |
+| `tokyo` | night blues on ink |
+| `gruvbox` | warm retro amber |
+| `catppuccin` | soft pastel mocha |
+| `one-dark` | the editor classic: cool grays and blue |
+| `monokai` | vivid pink, orange and green |
+| `solarized` | the low-contrast classic: teal and blue |
+| `everforest` | muted forest greens |
+| `kanagawa` | ukiyo-e ink blues and sakura |
+| `rose-pine` | dusty rose, pine and iris |
+| `mono` | no colors at all, reverse-video tint |
+
+Every theme uses the bar-and-tinted-row selection; `mono`, having no colors,
+tints the row with reverse video.
+
+Pick one with `--theme nord` (for a single run), or open the theme picker with
+`ctrl+t`: ↑/↓ scroll the list and preview each theme live, enter (or ctrl+t
+again) keeps the choice and saves it, esc restores the previous one. A small
+toast in the top-right corner confirms where it was saved and fades after a
+couple of seconds; a failed save stays in the status line. The theme is a
+personal preference, like OpenCode's `cli.json`: the choice is saved in your
+user rc file, never in the project one, and starts every following run. The
+box lists five theme names at a time, each in its own accent; the position and
+↑/↓ arrows sit on the top border when the list scrolls. To compare them side
+by side in a script, use the static preview:
+
+```sh
+for t in $(bin/wtr --list-themes | cut -c3- | cut -d' ' -f1); do
+  printf '\n== %s ==\n' "$t"
+  bin/wtr --preview --theme "$t"
+done
+```
+
+`--list-themes` marks the default with `*`. The themes are plain data in
+`internal/tui/theme.go`: a new variant is one entry in the registry.
 
 ## Roadmap
 

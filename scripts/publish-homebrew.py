@@ -57,21 +57,35 @@ def render(tag, checksums):
     return "\n".join(lines)
 
 
+def fetch_existing(endpoint):
+    """Return the current formula file, or None when the tap has no formula."""
+    try:
+        result = subprocess.check_output(
+            ["gh", "api", endpoint, "-f", "ref=main", "--method", "GET"],
+            text=True, stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as err:
+        if "HTTP 404" in (err.stderr or ""):
+            return None
+        raise
+    return json.loads(result)
+
+
 def publish(tag, formula):
     endpoint = "repos/zanza00/homebrew-tap/contents/Formula/what-to-run.rb"
-    result = subprocess.check_output(
-        ["gh", "api", endpoint, "-f", "ref=main", "--method", "GET"], text=True
-    )
-    existing = json.loads(result)
-    if base64.b64decode(existing["content"]).decode() == formula:
+    existing = fetch_existing(endpoint)
+    if existing is not None and base64.b64decode(existing["content"]).decode() == formula:
         print(f"Homebrew formula already matches {tag}")
         return
     payload = {
         "branch": "main",
         "message": f"chore: update what-to-run to {tag}",
-        "sha": existing["sha"],
         "content": base64.b64encode(formula.encode()).decode(),
     }
+    # The Contents API updates an existing file with its blob sha; the first
+    # release of a package creates the formula with a plain PUT instead.
+    if existing is not None:
+        payload["sha"] = existing["sha"]
     subprocess.run(
         ["gh", "api", endpoint, "--method", "PUT", "--input", "-", "--silent"],
         input=json.dumps(payload), text=True, check=True,

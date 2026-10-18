@@ -62,6 +62,17 @@ class PublisherTest(unittest.TestCase):
         self.assertEqual(base64.b64decode(payload["content"]), b"new\n")
         self.assertTrue(write.call_args.kwargs["check"])
 
+    def test_missing_formula_is_created_without_sha(self):
+        missing = subprocess.CalledProcessError(1, "gh", stderr="gh: Not Found (HTTP 404)\n")
+        with patch.object(publisher.subprocess, "check_output", side_effect=missing), \
+                patch.object(publisher.subprocess, "run") as write:
+            publisher.publish("v0.1.0", "class WhatToRun < Formula\nend\n")
+        payload = json.loads(write.call_args.kwargs["input"])
+        self.assertNotIn("sha", payload)
+        self.assertEqual(payload["branch"], "main")
+        self.assertEqual(payload["message"], "chore: update what-to-run to v0.1.0")
+        self.assertEqual(base64.b64decode(payload["content"]), b"class WhatToRun < Formula\nend\n")
+
     def test_api_failure_propagates(self):
         with patch.object(publisher.subprocess, "check_output", side_effect=subprocess.CalledProcessError(1, "gh")):
             with self.assertRaises(subprocess.CalledProcessError):

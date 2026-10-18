@@ -53,7 +53,6 @@ func TestZshInitScript(t *testing.T) {
 		"bindkey '^G' wtr-widget",
 		`typeset -g WTR_BIN="${WTR_BIN:-/opt/wtr/wtr}"`,
 		"out=$(\"$WTR_BIN\" --inline ${=WTR_FLAGS} < /dev/tty)",
-		"Ctrl-G opens",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("ZshInit() script does not contain %q:\n%s", want, got)
@@ -66,34 +65,21 @@ func TestZshInitScript(t *testing.T) {
 
 // TestZshInitNamesTheInvokedProgram pins the mnemonic rule: the script keeps
 // the name it was generated with, so the integration is self-explaining in
-// the rc file and in the message printed at shell startup.
+// the rc file.
 func TestZshInitNamesTheInvokedProgram(t *testing.T) {
 	tests := []struct {
-		prog    string
-		want    []string
-		wantNot []string
+		prog string
+		want []string
 	}{
 		{
 			prog: "what-to-run",
 			want: []string{
 				"# what-to-run: zsh integration, Ctrl-G opens the inline picker.",
 				`eval "$(what-to-run init zsh --key Ctrl-G)"`,
-				`print "what-to-run: Ctrl-G opens ${WTR_BIN} --inline"`,
-				"if (( $+commands[wtr] )); then",
-				`print "what-to-run: (or type 'wtr' directly)"`,
 			},
 		},
-		{
-			prog: "wtr",
-			want: []string{"# wtr: zsh integration"},
-			// The short name needs no hint: it is already what you type.
-			wantNot: []string{"or type 'wtr' directly"},
-		},
-		{
-			prog:    "",
-			want:    []string{"# wtr: zsh integration"},
-			wantNot: []string{"or type 'wtr' directly"},
-		},
+		{prog: "wtr", want: []string{"# wtr: zsh integration"}},
+		{prog: "", want: []string{"# wtr: zsh integration"}},
 	}
 	for _, tt := range tests {
 		got, err := ZshInit(tt.prog, "/bin/wtr", "ctrl-g")
@@ -105,9 +91,21 @@ func TestZshInitNamesTheInvokedProgram(t *testing.T) {
 				t.Errorf("ZshInit(%q) script does not contain %q:\n%s", tt.prog, want, got)
 			}
 		}
-		for _, notWant := range tt.wantNot {
-			if strings.Contains(got, notWant) {
-				t.Errorf("ZshInit(%q) script should not contain %q:\n%s", tt.prog, notWant, got)
+	}
+}
+
+// TestZshInitIsQuiet pins that evaluating the script prints nothing: the
+// integration lives in the rc file, and a greeting at every new shell is
+// noise.
+func TestZshInitIsQuiet(t *testing.T) {
+	for _, prog := range []string{"wtr", "what-to-run", ""} {
+		for _, key := range []string{"ctrl-s", "ctrl-g"} {
+			got, err := ZshInit(prog, "/bin/wtr", key)
+			if err != nil {
+				t.Fatalf("ZshInit(%q, %q) error: %v", prog, key, err)
+			}
+			if strings.Contains(got, `print "`) {
+				t.Errorf("ZshInit(%q, %q) should not print a message:\n%s", prog, key, got)
 			}
 		}
 	}

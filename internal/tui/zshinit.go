@@ -23,8 +23,7 @@ const DefaultKey = "ctrl-s"
 // widget then runs it (enter) or inserts it in the prompt (tab).
 //
 // prog is the name the binary was invoked as ("wtr" or
-// "what-to-run"): it appears in the script's comments and in the
-// message printed when the integration is evaluated. bin is the command the
+// "what-to-run"): it appears in the script's comments. bin is the command the
 // widget launches — the invoked name, resolved through PATH at press time,
 // or an absolute path. key is a combo name ("ctrl-s", "alt-x") or a raw zsh
 // key sequence as bindkey takes it ("^[[15~" for F5).
@@ -95,29 +94,15 @@ _wtr_widget() {
 zle -N wtr-widget _wtr_widget
 `)
 
-	note := ""
-	if ixon {
-		note = " (IXON off)"
-	}
-	fmt.Fprintf(&b, "bindkey '%s' wtr-widget\n\n", seq)
-	fmt.Fprintf(&b, "print \"%s: %s opens ${WTR_BIN} --inline%s\"\n", prog, name, note)
-	if prog == "what-to-run" {
-		// The explicit name is the one meant for rc files: point at the
-		// short one, but only when it is actually around.
-		fmt.Fprintf(&b, `
-if (( $+commands[wtr] )); then
-  print "%s: (or type 'wtr' directly)"
-fi
-`, prog)
-	}
+	fmt.Fprintf(&b, "bindkey '%s' wtr-widget\n", seq)
 
 	return b.String(), nil
 }
 
 // parseBindKey turns a --key value into the sequence bindkey expects and a
-// human-readable name used in messages: "ctrl-s" and "alt-x" are translated
-// ("^S", "^[x"); anything starting with a caret is a raw zsh key sequence and
-// is passed through unchanged.
+// human-readable name for the script's header comment: "ctrl-s" and "alt-x"
+// are translated ("^S", "^[x"); anything starting with a caret is a raw zsh
+// key sequence and is passed through unchanged.
 func parseBindKey(spec string) (seq, name string, err error) {
 	key := strings.TrimSpace(spec)
 	if key == "" {

@@ -7,6 +7,9 @@
 bin/
 dist/
 
+# Python bytecode from the release publisher's tests
+__pycache__/
+
 # Test binary, built with `go test -c`
 *.test
 

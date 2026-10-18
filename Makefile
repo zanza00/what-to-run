@@ -6,6 +6,10 @@ BINARY_ALIAS := what-to-run
 GO := go
 CMD := ./cmd/wtr
 KEY ?= ctrl-s
+# Version shown by --version, injected with ldflags: a git describe string for
+# local builds, the release tag when GoReleaser builds the archives.
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -X main.version=$(VERSION)
 # Where `make install` puts the binaries (override: PREFIX=/usr/local/bin).
 PREFIX ?= $(HOME)/.local/bin
 
@@ -16,8 +20,8 @@ all: fmt test build
 ## build: Build bin/wtr and bin/what-to-run
 build:
 	@echo "Building $(BINARY_NAME) and $(BINARY_ALIAS)..."
-	$(GO) build -o bin/$(BINARY_NAME) $(CMD)
-	$(GO) build -o bin/$(BINARY_ALIAS) $(CMD)
+	$(GO) build -ldflags '$(LDFLAGS)' -o bin/$(BINARY_NAME) $(CMD)
+	$(GO) build -ldflags '$(LDFLAGS)' -o bin/$(BINARY_ALIAS) $(CMD)
 
 ## bind: Build and print the zsh integration for eval (eval "$(make bind)", KEY=combo)
 bind:
@@ -56,7 +60,7 @@ tidy:
 
 ## clean: Remove build artifacts
 clean:
-	rm -rf bin/ coverage.out coverage.html
+	rm -rf bin/ dist/ coverage.out coverage.html
 
 ## help: Show this help message
 help:

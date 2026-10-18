@@ -1,0 +1,58 @@
+name: checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: go build ./...
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -shuffle=on ./...
+
+  cross:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Validate release configuration
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: '~> v2'
+          args: check
+      - name: Cross-compile
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          for os in linux darwin; do
+            GOOS=$os GOARCH=amd64 go build -o /dev/null ./cmd/wtr
+            GOOS=$os GOARCH=arm64 go build -o /dev/null ./cmd/wtr
+          done
+      - name: Test Homebrew publisher
+        # Python is used only by the release publisher, not by the CLI.
+        run: python3 -m unittest discover -s scripts -p '*_test.py'

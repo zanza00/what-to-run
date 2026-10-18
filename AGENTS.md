@@ -12,8 +12,10 @@ without running it.
 
 Before any Go coding, review, debugging, troubleshooting, or setup task, load the `golang-how-to` skill first — it routes to whichever other Go skills the task needs.
 
-- `make all` is the full check (fmt + vet, race tests, build); no CI runs it, so
-  run it before committing. A single test:
+- `make all` is the full check (fmt + vet, race tests, build); CI
+  (`.github/workflows/checks.yml`, also called by the release workflow) runs
+  the same checks plus a gofmt gate on linux and macOS, so run `make all`
+  before committing. A single test:
   `go test -race ./internal/tui -run TestViewInlineHeight`.
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
   `tasks.go` = the Task model, `sources.go` = the discovery framework and the
@@ -33,6 +35,14 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   absolute path — in `WTR_BIN`; with the explicit name, `--help` and the
   generated script also point at `wtr` when it is on PATH. `cmd/wtr/main_test.go`
   pins the helpers.
+- Releases are tag-driven: `.github/workflows/release.yml` runs on `vX.Y.Z`
+  tags whose commit is in `main`, builds the linux+darwin archives holding both
+  binaries through `.goreleaser.yaml`, and `scripts/publish-homebrew.py` writes
+  `Formula/what-to-run.rb` in `zanza00/homebrew-tap` using the
+  `HOMEBREW_TAP_TOKEN` secret. `--version` prints the version injected with
+  `-X main.version` (the tag in GoReleaser, `git describe` in the Makefile).
+  The publisher has Python tests: run
+  `python3 -m unittest discover -s scripts -p '*_test.py'` when touching it.
 - The optional rc file (`config.go`, documented in `docs/config.md`;
   `.what-to-run.toml` in the project,
   `$XDG_CONFIG_HOME/what-to-run/config.toml` globally) adds `[[tasks]]`,

@@ -16,9 +16,20 @@ normal terminal history.
 ## Get started
 
 ### Install
-<!-- add a simple fence with all of the install methods -->
+
+On macOS or Linux with Homebrew (installs both `wtr` and `what-to-run`):
+
+```sh
+brew install zanza00/tap/what-to-run
 ```
 
+Prebuilt tarballs with both binaries (macOS and Linux, Intel and ARM64) are
+attached to each [release](https://github.com/zanza00/what-to-run/releases).
+
+With Go installed (installs only `wtr`):
+
+```sh
+go install github.com/zanza00/what-to-run/cmd/wtr@latest
 ```
 
 ### Set up the zsh widget
@@ -99,3 +110,8 @@ See [Configuration](docs/config.md) for the full format and examples.
 
 See [Development](docs/development.md) for build, test, and local widget
 instructions.
+
+## License
+
+[MIT](LICENSE)
+

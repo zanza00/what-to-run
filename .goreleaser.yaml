@@ -1,0 +1,46 @@
+version: 2
+
+# Set explicitly: archive names and the Homebrew publisher depend on it, so a
+# checkout directory or remote with another name must not change them.
+project_name: what-to-run
+
+# The same main package is built twice, once per name, and every archive holds
+# both binaries (the invoked name is what the picker shows).
+builds:
+  - id: wtr
+    main: ./cmd/wtr
+    binary: wtr
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+  - id: what-to-run
+    main: ./cmd/wtr
+    binary: what-to-run
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+
+checksum:
+  name_template: checksums.txt
+
+publishers:
+  - name: homebrew-tap
+    checksum: true
+    # The script publishes once for checksums.txt and ignores other artifacts.
+    cmd: python3 scripts/publish-homebrew.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
+    env:
+      - GH_TOKEN={{ .Env.HOMEBREW_TAP_TOKEN }}
+
+changelog:
+  sort: asc

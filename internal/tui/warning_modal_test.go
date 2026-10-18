@@ -28,12 +28,26 @@ func TestWarningModalOpensAtStartAndKeepsBottomChrome(t *testing.T) {
 	}
 
 	got := ansi.Strip(m.View().Content)
+	// The box is composited over the rows, so rebuild its text from the
+	// interior of its borders before checking wrapped messages.
+	var box []string
+	for _, line := range strings.Split(got, "\n") {
+		if i, j := strings.Index(line, "│"), strings.LastIndex(line, "│"); i >= 0 && j > i {
+			box = append(box, line[i+len("│"):j])
+		}
+	}
+	text := strings.Join(strings.Fields(strings.Join(box, " ")), " ")
+	for _, want := range []string{
+		"rc file /home/zanza00/.config/what-to-run/",
+		"config.toml: strict mode: fields in the document are missing in the target struct",
+		warningModalHints,
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("warning modal does not contain %q:\n%s", want, got)
+		}
+	}
 	for _, want := range []string{
 		"warning",
-		"rc file /home/zanza00/.config/what-to-run/",
-		"config.toml: strict mode: fields in the document are missing",
-		"in the target struct",
-		warningModalHints,
 		"4 tasks · 1 warning",
 		"enter run · esc quit",
 		"ctrl+w warnings",

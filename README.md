@@ -18,7 +18,7 @@ right below the prompt (see [shell integration](#shell-integration-zsh)).
 ```
    shell history + prompt      ← never touched (no alternate screen)
    ───────────────────────────
-   what-to-run          ← rendered from the line right below the
+   what-to-run                 ← rendered from the line right below the
    » type to filter▏              prompt down to the bottom of the screen
    › build      go build ./...      package.json
      test       go test ./...       Makefile

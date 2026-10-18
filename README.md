@@ -251,6 +251,7 @@ same selection style, an accent bar over a lighter tinted row (the colorless
 | `everforest` | muted forest greens |
 | `kanagawa` | ukiyo-e ink blues and sakura |
 | `rose-pine` | dusty rose, pine and iris |
+| `system` | the terminal's own palette and background |
 | `mono` | no colors at all, reverse-video tint |
 
 Every theme uses the bar-and-tinted-row selection; `mono`, having no colors,

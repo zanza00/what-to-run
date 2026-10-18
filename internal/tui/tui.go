@@ -4,6 +4,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"image/color"
 	"io"
 	"os"
 	"slices"
@@ -198,6 +199,12 @@ func Preview(w io.Writer, opts Options, width, height int) error {
 	opts.Inline = false
 	opts.DebugArea = false
 	m := newModel(opts, tasks, warnings)
+	if f, ok := w.(term.File); ok && term.IsTerminal(os.Stdin.Fd()) && term.IsTerminal(f.Fd()) {
+		if bg, err := lipgloss.BackgroundColor(os.Stdin, f); err == nil {
+			m.termBg = bg
+			m.styles = newStyles(m.themeAt(m.themeIdx))
+		}
+	}
 	m.width, m.height, m.ready = width, height, true
 	fmt.Fprintln(w, m.View().Content)
 	return nil
@@ -279,6 +286,8 @@ type model struct {
 	// list is windowed.
 	themeIdx    int
 	styles      styles
+	termBg      color.Color
+	termFg      color.Color
 	themeModal  bool
 	themeBefore int
 	themeOffset int
@@ -315,9 +324,9 @@ func (m model) Init() tea.Cmd {
 	if m.opts.Inline {
 		// Find out which row the UI starts on, i.e. which line to anchor the
 		// bottom part of the screen to.
-		return tea.RequestCursorPosition
+		return tea.Batch(tea.RequestCursorPosition, tea.RequestBackgroundColor, tea.RequestForegroundColor)
 	}
-	return nil
+	return tea.Batch(tea.RequestBackgroundColor, tea.RequestForegroundColor)
 }
 
 // Update implements tea.Model.
@@ -332,6 +341,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.startRow = msg.Y
 		m.startRowKnown = true
 		m.keepCursorVisible()
+
+	case tea.BackgroundColorMsg:
+		m.termBg = msg.Color
+		m.styles = newStyles(m.themeAt(m.themeIdx))
+
+	case tea.ForegroundColorMsg:
+		m.termFg = msg.Color
+		m.styles = newStyles(m.themeAt(m.themeIdx))
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -509,7 +526,17 @@ func (m model) handleThemeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // setTheme activates the theme at index i and rebuilds its styles.
 func (m *model) setTheme(i int) {
 	m.themeIdx = i
-	m.styles = newStyles(themes[i])
+	m.styles = newStyles(m.themeAt(i))
+}
+
+// themeAt returns the theme at index i, resolving the "system" theme against
+// the terminal's detected background and foreground colors when available.
+func (m model) themeAt(i int) theme {
+	th := themes[i]
+	if th.name == "system" && (m.termBg != nil || m.termFg != nil) {
+		return systemTheme(m.termBg, m.termFg)
+	}
+	return th
 }
 
 // persistTheme saves the previewed theme when it differs from the one that

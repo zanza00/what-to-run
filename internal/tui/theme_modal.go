@@ -34,8 +34,8 @@ func (m model) themeModalHeight() int {
 const themeModalHints = "↑/↓ · enter · esc"
 
 // themeModalTitle is the widest top border title, used to size the box: the
-// "themes 13/13" counter with both scroll arrows.
-const themeModalTitle = " ↑ themes 13/13 ↓ "
+// "themes 14/14" counter with both scroll arrows.
+const themeModalTitle = " ↑ themes 14/14 ↓ "
 
 // themeModalRows returns how many theme rows the box shows at height h: five,
 // or fewer when the space is too short for them.
@@ -72,7 +72,7 @@ func (m model) themeModalLines(h, w int) []string {
 	bw := innerW + 4
 
 	border := lipgloss.NewStyle()
-	if accent := themes[m.themeIdx].accent; accent != nil {
+	if accent := m.themeAt(m.themeIdx).accent; accent != nil {
 		border = border.Foreground(accent)
 	}
 
@@ -95,7 +95,7 @@ func (m model) themeModalLines(h, w int) []string {
 			border.Render("╮"))
 	for i := off; i < off+n; i++ {
 		lines = append(lines,
-			border.Render("│")+" "+themeModalRow(themes[i], i == m.themeIdx, nameCol, innerW)+" "+border.Render("│"))
+			border.Render("│")+" "+themeModalRow(m.themeAt(i), i == m.themeIdx, nameCol, innerW)+" "+border.Render("│"))
 	}
 	lines = append(lines,
 		border.Render("│")+" "+m.themeModalFooter(innerW)+" "+border.Render("│"),

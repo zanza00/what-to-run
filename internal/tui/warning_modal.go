@@ -109,7 +109,7 @@ func (m model) warningModalLines(h, w int) []string {
 	bw := innerW + 4
 
 	border := lipgloss.NewStyle()
-	if errColor := themes[m.themeIdx].err; errColor != nil {
+	if errColor := m.themeAt(m.themeIdx).err; errColor != nil {
 		border = border.Foreground(errColor)
 	}
 

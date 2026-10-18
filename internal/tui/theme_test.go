@@ -3,13 +3,13 @@ package tui
 import (
 	"bytes"
 	"image/color"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -55,26 +55,85 @@ func TestThemeContrast(t *testing.T) {
 	}
 }
 
-// contrastRatio returns the WCAG contrast ratio between two colors.
-func contrastRatio(a, b color.Color) float64 {
-	la, lb := relativeLuminance(a), relativeLuminance(b)
-	if la < lb {
-		la, lb = lb, la
+func TestSystemThemeAdaptsToTerminalColors(t *testing.T) {
+	tests := []struct {
+		name      string
+		bg        color.Color
+		fg        color.Color
+		wantSelBg string // SGR background sequence on the selected row
+		wantSelFg string // SGR foreground sequence on the selected row
+		wantDim   string // SGR foreground sequence on unselected secondary text
+	}{
+		{
+			name:      "default fallback before terminal reply",
+			bg:        nil,
+			fg:        nil,
+			wantSelBg: "48;2;25;25;25",    // #191919 (grays[3] from #000000)
+			wantSelFg: "38;2;192;192;192", // #C0C0C0 (ANSI 7 fallback)
+			wantDim:   "38;2;180;180;180", // #B4B4B4 (muted gray on #000000)
+		},
+		{
+			name:      "dark terminal background and foreground",
+			bg:        lipgloss.Color("#1A1B26"),
+			fg:        lipgloss.Color("#C0CAF5"),
+			wantSelBg: "48;2;47;48;68",    // #2F3044 (grays[3] from #1A1B26)
+			wantSelFg: "38;2;192;202;245", // #C0CAF5
+			wantDim:   "38;2;168;168;168", // #A8A8A8 (muted gray on #1A1B26)
+		},
+		{
+			name:      "light terminal background and foreground",
+			bg:        lipgloss.Color("#FBF1C7"),
+			fg:        lipgloss.Color("#3C3836"),
+			wantSelBg: "48;2;225;216;179", // #E1D8B3 (grays[3] from #FBF1C7)
+			wantSelFg: "38;2;60;56;54",    // #3C3836
+			wantDim:   "38;2;96;96;96",    // #606060 (muted gray on #FBF1C7)
+		},
+		{
+			name:      "pure white terminal background without foreground",
+			bg:        lipgloss.Color("#FFFFFF"),
+			fg:        nil,
+			wantSelBg: "48;2;229;229;229", // #E5E5E5 (grays[3] from #FFFFFF)
+			wantSelFg: "38;2;0;0;0",       // #000000 (ANSI 0 fallback)
+			wantDim:   "38;2;75;75;75",    // #4B4B4B (muted gray on #FFFFFF)
+		},
+		{
+			name:      "mid-tone background enforces WCAG contrast",
+			bg:        lipgloss.Color("#7F7F7F"),
+			fg:        lipgloss.Color("#909090"),
+			wantSelBg: "48;2;139;139;139",
+			wantSelFg: "38;2;0;0;0", // low-contrast #909090 falls back to #000000 (6.2:1 vs 3.4:1)
+			wantDim:   "38;2;198;198;198",
+		},
 	}
-	return (la + 0.05) / (lb + 0.05)
-}
 
-// relativeLuminance returns the WCAG relative luminance of a color.
-func relativeLuminance(c color.Color) float64 {
-	r, g, b, _ := c.RGBA() // 16-bit channels
-	linear := func(v uint32) float64 {
-		s := float64(v) / 0xFFFF
-		if s <= 0.04045 {
-			return s / 12.92
-		}
-		return math.Pow((s+0.055)/1.055, 2.4)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			th := systemTheme(tt.bg, tt.fg)
+			if got := contrastRatio(th.selFg, th.selBg); got < 4.5 {
+				t.Errorf("systemTheme(%v, %v) contrast = %.1f:1, want at least 4.5:1", tt.bg, tt.fg, got)
+			}
+
+			m := sized(Options{Theme: "system"})
+			if tt.bg != nil {
+				m = update(m, tea.BackgroundColorMsg{Color: tt.bg})
+			}
+			if tt.fg != nil {
+				m = update(m, tea.ForegroundColorMsg{Color: tt.fg})
+			}
+
+			view := m.View().Content
+			selected := selectedRow(t, view)
+			if !strings.Contains(selected, tt.wantSelBg) {
+				t.Errorf("selected row does not paint selBg %q:\n%q", tt.wantSelBg, selected)
+			}
+			if !strings.Contains(selected, tt.wantSelFg) {
+				t.Errorf("selected row does not paint selFg %q:\n%q", tt.wantSelFg, selected)
+			}
+			if !strings.Contains(view, tt.wantDim) {
+				t.Errorf("view does not use dim %q:\n%q", tt.wantDim, view)
+			}
+		})
 	}
-	return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
 }
 
 func TestThemeIndex(t *testing.T) {
@@ -389,7 +448,7 @@ func TestThemePickerWindowsTheList(t *testing.T) {
 	// The box shows five theme rows; the rest are reached by scrolling.
 	m := update(sized(Options{}), ctrlTKey)
 	got := m.View().Content
-	if !strings.Contains(got, "themes 1/13 ↓") {
+	if !strings.Contains(got, "themes 1/14 ↓") {
 		t.Errorf("the title does not mark the hidden rows below:\n%s", got)
 	}
 	if strings.Contains(got, "catppuccin") || strings.Contains(got, " mono ") {
@@ -407,7 +466,7 @@ func TestThemePickerWindowsTheList(t *testing.T) {
 	if strings.Contains(got, " classic ") {
 		t.Errorf("the first theme is still rendered after scrolling:\n%s", got)
 	}
-	if !strings.Contains(got, "↑ themes 13/13") {
+	if !strings.Contains(got, "↑ themes 14/14") {
 		t.Errorf("the title does not mark the hidden rows above:\n%s", got)
 	}
 }

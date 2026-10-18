@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"io"
+	"math"
 
 	"charm.land/lipgloss/v2"
 )
@@ -159,10 +160,144 @@ var themes = []theme{
 		selBg:  lipgloss.Color("#403D52"),
 		selFg:  lipgloss.Color("#E0DEF4"),
 	},
+	systemTheme(nil, nil),
 	{
 		name: "mono",
 		desc: "no colors at all, reverse-video tint",
 	},
+}
+
+// systemTheme builds the "system" theme like OpenCode's generateSystem:
+// ANSI palette slots for chromatic roles (cyan accent, green ok, red err) and
+// a surface tint and muted gray derived from the terminal's background and
+// foreground colors (falling back to dark ANSI defaults before the terminal
+// reports them).
+func systemTheme(bg, fg color.Color) theme {
+	bgR, bgG, bgB := 0.0, 0.0, 0.0
+	if bg != nil {
+		bgR, bgG, bgB = rgb8(bg)
+	}
+	isDark := colorLuminance(bgR, bgG, bgB) <= 127.5
+	selBg := systemGray(bgR, bgG, bgB, isDark, 3)
+	return theme{
+		name:   "system",
+		desc:   "the terminal's own palette and background",
+		accent: lipgloss.Color("6"),
+		dim:    systemMutedColor(bgR, bgG, bgB, isDark),
+		ok:     lipgloss.Color("2"),
+		err:    lipgloss.Color("1"),
+		selBg:  selBg,
+		selFg:  systemSelectedFg(fg, selBg, isDark),
+	}
+}
+
+// rgb8 returns the 0..255 sRGB channels of c.
+func rgb8(c color.Color) (r, g, b float64) {
+	r16, g16, b16, _ := c.RGBA()
+	return float64(r16 >> 8), float64(g16 >> 8), float64(b16 >> 8)
+}
+
+// colorLuminance returns the perceived brightness of an 8-bit RGB color
+// (OpenCode's 0.299*R + 0.587*G + 0.114*B formula in 0..255).
+func colorLuminance(r, g, b float64) float64 {
+	return 0.299*r + 0.587*g + 0.114*b
+}
+
+// systemGray returns step i (1..12) of OpenCode's generateGrayScale: a surface
+// shade shifted toward white on dark backgrounds or toward black on light ones
+// while preserving the background's hue.
+func systemGray(bgR, bgG, bgB float64, isDark bool, step int) color.Color {
+	factor := float64(step) / 12.0
+	lum := colorLuminance(bgR, bgG, bgB)
+
+	if isDark && lum < 10 {
+		g := int(math.Floor(factor * 0.4 * 255))
+		return hexColor(g, g, g)
+	}
+	if !isDark && lum > 245 {
+		g := int(math.Floor(255 - factor*0.4*255))
+		return hexColor(g, g, g)
+	}
+
+	next := lum * (1 - factor*0.4)
+	if isDark {
+		next = lum + (255-lum)*factor*0.4
+	}
+	ratio := next / lum
+	clamp := func(v float64) int {
+		return int(math.Floor(min(max(v, 0), 255)))
+	}
+	return hexColor(clamp(bgR*ratio), clamp(bgG*ratio), clamp(bgB*ratio))
+}
+
+// systemMutedColor ports OpenCode's generateMutedTextColor: a neutral gray
+// scaled to stay legible against the terminal background.
+func systemMutedColor(bgR, bgG, bgB float64, isDark bool) color.Color {
+	lum := colorLuminance(bgR, bgG, bgB)
+	if isDark {
+		g := 180
+		if lum >= 10 {
+			g = min(int(math.Floor(160+lum*0.3)), 200)
+		}
+		return hexColor(g, g, g)
+	}
+	g := 75
+	if lum <= 245 {
+		g = max(int(math.Floor(100-(255-lum)*0.2)), 60)
+	}
+	return hexColor(g, g, g)
+}
+
+// systemSelectedFg chooses the foreground for the selected row in the system
+// theme: the terminal's own foreground (or OpenCode's ANSI 7/0 fallback),
+// falling back to pure white or black if a mid-tone background leaves the
+// contrast below WCAG AA (4.5:1).
+func systemSelectedFg(fg, selBg color.Color, isDark bool) color.Color {
+	var candidate color.Color
+	if fg != nil {
+		r, g, b := rgb8(fg)
+		candidate = hexColor(int(r), int(g), int(b))
+	} else if isDark {
+		candidate = lipgloss.Color("#C0C0C0")
+	} else {
+		candidate = lipgloss.Color("#000000")
+	}
+	if contrastRatio(candidate, selBg) >= 4.5 {
+		return candidate
+	}
+	white := lipgloss.Color("#FFFFFF")
+	black := lipgloss.Color("#000000")
+	if contrastRatio(white, selBg) >= contrastRatio(black, selBg) {
+		return white
+	}
+	return black
+}
+
+// hexColor formats 8-bit RGB channels as a lipgloss hex color.
+func hexColor(r, g, b int) color.Color {
+	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", r, g, b))
+}
+
+// contrastRatio returns the WCAG contrast ratio between two colors.
+func contrastRatio(a, b color.Color) float64 {
+	la, lb := relativeLuminance(a), relativeLuminance(b)
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
+}
+
+// relativeLuminance returns the WCAG relative luminance of a color.
+func relativeLuminance(c color.Color) float64 {
+	r, g, b, _ := c.RGBA() // 16-bit channels
+	linear := func(v uint32) float64 {
+		s := float64(v) / 0xFFFF
+		if s <= 0.04045 {
+			return s / 12.92
+		}
+		return math.Pow((s+0.055)/1.055, 2.4)
+	}
+	return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
 }
 
 // themeIndex returns the index of the named theme; an empty name means the

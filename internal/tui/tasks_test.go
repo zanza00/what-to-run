@@ -175,8 +175,11 @@ func TestDiscoverMakeTargetsOfThisRepo(t *testing.T) {
 			t.Errorf("task %q not found in this repo's Makefile, got %v", name, tasks)
 		}
 	}
-	if got := byName["build"].Source; got != "Makefile" {
-		t.Errorf("build source = %q, want %q", got, "Makefile")
+	// The badge is the first candidate name that resolves; on a
+	// case-insensitive filesystem (macOS) "makefile" resolves to this
+	// repository's "Makefile".
+	if got := byName["build"].Source; got != "Makefile" && got != "makefile" {
+		t.Errorf("build source = %q, want a makefile name", got)
 	}
 	const wantDesc = "Build bin/wtr and bin/what-to-run"
 	if got := byName["build"].Desc; got != wantDesc {
@@ -188,18 +191,20 @@ func TestDiscoverMakeTargetsOfThisRepo(t *testing.T) {
 }
 
 // TestDiscoverSourceFirstFileWins pins the candidate-file preference: the
-// first name in source.Files that exists is the one parsed and shown.
+// first name in source.Files that exists is the one parsed and shown. The
+// fixtures avoid names that differ only by case, which collide on the
+// case-insensitive filesystem of macOS.
 func TestDiscoverSourceFirstFileWins(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "makefile", "from-lower:\n\ttrue\n")
+	writeFile(t, dir, "GNUmakefile", "from-gnu:\n\ttrue\n")
 	writeFile(t, dir, "Makefile", "from-upper:\n\ttrue\n")
 
 	tasks, err := discoverSource(makeSource(), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
-	if len(tasks) != 1 || tasks[0].Name != "from-lower" || tasks[0].Source != "makefile" {
-		t.Errorf("discoverSource() = %+v, want the makefile task with the makefile badge", tasks)
+	if len(tasks) != 1 || tasks[0].Name != "from-gnu" || tasks[0].Source != "GNUmakefile" {
+		t.Errorf("discoverSource() = %+v, want the GNUmakefile task with the GNUmakefile badge", tasks)
 	}
 }
 
@@ -244,7 +249,9 @@ func TestDiscoverCargoMakeTasksBrokenToml(t *testing.T) {
 func TestDiscoverTasksMergesSources(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
-	writeFile(t, dir, "Makefile", "test:\n\tgo test ./...\n")
+	// GNUmakefile, not Makefile: case-sensitive filesystems would otherwise
+	// resolve the earlier "makefile" candidate and change the badge.
+	writeFile(t, dir, "GNUmakefile", "test:\n\tgo test ./...\n")
 	writeFile(t, dir, "Cargo.toml", "[tasks.fmt]\ndescription = \"Format\"\n")
 
 	tasks, errs := discoverTasks(dir, config{})
@@ -256,7 +263,7 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 	for _, task := range tasks {
 		sources = append(sources, task.Source)
 	}
-	if want := []string{"package.json", "Makefile", "Cargo.toml"}; !reflect.DeepEqual(sources, want) {
+	if want := []string{"package.json", "GNUmakefile", "Cargo.toml"}; !reflect.DeepEqual(sources, want) {
 		t.Errorf("task sources = %v, want %v", sources, want)
 	}
 }

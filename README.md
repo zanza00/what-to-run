@@ -139,11 +139,20 @@ Two optional TOML files extend what the picker finds:
   `~/.config/what-to-run/config.toml` (your personal settings).
 
 The project file wins on `package_manager`, `disable` entries are merged, and
-its tasks shadow same-named global ones. A broken file is reported in the
-status line and skipped, like a broken task source.
+its tasks shadow same-named global ones. The theme is a user setting, like
+OpenCode's `cli.json`: only the global file sets it, and the picker saves the
+choice there (a `theme` in a project file is a warning, ignored). A broken
+file is reported in the status line and skipped, like a broken task source.
 
 ```toml
-# Force a package manager instead of detecting one.
+# ~/.config/what-to-run/config.toml: start with a theme instead of the
+# default one (see Themes). Choosing one in the picker (ctrl+t, then enter)
+# saves it here; --theme wins for a single run.
+theme = "nord"
+```
+
+```toml
+# .what-to-run.toml: force a package manager instead of detecting one.
 package_manager = "bun"
 
 # Skip a source, by any of the file names it looks for.
@@ -235,12 +244,16 @@ same selection style, an accent bar over a lighter tinted row (the colorless
 Every theme uses the bar-and-tinted-row selection; `mono`, having no colors,
 tints the row with reverse video.
 
-Pick one with `--theme nord`, or open the theme picker with `ctrl+t`: ↑/↓
-scroll the list and preview each theme live, enter (or ctrl+t again) keeps the
-choice, esc restores the previous one. The box lists five theme names at a
-time, each in its own accent; the position and ↑/↓ arrows sit on the top
-border when the list scrolls. The choice lasts for the session. To compare
-them side by side in a script, use the static preview:
+Pick one with `--theme nord` (for a single run), or open the theme picker with
+`ctrl+t`: ↑/↓ scroll the list and preview each theme live, enter (or ctrl+t
+again) keeps the choice and saves it, esc restores the previous one. A small
+toast in the top-right corner confirms where it was saved and fades after a
+couple of seconds; a failed save stays in the status line. The theme is a
+personal preference, like OpenCode's `cli.json`: the choice is saved in your
+user rc file, never in the project one, and starts every following run. The
+box lists five theme names at a time, each in its own accent; the position and
+↑/↓ arrows sit on the top border when the list scrolls. To compare them side
+by side in a script, use the static preview:
 
 ```sh
 for t in $(bin/wtr --list-themes | cut -c3- | cut -d' ' -f1); do

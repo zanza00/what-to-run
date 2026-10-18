@@ -4,11 +4,16 @@
 // Two files are read, if present: the project's .what-to-run.toml and
 // the user's $XDG_CONFIG_HOME/what-to-run/config.toml. The project
 // file wins on package_manager, its disable entries add to the global ones,
-// and its tasks shadow same-named global tasks. Without either file the zero
-// config keeps the built-in behaviour.
+// and its tasks shadow same-named global tasks. The theme is a user setting,
+// like OpenCode's cli.json: only the user file sets it, and a project theme
+// is ignored with a warning. Without either file the zero config keeps the
+// built-in behaviour.
 //
 // Problems are warnings, never fatal: a file that cannot be read or parsed
 // is skipped, an invalid entry is dropped, and everything else still applies.
+//
+// saveTheme writes a chosen theme back into the user file (creating it, with
+// its directory), preserving the rest of the file.
 
 package tui
 
@@ -19,6 +24,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -28,6 +35,11 @@ type config struct {
 	// PackageManager forces the runner used for package.json scripts:
 	// "npm", "pnpm", "yarn" or "bun". Empty means detection as usual.
 	PackageManager string `toml:"package_manager"`
+
+	// Theme is the look to start with, one of the names of ListThemes. It is
+	// a user setting, like OpenCode's cli.json: only the user rc file sets
+	// it. Empty means the default; --theme overrides it for a single run.
+	Theme string `toml:"theme"`
 
 	// Disable names the sources to skip, by the file names they look for
 	// ("package.json", "Makefile", "Cargo.toml").
@@ -69,6 +81,9 @@ func loadConfig(projectFile, globalFile string) (config, []error) {
 	cfg := global
 	if project.PackageManager != "" {
 		cfg.PackageManager = project.PackageManager
+	}
+	if project.Theme != "" {
+		errs = append(errs, fmt.Errorf("rc file %s: theme is a user setting, ignored here", projectFile))
 	}
 	cfg.Disable = append(cfg.Disable, project.Disable...)
 	// Project tasks come first, so they shadow same-named global ones.
@@ -125,6 +140,13 @@ func validateConfig(cfg *config, path string) (errs []error) {
 		cfg.PackageManager = name // "" when unknown
 	}
 
+	if cfg.Theme != "" {
+		if _, ok := themeIndex(cfg.Theme); !ok {
+			errs = append(errs, fmt.Errorf("rc file %s: unknown theme %q", path, cfg.Theme))
+			cfg.Theme = ""
+		}
+	}
+
 	var tasks []configTask
 	seen := make(map[string]bool, len(cfg.Tasks))
 	for _, t := range cfg.Tasks {
@@ -147,4 +169,62 @@ func validateConfig(cfg *config, path string) (errs []error) {
 	}
 	cfg.Tasks = tasks
 	return errs
+}
+
+// saveTheme writes a theme into the user rc file, the only place that holds
+// it (like OpenCode's cli.json): the file is created with its directory when
+// missing, and the rest of its content is preserved. It returns the path
+// written.
+func saveTheme(name string) (string, error) {
+	_, userFile := defaultConfigFiles(".")
+	if userFile == "" {
+		return "", errors.New("cannot resolve the user config directory")
+	}
+
+	data, err := os.ReadFile(userFile)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(userFile), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(userFile, setThemeKey(data, name), 0o600); err != nil {
+		return "", err
+	}
+	return userFile, nil
+}
+
+// setThemeKey returns the rc file content with the top-level theme key set to
+// name: an existing assignment is replaced, a missing one is added at the top
+// of the file (after a table header it would belong to that table).
+func setThemeKey(src []byte, name string) []byte {
+	assignment := "theme = " + strconv.Quote(name)
+	lines := strings.Split(string(src), "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") {
+			break // tables start here: the key must go above them
+		}
+		if key, _, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(key) == "theme" {
+			lines[i] = assignment
+			return []byte(strings.Join(lines, "\n"))
+		}
+	}
+	if len(bytes.TrimSpace(src)) == 0 {
+		return []byte(assignment + "\n")
+	}
+	return []byte(assignment + "\n\n" + string(src))
+}
+
+// shortPath replaces the user's home directory with "~", for messages.
+func shortPath(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	rest, ok := strings.CutPrefix(path, home)
+	if !ok || (rest != "" && rest[0] != filepath.Separator) {
+		return path
+	}
+	return "~" + rest
 }

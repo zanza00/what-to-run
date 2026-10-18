@@ -11,7 +11,7 @@ import (
 // The theme picker (ctrl+t) is a modal box drawn over the picker: the list of
 // themes, windowed when the space is short, each row in its own palette and
 // the previewed one highlighted. The box is composited cell by cell (see
-// overlayThemeModal), so the styled rows around it stay intact.
+// overlay), so the styled rows around it stay intact.
 
 // themeModalChrome is the number of rows the box adds around the theme list:
 // two borders and the hints line.
@@ -149,22 +149,4 @@ func (m model) themeModalFooter(innerW int) string {
 		hints = ""
 	}
 	return m.styles.dim.Render(hints) + strings.Repeat(" ", max(innerW-lipgloss.Width(hints), 0))
-}
-
-// overlayThemeModal draws the theme picker over the rendered lines with the
-// canvas compositor: it replaces cell by cell, so a background that crosses
-// the box edges is not broken (splicing styled lines manually would).
-func (m model) overlayThemeModal(lines []string, h, w int) string {
-	box := m.themeModalLines(h, w)
-	if box == nil {
-		return strings.Join(lines, "\n")
-	}
-	comp := lipgloss.NewCompositor(
-		lipgloss.NewLayer(strings.Join(lines, "\n")),
-		lipgloss.NewLayer(strings.Join(box, "\n")).
-			X(max((w-lipgloss.Width(box[0]))/2, 0)).
-			Y(max((h-len(box))/2, 0)).
-			Z(1),
-	)
-	return comp.Render()
 }

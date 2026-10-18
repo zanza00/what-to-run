@@ -105,9 +105,13 @@ func Run(opts Options) error {
 		}
 	}
 
-	tasks, warnings := discover()
+	tasks, cfg, warnings := discover()
 	if len(tasks) == 0 {
 		return noTasksError(warnings)
+	}
+	// The rc theme is the starting look; --theme wins for a single run.
+	if opts.Theme == "" {
+		opts.Theme = cfg.Theme
 	}
 
 	final, err := tea.NewProgram(newModel(opts, tasks, warnings), progOpts...).Run()
@@ -156,13 +160,14 @@ func reportChoice(w io.Writer, t Task, insert bool) {
 	fmt.Fprintf(w, "%s\n%s\n", mode, t.commandLine())
 }
 
-// discover gathers the tasks of the current directory: the rc file first
-// (its problems become warnings), then every source. The warnings are
-// returned even when tasks were found, for the picker's status line.
-func discover() ([]Task, []error) {
+// discover gathers the tasks of the current directory and the rc settings:
+// the rc file first (its problems become warnings), then every source. The
+// warnings are returned even when tasks were found, for the picker's status
+// line.
+func discover() ([]Task, config, []error) {
 	cfg, warnings := loadConfig(defaultConfigFiles("."))
 	tasks, sourceWarnings := discoverTasks(".", cfg)
-	return tasks, append(warnings, sourceWarnings...)
+	return tasks, cfg, append(warnings, sourceWarnings...)
 }
 
 // noTasksError is the error of a directory with nothing to run.
@@ -179,9 +184,13 @@ func noTasksError(warnings []error) error {
 // somewhere. The frame is fixed at width×height cells, whatever the terminal
 // size, and is drawn fullscreen (no inline anchoring, no runner).
 func Preview(w io.Writer, opts Options, width, height int) error {
-	tasks, warnings := discover()
+	tasks, cfg, warnings := discover()
 	if len(tasks) == 0 {
 		return noTasksError(warnings)
+	}
+	// The rc theme is the starting look; --theme wins for a single run.
+	if opts.Theme == "" {
+		opts.Theme = cfg.Theme
 	}
 
 	opts.Inline = false
@@ -252,6 +261,11 @@ type model struct {
 	started time.Time // when the current in-place run started
 	chosen  *Task     // task chosen in inline mode, to run or insert after quitting
 
+	// notice is the transient confirmation shown as a toast (see notice.go);
+	// noticeID invalidates the timer of a replaced notice.
+	notice   string
+	noticeID int
+
 	// chosenInsert reports that chosen was picked with tab: the command goes
 	// to the shell prompt instead of being executed.
 	chosenInsert bool
@@ -316,6 +330,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = m.styles.err.Render(fmt.Sprintf("✗ %s (%s): %v", msg.task.Name, elapsed, msg.err))
 		} else {
 			m.status = m.styles.ok.Render(fmt.Sprintf("✓ %s (%s)", msg.task.Name, elapsed))
+		}
+
+	case noticeExpiredMsg:
+		if msg.id == m.noticeID {
+			m.notice = ""
 		}
 	}
 
@@ -410,7 +429,7 @@ func (m model) handleThemeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case "enter", "ctrl+t":
 		m.themeModal = false
-		return m, nil
+		return m, m.persistTheme()
 
 	case "up", "ctrl+k", "ctrl+p":
 		m.setTheme(max(m.themeIdx-1, 0))
@@ -443,6 +462,22 @@ func (m model) handleThemeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m *model) setTheme(i int) {
 	m.themeIdx = i
 	m.styles = newStyles(themes[i])
+}
+
+// persistTheme saves the previewed theme when it differs from the one that
+// was active when the picker opened. A saved theme is confirmed with a toast
+// (showNotice); a failure is a status message, never fatal, and stays there.
+func (m *model) persistTheme() tea.Cmd {
+	if m.themeIdx == m.themeBefore {
+		return nil
+	}
+	name := themes[m.themeIdx].name
+	path, err := saveTheme(name)
+	if err != nil {
+		m.status = m.styles.err.Render(fmt.Sprintf("cannot save theme %s: %v", name, err))
+		return nil
+	}
+	return m.showNotice(fmt.Sprintf("theme %s saved to %s", name, shortPath(path)))
 }
 
 // run starts the task under the cursor.
@@ -621,10 +656,47 @@ func (m model) render(h, w int) string {
 			lines[i] = ansi.Truncate(line, w, "…")
 		}
 	}
-	if m.themeModal {
-		return m.overlayThemeModal(lines, h, w)
+	if boxes := m.boxes(h, w); len(boxes) > 0 {
+		return overlay(lines, boxes...)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// placedBox is a rendered box and the cell its first line starts on.
+type placedBox struct {
+	lines []string
+	x, y  int
+}
+
+// overlay draws the boxes over the rendered lines with the canvas compositor:
+// it replaces cell by cell, so a background that crosses a box edge is not
+// broken (splicing styled lines manually would). Later boxes draw on top.
+func overlay(lines []string, boxes ...placedBox) string {
+	layers := make([]*lipgloss.Layer, 0, len(boxes)+1)
+	layers = append(layers, lipgloss.NewLayer(strings.Join(lines, "\n")))
+	for i, b := range boxes {
+		layers = append(layers, lipgloss.NewLayer(strings.Join(b.lines, "\n")).X(b.x).Y(b.y).Z(i+1))
+	}
+	return lipgloss.NewCompositor(layers...).Render()
+}
+
+// boxes returns the overlays to draw over the picker: the transient notice in
+// the top-right corner and the centered theme picker.
+func (m model) boxes(h, w int) []placedBox {
+	var boxes []placedBox
+	if box := m.noticeBox(w); box != nil {
+		boxes = append(boxes, *box)
+	}
+	if m.themeModal {
+		if lines := m.themeModalLines(h, w); lines != nil {
+			boxes = append(boxes, placedBox{
+				lines: lines,
+				x:     max((w-lipgloss.Width(lines[0]))/2, 0),
+				y:     max((h-len(lines))/2, 0),
+			})
+		}
+	}
+	return boxes
 }
 
 // titleLine renders the picker's title: the invoked name.

@@ -67,9 +67,10 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   source badge: no name column, the command already contains the name. The
   command column is the widest visible command line, so descriptions start
   together; it is capped to the room the row has, and the description takes
-  what is left — dropped before the command shrinks. A description already
-  contained in the command line is hidden (an rc task without a custom
-  description defaults to its own command). The filter matches tokens against
+  what is left — dropped before the command shrinks. An rc task without a
+  custom description defaults to its own command, which `sh -c` already shows
+  in the command column, so the duplicate description is hidden there. The
+  filter matches tokens against
   the task name, the command line or the description, highlighting the matched
   characters in the row.
 - The inline row math (`areaHeight`, `restoreCursor`) is pinned in

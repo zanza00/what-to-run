@@ -91,6 +91,20 @@ func TestViewHidesRepeatedDescription(t *testing.T) {
 	}
 }
 
+func TestViewShowsScriptBodyMatchingTaskName(t *testing.T) {
+	// A package.json script like "knip": "knip" has the same text as the
+	// script name in "pnpm run knip", but its script body must still be
+	// shown in the description column.
+	tasks := []Task{
+		{Source: "package.json", Name: "test:watch", Desc: "vitest", Args: []string{"pnpm", "run", "test:watch"}},
+		{Source: "package.json", Name: "knip", Desc: "knip", Args: []string{"pnpm", "run", "knip"}},
+	}
+	got := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10}).View().Content
+	if n := strings.Count(got, "knip"); n != 2 {
+		t.Errorf("View() shows %q %d times, want 2 (command and description):\n%s", "knip", n, got)
+	}
+}
+
 func TestFilteringByCommandLine(t *testing.T) {
 	// The name is not a column any more: filtering has to find what the
 	// rows show, e.g. the runner.

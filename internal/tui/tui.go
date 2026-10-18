@@ -1148,9 +1148,9 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 	cmd += strings.Repeat(" ", max(cmdW-lipgloss.Width(cmd), 0))
 
 	desc := t.Desc
-	if desc != "" && strings.Contains(strings.ToLower(cmdRaw), strings.ToLower(desc)) {
+	if t.Source == "rc" && slices.Contains(t.Args, desc) {
 		// The command already says it: rc tasks without a custom
-		// description default to their own command.
+		// description default to their own command (sh -c <cmd>).
 		desc = ""
 	}
 	var (

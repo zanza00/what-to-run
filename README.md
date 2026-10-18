@@ -23,8 +23,19 @@ On macOS or Linux with Homebrew (installs both `wtr` and `what-to-run`):
 brew install zanza00/tap/what-to-run
 ```
 
+On Ubuntu and Debian, from the `.deb` packages attached to each
+[release](https://github.com/zanza00/what-to-run/releases) (use the `arm64`
+file on ARM machines):
+
+```sh
+sudo apt install ./what-to-run_<version>_linux_amd64.deb
+```
+
+On Arch Linux, an AUR package (`what-to-run-bin`) is pending; until it is
+published, use the tarball below.
+
 Prebuilt tarballs with both binaries (macOS and Linux, Intel and ARM64) are
-attached to each [release](https://github.com/zanza00/what-to-run/releases).
+attached to each release as an alternative to the packages above.
 
 With Go installed (installs only `wtr`):
 

@@ -37,12 +37,15 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   pins the helpers.
 - Releases are tag-driven: `.github/workflows/release.yml` runs on `vX.Y.Z`
   tags whose commit is in `main`, builds the linux+darwin archives holding both
-  binaries through `.goreleaser.yaml`, and `scripts/publish-homebrew.py` writes
-  `Formula/what-to-run.rb` in `zanza00/homebrew-tap` using the
-  `HOMEBREW_TAP_TOKEN` secret. `--version` prints the version injected with
-  `-X main.version` (the tag in GoReleaser, `git describe` in the Makefile).
-  The publisher has Python tests: run
-  `python3 -m unittest discover -s scripts -p '*_test.py'` when touching it.
+  binaries plus the linux `.deb` packages through `.goreleaser.yaml`, and
+  `scripts/publish-homebrew.py` writes `Formula/what-to-run.rb` in
+  `zanza00/homebrew-tap` using the `HOMEBREW_TAP_TOKEN` secret while
+  `scripts/publish-aur.py` pushes the `what-to-run-bin` PKGBUILD to the AUR
+  using the `AUR_SSH_PRIVATE_KEY` secret, skipped with a warning while that
+  secret is unset. `--version` prints the version
+  injected with `-X main.version` (the tag in GoReleaser, `git describe` in the
+  Makefile). The publishers have Python tests: run
+  `python3 -m unittest discover -s scripts -p '*_test.py'` when touching them.
 - The optional rc file (`config.go`, documented in `docs/config.md`;
   `.what-to-run.toml` in the project,
   `$XDG_CONFIG_HOME/what-to-run/config.toml` globally) adds `[[tasks]]`,

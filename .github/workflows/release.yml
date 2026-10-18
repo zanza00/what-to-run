@@ -46,14 +46,29 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Require Homebrew tap credentials
+      - name: Require release credentials
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
           if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
             echo 'Configure the HOMEBREW_TAP_TOKEN Actions secret before releasing.' >&2
             exit 1
           fi
+          # AUR publishing is optional while its secret is unset (AUR
+          # registration is closed): releases skip it with a warning.
+          if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
+            echo 'AUR_SSH_KEY_FILE=' >> "$GITHUB_ENV"
+            echo '::warning title=AUR publishing skipped::Set the AUR_SSH_PRIVATE_KEY secret to publish what-to-run-bin to the AUR.'
+            exit 0
+          fi
+          umask 077
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/aur_key"
+          if ! ssh-keygen -y -f "$RUNNER_TEMP/aur_key" >/dev/null 2>&1; then
+            echo 'AUR_SSH_PRIVATE_KEY is not a valid unencrypted SSH private key.' >&2
+            exit 1
+          fi
+          echo "AUR_SSH_KEY_FILE=$RUNNER_TEMP/aur_key" >> "$GITHUB_ENV"
       - name: Publish release
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -68,6 +83,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,assets \
-            --jq '(.isDraft == false) and (.isPrerelease == false) and (.assets | length == 5) and any(.assets[]; .name == "checksums.txt")' \
+          version="${RELEASE_TAG#v}"
+          expected="$(printf '%s\n' \
+            checksums.txt \
+            "what-to-run_${version}_darwin_amd64.tar.gz" \
+            "what-to-run_${version}_darwin_arm64.tar.gz" \
+            "what-to-run_${version}_linux_amd64.deb" \
+            "what-to-run_${version}_linux_amd64.tar.gz" \
+            "what-to-run_${version}_linux_arm64.deb" \
+            "what-to-run_${version}_linux_arm64.tar.gz" | sort)"
+
+          gh release view "$RELEASE_TAG" --json isDraft,isPrerelease \
+            --jq '(.isDraft == false) and (.isPrerelease == false)' \
             | grep -qx true
+
+          actual="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | sort)"
+          diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual")

@@ -1,6 +1,6 @@
 version: 2
 
-# Set explicitly: archive names and the Homebrew publisher depend on it, so a
+# Set explicitly: archive names and the publishers depend on it, so a
 # checkout directory or remote with another name must not change them.
 project_name: what-to-run
 
@@ -31,6 +31,24 @@ builds:
 archives:
   - formats: [tar.gz]
 
+# Debian packages for Ubuntu/Debian: `apt install ./what-to-run_*.deb` installs
+# both binaries.
+nfpms:
+  - id: deb
+    package_name: what-to-run
+    vendor: zanza00
+    homepage: https://github.com/zanza00/what-to-run
+    maintainer: Simone Picciani <codefloe@simonepicciani.it>
+    description: Task picker for the commands you can never remember in a repository
+    license: MIT
+    section: utils
+    priority: optional
+    formats: [deb]
+    bindir: /usr/bin
+    # Same shape as the archives, so every asset name follows one pattern.
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    ids: [wtr, what-to-run]
+
 checksum:
   name_template: checksums.txt
 
@@ -41,6 +59,12 @@ publishers:
     cmd: python3 scripts/publish-homebrew.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
     env:
       - GH_TOKEN={{ .Env.HOMEBREW_TAP_TOKEN }}
+  - name: aur
+    checksum: true
+    # The script publishes once for checksums.txt and ignores other artifacts.
+    cmd: python3 scripts/publish-aur.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
+    env:
+      - AUR_SSH_KEY_FILE={{ .Env.AUR_SSH_KEY_FILE }}
 
 changelog:
   sort: asc

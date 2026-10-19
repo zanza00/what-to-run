@@ -4,8 +4,6 @@
 
 A task picker for the commands you can never remember in a repository.
 
-## Screenshot
-
 ![what-to-run running in a terminal](docs/images/what-to-run.png)
 </div>
 

@@ -8,7 +8,51 @@ make test  # run tests with the race detector and coverage
 make all   # format, vet, test, and build
 ```
 
-To try the widget from a checkout in the current shell:
+## Use the local build instead of a release
+
+`wtr` and `what-to-run` are found through `PATH`, and the first match wins. If
+you installed a release with Homebrew, apt, mise or any of the official install methods,
+a bare `wtr` runs that copy. To make the checkout win, put its `bin/` directory
+first in `PATH`, after the rc file lines that prepend an installer's directory
+(`brew shellenv`, `mise activate`, and similar add to the front themselves):
+
+```sh
+# ~/.zshrc or ~/.bashrc; adjust the path to your checkout
+# substitute with where you checkout the folder
+if [ -x "$HOME/path/to/checkout/what-to-run/bin/wtr" ]; then
+  PATH="$HOME/path/to/checkout/what-to-run/bin:$PATH"
+fi
+```
+
+The `-x` guard keeps the rc file quiet when the checkout is not there. In a new
+shell, check what is resolved:
+
+```sh
+command -v wtr
+command -v what-to-run
+wtr --version # release: 0.4.0, local build: v0.4.0-3-gbe08e69
+```
+
+A release prints the bare tag, while a local `make build` appends the commit
+distance from `git describe`, so `--version` tells the two apart. From then on
+`make build` replaces the binaries the shell runs, and `make install` is not
+needed for local development.
+
+Start the widget with the bare command name, not with `bin/wtr`:
+
+```sh
+eval "$(wtr init zsh)"  # or: eval "$(what-to-run init bash)"
+```
+
+The generated script keeps `WTR_BIN` as that bare name and resolves it through
+`PATH` at every keypress, so a later `make build` is picked up immediately,
+without evaluating `init` again. Shells opened before the `PATH` change need a
+restart (or the snippet above run again) first; if the old command is still
+cached, run `hash -r` in bash or `rehash` in zsh. For a one-off,
+`WTR_BIN=/path/to/wtr` pins a specific binary for the session.
+
+`make bind` and `make bind-bash` remain available for trying the widget from a
+checkout:
 
 ```sh
 eval "$(make bind)"                  # zsh, Ctrl-S
@@ -16,6 +60,12 @@ eval "$(make bind-bash)"             # bash, Ctrl-S
 eval "$(make bind KEY=ctrl-g)"       # zsh on another key
 eval "$(make bind-bash KEY=ctrl-g)"  # bash on another key
 ```
+
+They build and then invoke `bin/wtr init ...`, so the generated `WTR_BIN` is
+the absolute path of `bin/wtr`, fixed when you evaluate it: convenient for a
+one-off test, but later `make build` runs are not picked up until you evaluate
+the output again. Use the bare-name `init` above when the shell should always
+follow the checkout.
 
 ## Release
 

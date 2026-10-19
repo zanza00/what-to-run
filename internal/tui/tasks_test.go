@@ -210,10 +210,7 @@ func TestDiscoverSourceFirstFileWins(t *testing.T) {
 
 func TestDiscoverCargoMakeTasks(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "Cargo.toml", `
-[package]
-name = "demo"
-
+	writeFile(t, dir, "Makefile.toml", `
 [tasks.format]
 description = "Run rustfmt"
 command = "rustfmt"
@@ -221,6 +218,14 @@ command = "rustfmt"
 [tasks.build]
 command = "cargo"
 args = ["build", "--release"]
+
+[tasks.internal]
+private = true
+command = "echo internal"
+
+[tasks.disabled]
+disabled = true
+command = "echo disabled"
 `)
 
 	got, err := discoverSource(cargoMakeSource(), dir)
@@ -228,8 +233,8 @@ args = ["build", "--release"]
 		t.Fatalf("discoverSource() error = %v", err)
 	}
 	want := []Task{
-		{Source: "Cargo.toml", Name: "build", Desc: "cargo build --release", Args: []string{"cargo", "make", "build"}},
-		{Source: "Cargo.toml", Name: "format", Desc: "Run rustfmt", Args: []string{"cargo", "make", "format"}},
+		{Source: "Makefile.toml", Name: "build", Desc: "cargo build --release", Args: []string{"cargo", "make", "build"}},
+		{Source: "Makefile.toml", Name: "format", Desc: "Run rustfmt", Args: []string{"cargo", "make", "format"}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("discoverSource() = %+v, want %+v", got, want)
@@ -238,11 +243,11 @@ args = ["build", "--release"]
 
 func TestDiscoverCargoMakeTasksBrokenToml(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "Cargo.toml", "[tasks\n")
+	writeFile(t, dir, "Makefile.toml", "[tasks\n")
 
 	_, err := discoverSource(cargoMakeSource(), dir)
-	if err == nil || !strings.Contains(err.Error(), "Cargo.toml") {
-		t.Errorf("discoverSource() error = %v, want a Cargo.toml parse error", err)
+	if err == nil || !strings.Contains(err.Error(), "Makefile.toml") {
+		t.Errorf("discoverSource() error = %v, want a Makefile.toml parse error", err)
 	}
 }
 
@@ -252,7 +257,7 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 	// GNUmakefile, not Makefile: case-sensitive filesystems would otherwise
 	// resolve the earlier "makefile" candidate and change the badge.
 	writeFile(t, dir, "GNUmakefile", "test:\n\tgo test ./...\n")
-	writeFile(t, dir, "Cargo.toml", "[tasks.fmt]\ndescription = \"Format\"\n")
+	writeFile(t, dir, "Makefile.toml", "[tasks.fmt]\ndescription = \"Format\"\n")
 
 	tasks, errs := discoverTasks(dir, config{})
 	if len(errs) != 0 {
@@ -263,7 +268,7 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 	for _, task := range tasks {
 		sources = append(sources, task.Source)
 	}
-	if want := []string{"package.json", "GNUmakefile", "Cargo.toml"}; !reflect.DeepEqual(sources, want) {
+	if want := []string{"package.json", "GNUmakefile", "Makefile.toml"}; !reflect.DeepEqual(sources, want) {
 		t.Errorf("task sources = %v, want %v", sources, want)
 	}
 }
@@ -327,10 +332,10 @@ func TestDiscoverTasksRCShadowsBuiltin(t *testing.T) {
 // read, so a file it could not parse cannot warn.
 func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "Cargo.toml", "[tasks\n") // broken, but disabled
+	writeFile(t, dir, "Makefile.toml", "[tasks\n") // broken, but disabled
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := discoverTasks(dir, config{Disable: []string{"Cargo.toml"}})
+	tasks, errs := discoverTasks(dir, config{Disable: []string{"Makefile.toml"}})
 	if len(errs) != 0 {
 		t.Fatalf("discoverTasks() errors = %v, want none from the disabled source", errs)
 	}

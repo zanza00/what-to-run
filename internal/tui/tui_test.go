@@ -32,7 +32,7 @@ func sampleTasks() []Task {
 		{Source: "package.json", Name: "build", Desc: "go build ./...", Args: []string{"npm", "run", "build"}},
 		{Source: "Makefile", Name: "build-all", Desc: "Build everything", Args: []string{"make", "build-all"}},
 		{Source: "Makefile", Name: "test", Desc: "Run the tests", Args: []string{"make", "test"}},
-		{Source: "Cargo.toml", Name: "clean", Desc: "", Args: []string{"cargo", "make", "clean"}},
+		{Source: "Makefile.toml", Name: "clean", Desc: "", Args: []string{"cargo", "make", "clean"}},
 	}
 }
 
@@ -428,9 +428,9 @@ func TestViewFullscreenFillsHeightAndScrolls(t *testing.T) {
 
 func TestViewShowsWarnings(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Cargo.toml: boom")}),
+	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 30})
-	if got := m.View().Content; !strings.Contains(got, "Cargo.toml: boom") {
+	if got := m.View().Content; !strings.Contains(got, "Makefile.toml: boom") {
 		t.Errorf("View() does not show the discovery warning:\n%s", got)
 	}
 }

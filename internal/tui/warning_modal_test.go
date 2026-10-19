@@ -62,7 +62,7 @@ func TestWarningModalCloseAndReopenWithCtrlW(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
 	for _, closeKey := range []tea.KeyPressMsg{enterKey, escKey, ctrlWKey} {
-		m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Cargo.toml: boom")}),
+		m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
 			tea.WindowSizeMsg{Width: 80, Height: 24})
 		m.filter = "build"
 
@@ -102,7 +102,7 @@ func TestWarningModalCloseAndReopenWithCtrlW(t *testing.T) {
 func TestWarningModalIgnoresTyping(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
-	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Cargo.toml: boom")}),
+	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = press(m, "npm")
 	if m.filter != "" {

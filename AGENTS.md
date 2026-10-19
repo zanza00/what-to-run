@@ -1,7 +1,7 @@
 # what-to-run
 
 TUI in Go (Bubble Tea v2 + Lip Gloss v2) to run the scripts declared in a
-project's `package.json`, `Makefile`, or `Cargo.toml` (cargo-make). Discovery
+project's `package.json`, `Makefile`, or `Makefile.toml` (cargo-make). Discovery
 and execution are implemented: a filterable list runs the selected task, in
 place in fullscreen (tea.ExecProcess) or at the prompt after quitting with
 `--inline` (the widget flow from `init zsh` and `init bash`), propagating the

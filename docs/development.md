@@ -47,7 +47,10 @@ armored private key used to sign the repository (generated with
 updates the `gh-pages` branch served via GitHub Pages; the first release
 populates the repository. While the secret is unset, releases skip apt
 publishing with a warning instead of failing. The Debian/Ubuntu section in
-`docs/install.md` advertises the apt repository.
+`docs/install.md` advertises the apt repository. If the apt step fails after the
+GitHub release was published, run the `republish apt` workflow with the tag as
+input: it updates `gh-pages` from the released assets without recreating the
+release.
 
 To validate the release setup without publishing:
 

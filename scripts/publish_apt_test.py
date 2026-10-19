@@ -40,6 +40,22 @@ class RenderTest(unittest.TestCase):
             publisher.render("v1.2.3", without_linux)
 
 
+class CloneUrlTest(unittest.TestCase):
+    def test_github_https_url_embeds_token(self):
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "secret", "GH_TOKEN": ""}):
+            url = publisher._clone_url("https://github.com/zanza00/what-to-run.git")
+        self.assertEqual(
+            url, "https://x-access-token:secret@github.com/zanza00/what-to-run.git"
+        )
+
+    def test_url_without_a_token_is_unchanged(self):
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "", "GH_TOKEN": ""}):
+            url = publisher._clone_url("https://github.com/zanza00/what-to-run.git")
+            ssh = publisher._clone_url("git@github.com:zanza00/what-to-run.git")
+        self.assertEqual(url, "https://github.com/zanza00/what-to-run.git")
+        self.assertEqual(ssh, "git@github.com:zanza00/what-to-run.git")
+
+
 class PublishTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

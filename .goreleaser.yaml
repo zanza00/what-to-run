@@ -68,9 +68,13 @@ publishers:
   - name: apt
     checksum: true
     # The script publishes once for checksums.txt and ignores other artifacts.
+    # It needs a token to push the gh-pages branch: GoReleaser only passes the
+    # env listed here to the publisher, so GITHUB_TOKEN must be forwarded
+    # explicitly or the push goes out unauthenticated.
     cmd: python3 scripts/publish-apt.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
     env:
       - APT_GPG_KEY_FILE={{ .Env.APT_GPG_KEY_FILE }}
+      - GITHUB_TOKEN={{ .Env.GITHUB_TOKEN }}
 
 # The release notes are the merged commits: a merge commit only carries the
 # branch or pull request name, so it is dropped and the commits it brought in

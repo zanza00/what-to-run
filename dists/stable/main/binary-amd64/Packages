@@ -1,15 +1,15 @@
 Package: what-to-run
-Version: 0.4.0
+Version: 0.5.0
 Architecture: amd64
 Maintainer: Simone Picciani <codefloe@simonepicciani.it>
-Installed-Size: 10928
+Installed-Size: 10936
 Homepage: https://github.com/zanza00/what-to-run
 Priority: optional
 Section: utils
-Filename: pool/main/w/what-to-run/what-to-run_0.4.0_amd64.deb
-Size: 4488828
-SHA256: 69e27e4dbd85fa34d8479bc5136a41effb55e16f9183c39078b0cec1d3fe5018
-SHA1: 19dcd0222a0b2ccb096187a58b39302c7163605f
-MD5sum: e40c3dffd240066890121e24b0ae2f14
+Filename: pool/main/w/what-to-run/what-to-run_0.5.0_amd64.deb
+Size: 4491070
+SHA256: a0459798dc708bc6afe5fae6bb81e66230c5ba6f45cfc8d48ac9b3e7c87e99e8
+SHA1: 07d3425695eba4daf4ee59acb01810ec04b43e8d
+MD5sum: 78563a37e529dd331e7f497b1a61afe6
 Description: Task picker for the commands you can never remember in a repository
 

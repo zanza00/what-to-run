@@ -536,6 +536,10 @@ func TestViewNoTasksShowsPersistentEmptyState(t *testing.T) {
 		"no tasks found here",
 		"package.json",
 		"Makefile.toml",
+		"devbox.json",
+		"composer.json",
+		"deno.json",
+		"mise.toml",
 		".what-to-run.toml",
 		"enter/esc close",
 	} {

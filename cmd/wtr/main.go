@@ -1,7 +1,8 @@
-// Command wtr is a TUI for running the scripts declared in a project's
-// package.json, Makefile, or Makefile.toml (cargo-make). The same program is
-// also built as what-to-run, the explicit name for shell rc files:
-// the invoked name is the one shown in usage, messages and the picker title.
+// Command wtr is a TUI for running the tasks declared in a project's files
+// (package.json, Makefile, Makefile.toml, devbox.json, composer.json,
+// deno.json, mise.toml, and the rc file). The same program is also built as
+// what-to-run, the explicit name for shell rc files: the invoked name is the
+// one shown in usage, messages and the picker title.
 package main
 
 import (

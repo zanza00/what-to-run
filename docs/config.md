@@ -27,7 +27,8 @@ theme = "dracula"
 # Global default package manager override ("npm", "pnpm", "yarn", "bun").
 package_manager = "npm"
 
-# Sources disabled globally ("package.json", "Makefile", "Makefile.toml").
+# Sources disabled globally, by any of their file names (package.json,
+# Makefile, Makefile.toml, devbox.json, composer.json, deno.json, mise.toml).
 disable = ["Makefile.toml"]
 
 # Global custom tasks, available in every project unless shadowed.
@@ -69,6 +70,25 @@ cwd = "ops"
 
 User-only keys (`theme` and `projects`) are not allowed in a project
 `.what-to-run.toml`: if present, they are ignored with a warning.
+
+### Built-in task sources
+
+The picker looks for these files in the project directory; the `disable`
+setting above accepts any of their file names. A source that fails to parse
+only warns and does not hide the tasks of the other sources.
+
+| File(s) | Discovered tasks | Command |
+| --- | --- | --- |
+| `package.json` | `scripts` | `<package-manager> run <name>` |
+| `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
+| `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
+| `devbox.json` | `shell.scripts` | `devbox run <name>` |
+| `composer.json` | custom `scripts` (lifecycle events excluded) | `composer run-script <name>` |
+| `deno.json`, `deno.jsonc` | `tasks` | `deno task <name>` |
+| `mise.toml`, `.mise.toml` | `[tasks]` | `mise run <name>` |
+
+`devbox.json`, `deno.jsonc` and the other JSON-with-comments files are parsed
+as JSONC, so comments and trailing commas are accepted.
 
 ---
 

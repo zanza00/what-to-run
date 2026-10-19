@@ -8,7 +8,6 @@ Priority: optional
 Section: utils
 Filename: pool/main/w/what-to-run/what-to-run_0.3.1_amd64.deb
 Size: 4474522
-SHA512: 34715dd0d9c27433afeebbee5d3118faa6d5c84f69956c94eee1a31d2c9d130a91f91338b596f5dbe9298acc52c86ecdf6acd990a38fd7693ec8745fdf415512
 SHA256: dc84e54153f03bf4374cd8a26f32025dc9714a9816d1fce53a3a9d594ecb33ef
 SHA1: f69c60862d9cf50fb5107c0eace08f8bd61c1349
 MD5sum: 730822e60b2c0545a3660677e1e74713

@@ -3,7 +3,7 @@
 A task picker for the commands you can never remember in a repository.
 
 I built `what-to-run` because I kept opening `package.json`, `Makefile`, or
-`Cargo.toml` just to check what the project could run. It discovers those tasks
+`Makefile.toml` just to check what the project could run. It discovers those tasks
 and makes them available from one key. It is first and foremost a **zsh
 widget**: selected commands run through your shell and become part of your
 normal terminal history.
@@ -103,7 +103,7 @@ The picker discovers tasks in the current project directory:
 | --- | --- | --- |
 | `package.json` | `scripts` | `<package-manager> run <name>` |
 | `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
-| `Cargo.toml` | cargo-make `[tasks]` | `cargo make <name>` |
+| `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
 
 For `package.json`, the package manager is detected from the `packageManager`
 field or a lockfile, with npm as the fallback. The task list shows descriptions

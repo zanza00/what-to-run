@@ -11,7 +11,7 @@
 //
 //	package.json   npm/pnpm/yarn/bun scripts
 //	Makefile       make targets (also makefile, GNUmakefile)
-//	Cargo.toml     cargo-make tasks
+//	Makefile.toml  cargo-make tasks
 //
 // The rc file (see config.go) sits on top: its tasks are shown first and
 // shadow same-named tasks of the sources, and a source can be disabled by
@@ -134,7 +134,7 @@ func rcTasks(cfg config, dir string) []Task {
 
 // discoverTasks scans dir for the tasks of the rc file and the built-in
 // sources, in display order: rc tasks first, then package.json, Makefile,
-// Cargo.toml. Scripts and cargo-make tasks are sorted by name; Makefile
+// Makefile.toml. Scripts and cargo-make tasks are sorted by name; Makefile
 // targets keep the order they appear in the file. A source that fails to
 // parse is reported in errs and skipped (a disabled source is not read at
 // all), and rc tasks shadow same-named tasks of the built-in sources.

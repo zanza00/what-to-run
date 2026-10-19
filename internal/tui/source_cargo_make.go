@@ -1,4 +1,4 @@
-// The Cargo.toml source: cargo-make tasks.
+// The Makefile.toml source: cargo-make tasks.
 package tui
 
 import (
@@ -9,11 +9,11 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// cargoMakeSource returns the source for the project's Cargo.toml.
+// cargoMakeSource returns the source for the project's Makefile.toml.
 func cargoMakeSource() source {
 	return source{
-		Files: []string{"Cargo.toml"},
-		Parse: parseCargoToml,
+		Files: []string{"Makefile.toml"},
+		Parse: parseCargoMakefile,
 	}
 }
 
@@ -22,11 +22,14 @@ type cargoTask struct {
 	Description string   `toml:"description"`
 	Command     string   `toml:"command"`
 	Args        []string `toml:"args"`
+	Private     bool     `toml:"private"`
+	Disabled    bool     `toml:"disabled"`
 }
 
-// parseCargoToml returns the cargo-make tasks declared in the project's
-// Cargo.toml [tasks] section, sorted by name.
-func parseCargoToml(_ string, data []byte) ([]Task, error) {
+// parseCargoMakefile returns the cargo-make tasks declared in the project's
+// Makefile.toml [tasks] section, sorted by name. Private and disabled tasks
+// are skipped: the picker would not be able to run them directly.
+func parseCargoMakefile(_ string, data []byte) ([]Task, error) {
 	var doc struct {
 		Tasks map[string]cargoTask `toml:"tasks"`
 	}
@@ -37,6 +40,9 @@ func parseCargoToml(_ string, data []byte) ([]Task, error) {
 	tasks := make([]Task, 0, len(doc.Tasks))
 	for _, name := range slices.Sorted(maps.Keys(doc.Tasks)) {
 		t := doc.Tasks[name]
+		if t.Private || t.Disabled {
+			continue
+		}
 		desc := t.Description
 		if desc == "" && t.Command != "" {
 			desc = strings.Join(append([]string{t.Command}, t.Args...), " ")

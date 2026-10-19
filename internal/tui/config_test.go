@@ -38,7 +38,7 @@ func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "global.toml", `
 package_manager = "yarn"
-disable = ["Cargo.toml"]
+disable = ["Makefile.toml"]
 
 [[tasks]]
 name = "build"
@@ -63,7 +63,7 @@ command = "project build"
 	}
 	want := config{
 		PackageManager: "bun",
-		Disable:        []string{"Cargo.toml", "Makefile"},
+		Disable:        []string{"Makefile.toml", "Makefile"},
 		Tasks: []configTask{
 			{Name: "build", Command: "project build"},
 			{Name: "status", Command: "git status"},
@@ -137,7 +137,7 @@ func TestLoadConfigProjectsSubtreeAndPrecedence(t *testing.T) {
 	writeFile(t, root, "global.toml", `
 theme = "dracula"
 package_manager = "npm"
-disable = ["Cargo.toml"]
+disable = ["Makefile.toml"]
 
 [[tasks]]
 name = "shared"
@@ -185,7 +185,7 @@ command = "echo local"
 	want := config{
 		Theme:          "dracula",
 		PackageManager: "bun",
-		Disable:        []string{"Cargo.toml", "Makefile"},
+		Disable:        []string{"Makefile.toml", "Makefile"},
 		Tasks: []configTask{
 			{Name: "shared", Command: "api shared"},
 			{Name: "work-only", Command: "echo work"},

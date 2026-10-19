@@ -88,7 +88,9 @@ def publish(tag, *args, **kwargs):
                 continue
             key_file = positional
     if key_file is None:
-        key_file = os.environ.get("APT_GPG_KEY_FILE")
+        # The release workflow exports an empty value when the secret is
+        # unset, which means the same thing as not setting the variable.
+        key_file = os.environ.get("APT_GPG_KEY_FILE") or None
     if dist_dir is None:
         dist_dir = Path("dist")
     else:
@@ -225,7 +227,7 @@ def main():
 
     if args.artifact.name != "checksums.txt":
         return
-    key_file = args.gpg_key_file or os.environ.get("APT_GPG_KEY_FILE")
+    key_file = args.gpg_key_file or os.environ.get("APT_GPG_KEY_FILE") or None
     if key_file is None and not args.dry_run:
         print("Skipping apt publish: APT_GPG_KEY_FILE is not set")
         return

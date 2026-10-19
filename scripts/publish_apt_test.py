@@ -1,4 +1,7 @@
+import contextlib
 import importlib.util
+import io
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -44,13 +47,19 @@ class PublishTest(unittest.TestCase):
         self.key = Path(self.temporary.name) / "apt_key"
         self.key.write_text("key\n")
 
-    def test_unconfigured_key_skips_publication(self):
+    def test_empty_key_skips_publication(self):
+        # The release workflow exports an empty value when the secret is
+        # unset; that must skip publishing instead of failing on ".".
         artifact = Path(self.temporary.name) / "checksums.txt"
         artifact.write_text("a" * 64 + "  what-to-run_1.2.3_linux_amd64.deb\n")
+        stdout = io.StringIO()
         with patch("sys.argv", ["publisher", "--tag", "v1.2.3", "--artifact", str(artifact)]), \
-                patch.object(publisher, "publish") as publish:
+                patch.dict(os.environ, {"APT_GPG_KEY_FILE": ""}), \
+                patch.object(publisher, "publish") as publish, \
+                contextlib.redirect_stdout(stdout):
             publisher.main()
         publish.assert_not_called()
+        self.assertIn("Skipping apt publish", stdout.getvalue())
 
     def test_archive_invocations_do_not_publish(self):
         artifact = Path(self.temporary.name) / "archive.tar.gz"

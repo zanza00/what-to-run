@@ -51,6 +51,7 @@ var (
 	tabKey    = tea.KeyPressMsg{Code: tea.KeyTab}
 	escKey    = tea.KeyPressMsg{Code: tea.KeyEscape}
 	ctrlCKey  = tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
+	ctrlFKey  = tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl}
 	ctrlUKey  = tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}
 	upKey     = tea.KeyPressMsg{Code: tea.KeyUp}
 	downKey   = tea.KeyPressMsg{Code: tea.KeyDown}
@@ -392,6 +393,115 @@ func TestViewInlineDebugArea(t *testing.T) {
 	}
 	if got := strings.Count(v.Content, "╭"); got != 1 {
 		t.Errorf("inline view has %d top-left corners, want 1 (the area border)", got)
+	}
+}
+
+func TestViewInlineFullscreenToggle(t *testing.T) {
+	m := sized(Options{Inline: true}) // 30 rows, starting at row 5: 25 inline rows
+
+	if got := strings.Count(m.View().Content, "\n") + 1; got != 25 {
+		t.Fatalf("inline view height = %d, want 25", got)
+	}
+
+	next, cmd := m.Update(ctrlFKey)
+	m = next.(model)
+	if cmd != nil {
+		t.Errorf("ctrl+f returned %T, want no command", cmd)
+	}
+	v := m.View()
+	if !v.AltScreen {
+		t.Error("ctrl+f in inline mode should switch to the alternate screen")
+	}
+	if got := strings.Count(v.Content, "\n") + 1; got != 30 {
+		t.Errorf("fullscreen view height = %d, want 30 (the whole terminal)", got)
+	}
+	if !strings.Contains(v.Content, "ctrl+f inline") {
+		t.Errorf("fullscreen help line does not offer the way back:\n%s", v.Content)
+	}
+
+	// ctrl+f again restores the inline area at the same anchor row.
+	next, _ = m.Update(ctrlFKey)
+	m = next.(model)
+	v = m.View()
+	if v.AltScreen {
+		t.Error("second ctrl+f should leave the alternate screen")
+	}
+	if got := strings.Count(v.Content, "\n") + 1; got != 25 {
+		t.Errorf("inline view height after toggling back = %d, want 25", got)
+	}
+	if m.startRow != 5 {
+		t.Errorf("startRow after toggling back = %d, want 5", m.startRow)
+	}
+}
+
+// The alternate screen can report a different terminal size (a scrollbar
+// comes and goes, for example). Toggling back must lay the inline frame out at
+// the main screen's size: a column too many wraps every row and leaves the
+// previous frame on screen.
+func TestViewInlineUsesMainScreenSizeAfterFullscreen(t *testing.T) {
+	m := sized(Options{Inline: true}) // 80x30, with the inline area starting at row 5
+
+	next, _ := m.Update(ctrlFKey)
+	m = next.(model)
+	m = update(m, tea.WindowSizeMsg{Width: 81, Height: 30}) // the alternate screen's width
+
+	next, _ = m.Update(ctrlFKey)
+	m = next.(model)
+	if got := m.inlineWidth(); got != 80 {
+		t.Errorf("inline width after toggling back = %d, want 80 (the main screen)", got)
+	}
+	v := m.View()
+	if got := strings.Count(v.Content, "\n") + 1; got != 25 {
+		t.Errorf("inline view height after toggling back = %d, want 25", got)
+	}
+	for _, line := range strings.Split(v.Content, "\n") {
+		if w := lipgloss.Width(line); w > 80 {
+			t.Errorf("inline view line is %d columns wide, want at most 80: %q", w, line)
+		}
+	}
+
+	// A resize of the main screen after toggling back is adopted.
+	m = update(m, tea.WindowSizeMsg{Width: 90, Height: 32})
+	if got := m.inlineWidth(); got != 90 {
+		t.Errorf("inline width after a main-screen resize = %d, want 90", got)
+	}
+	if got := strings.Count(m.View().Content, "\n") + 1; got != 27 {
+		t.Errorf("inline view height after a main-screen resize = %d, want 27", got)
+	}
+}
+
+func TestCtrlFIgnoredFullscreen(t *testing.T) {
+	next, cmd := sized(Options{}).Update(ctrlFKey)
+	if cmd != nil {
+		t.Errorf("ctrl+f in fullscreen mode returned %T, want no command", cmd)
+	}
+	m := next.(model)
+	if m.fullscreen {
+		t.Error("ctrl+f switched a fullscreen run into the inline fullscreen state")
+	}
+	if !m.View().AltScreen {
+		t.Error("ctrl+f left the fullscreen view without AltScreen")
+	}
+}
+
+func TestViewInlineHelpMentionsFullscreen(t *testing.T) {
+	got := sized(Options{Inline: true}).View().Content
+	if !strings.Contains(got, "ctrl+f fullscreen") {
+		t.Errorf("inline help line does not mention ctrl+f at 80 columns:\n%s", got)
+	}
+	if strings.Contains(got, "ctrl+t theme") {
+		t.Errorf("inline help line at 80 columns kept the ctrl+t hint, want it dropped:\n%s", got)
+	}
+
+	m := update(newModel(Options{Inline: true}, sampleTasks(), nil), tea.WindowSizeMsg{Width: 120, Height: 30})
+	m = update(m, tea.CursorPositionMsg{Y: 5})
+	got = m.View().Content
+	if !strings.Contains(got, "ctrl+f fullscreen") || !strings.Contains(got, "ctrl+t theme") {
+		t.Errorf("inline help line at 120 columns dropped a hint:\n%s", got)
+	}
+
+	if got := sized(Options{}).View().Content; strings.Contains(got, "ctrl+f") {
+		t.Errorf("fullscreen help line mentions ctrl+f:\n%s", got)
 	}
 }
 

@@ -4,8 +4,6 @@
 
 A task picker for the commands you can never remember in a repository.
 
-## Screenshot
-
 ![what-to-run running in a terminal](docs/images/what-to-run.png)
 </div>
 
@@ -77,7 +75,8 @@ Type to filter the task list and use the arrow keys to select a task. Press
 `enter` to run it: the widget submits the command through your shell, so it
 appears in your shell history and its output stays in the terminal. Press `tab`
 to put the selected command on the prompt without running it. Press `esc` to
-clear the filter or close the picker.
+clear the filter or close the picker. In inline mode, press `ctrl+f` to expand
+the picker to the whole terminal; press it again to return to the inline area.
 
 ### Choose a theme
 

@@ -48,6 +48,7 @@ type Options struct {
 	// shell widgets that launch the binary right below the prompt (the zsh
 	// and bash integrations from 'wtr init zsh' and 'wtr init bash', see
 	// ZshInit and BashInit) so that the shell history above stays visible.
+	// ctrl+f expands the picker to the whole screen and toggles back.
 	Inline bool
 
 	// DebugArea draws a border around the whole inline area so the region
@@ -263,6 +264,19 @@ type model struct {
 	startRow      int
 	startRowKnown bool // true once tea.CursorPositionMsg has arrived
 
+	// fullscreen reports that the inline picker was expanded to the whole
+	// screen with ctrl+f. It only applies to inline mode: the alternate
+	// screen hides the shell prompt and restores it when toggled back.
+	fullscreen bool
+
+	// mainWidth remembers the main screen's width while the picker is
+	// expanded. Terminals can report a wider alternate screen (a scrollbar
+	// comes and goes, for example), and the first inline frame after
+	// toggling back must use the main screen's width: one column too many
+	// wraps every row, scrolls the frame and leaves the previous one on
+	// screen.
+	mainWidth int
+
 	filter string // current filter text; empty means no filtering
 	cursor int    // index into visible()
 	offset int    // index of the first visible row of the list
@@ -336,6 +350,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.ready = true
+		if !m.fullscreen {
+			// While the alternate screen is active the reported width is
+			// not necessarily the main screen's: keep the one the inline
+			// frame will return to.
+			m.mainWidth = msg.Width
+		}
 		m.keepCursorVisible()
 
 	case tea.CursorPositionMsg:
@@ -431,6 +451,22 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+u":
 		m.filter = ""
 		m.cursor, m.offset = 0, 0
+
+	case "ctrl+f":
+		// Inline only: expand the picker to the whole terminal (the
+		// alternate screen keeps the prompt and history safe), or go back
+		// to the inline area. There is no inline area to return to when
+		// the program was started fullscreen.
+		if m.opts.Inline {
+			if !m.fullscreen {
+				// Remember the main screen's width before the alternate
+				// screen starts reporting its own.
+				m.mainWidth = m.width
+			}
+			m.fullscreen = !m.fullscreen
+			m.keepCursorVisible()
+		}
+		return m, nil
 
 	case "ctrl+w":
 		if len(m.warnings) > 0 {
@@ -964,7 +1000,7 @@ func trimLastRune(s string) string {
 
 // View implements tea.Model.
 func (m model) View() tea.View {
-	if m.opts.Inline {
+	if m.opts.Inline && !m.fullscreen {
 		h := m.areaHeight()
 		if h <= 0 {
 			// The terminal size or the cursor position is still unknown:
@@ -973,9 +1009,9 @@ func (m model) View() tea.View {
 		}
 		if m.opts.DebugArea {
 			// The border takes 2 columns and 2 rows of the area for itself.
-			return tea.NewView(areaStyle.Render(m.render(max(h-2, 0), max(m.width-2, 0))))
+			return tea.NewView(areaStyle.Render(m.render(max(h-2, 0), max(m.inlineWidth()-2, 0))))
 		}
-		return tea.NewView(m.render(h, m.width))
+		return tea.NewView(m.render(h, m.inlineWidth()))
 	}
 
 	v := tea.NewView(m.render(m.viewHeight(), m.width))
@@ -992,10 +1028,22 @@ func (m model) viewHeight() int {
 	return m.height
 }
 
+// inlineWidth returns the columns the inline frame is laid out in. After
+// ctrl+f toggles back from the alternate screen it uses the main screen's
+// width, which the terminal may have reported differently in fullscreen;
+// rendering one column too many wraps every row and leaves the old frame on
+// screen.
+func (m model) inlineWidth() int {
+	if m.fullscreen || m.mainWidth <= 0 {
+		return m.width
+	}
+	return min(m.width, m.mainWidth)
+}
+
 // listHeight returns the number of task rows the list can show.
 func (m model) listHeight() int {
 	switch {
-	case m.opts.Inline:
+	case m.opts.Inline && !m.fullscreen:
 		return max(m.areaHeight()-chromeRows, 1)
 	case !m.ready:
 		return max(len(m.visible()), 1)
@@ -1372,19 +1420,36 @@ func (m model) helpLine(w int) string {
 		wc := warningCount(len(m.warnings))
 		leftPlain += " · " + wc
 		left += m.styles.dim.Render(" · ") + m.styles.err.Render(wc)
-
-		warnHint := " · ctrl+w warnings"
-		if w > 0 && ansi.StringWidth(leftPlain+"   "+keys+warnHint) > w {
-			keys = strings.TrimPrefix(keys, "type to filter · ")
-			keys = strings.Replace(keys, "esc clear filter", "esc clear", 1)
-		}
-		if w <= 0 || ansi.StringWidth(leftPlain+"   "+keys+warnHint) <= w {
-			keys += warnHint
-		}
 	}
 
-	if hint := " · ctrl+t theme"; w <= 0 || ansi.StringWidth(leftPlain+"   "+keys+hint) <= w {
-		keys += hint
+	hints := make([]string, 0, 3)
+	if len(m.warnings) > 0 {
+		hints = append(hints, "ctrl+w warnings")
+	}
+	if m.opts.Inline {
+		if m.fullscreen {
+			hints = append(hints, "ctrl+f inline")
+		} else {
+			hints = append(hints, "ctrl+f fullscreen")
+		}
+	}
+	hints = append(hints, "ctrl+t theme")
+
+	// Hints are added in priority order while they fit. When the first one
+	// does not fit, drop the filter hint to make room for the keys that
+	// matter most (the warning count and the mode toggle) before giving up.
+	fits := func(hint string) bool {
+		return w <= 0 || ansi.StringWidth(leftPlain+"   "+keys+" · "+hint) <= w
+	}
+	if len(hints) > 0 && !fits(hints[0]) {
+		keys = strings.TrimPrefix(keys, "type to filter · ")
+		keys = strings.Replace(keys, "esc clear filter", "esc clear", 1)
+	}
+	for _, hint := range hints {
+		if !fits(hint) {
+			break
+		}
+		keys += " · " + hint
 	}
 	return left + m.styles.dim.Render("   "+keys)
 }

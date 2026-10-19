@@ -92,7 +92,14 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   characters in the row.
 - The inline row math (`areaHeight`, `restoreCursor`) is pinned in
   `tui_test.go` by counting `\n` and `╭` glyphs — keep those tests in sync with
-  any layout change.
+  any layout change. In inline mode `ctrl+f` expands the picker to the whole
+  terminal and toggles back: it flips `View().AltScreen`, so the prompt and
+  history are restored by the terminal, and enter/tab keep their inline
+  semantics (choose and quit, the shell runs the command). Expanding
+  remembers the main screen's width: the alternate screen can report one
+  column more (a scrollbar disappears), and laying the first inline frame out
+  at that width wraps every row and leaves the old frame on screen (Herdr
+  reproduces this). The next main-screen `WindowSizeMsg` refreshes it.
 - Do not run tasks in place with `tea.ExecProcess` from the inline picker: the
   renderer cannot reposition the frame after the child scrolls the screen
   (verified in tmux: the child output gets erased and dead frame rows remain).

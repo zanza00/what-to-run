@@ -46,8 +46,8 @@ type Options struct {
 	// Inline renders the UI between the current cursor line and the bottom of
 	// the screen instead of taking over the whole screen. It is meant for
 	// shell widgets that launch the binary right below the prompt (the zsh
-	// integration from 'wtr init zsh', see ZshInit) so that
-	// the shell history above stays visible.
+	// and bash integrations from 'wtr init zsh' and 'wtr init bash', see
+	// ZshInit and BashInit) so that the shell history above stays visible.
 	Inline bool
 
 	// DebugArea draws a border around the whole inline area so the region
@@ -77,15 +77,15 @@ func (o Options) prog() string {
 // the terminal is handed over to the task (tea.ExecProcess) and taken back
 // afterwards, with the outcome shown in the status line.
 //
-// In inline mode the picker only chooses. A shell widget (the zsh
-// integration, see ZshInit) runs it with stdout captured, so Bubble Tea
-// renders on the terminal itself and the result is reported on stdout as two
-// lines: the mode ("run" after enter, "insert" after tab) and the command
-// line. The widget then executes the command or places it in the prompt, so
-// the command is visible and lands in the shell history. When stdout is the
-// terminal (no widget), enter runs the task here at the prompt like a
-// hand-typed command, propagating its exit code, and tab prints the command
-// line, as there is no prompt to insert it into.
+// In inline mode the picker only chooses. A shell widget (the zsh and bash
+// integrations, see ZshInit and BashInit) runs it with stdout captured, so
+// Bubble Tea renders on the terminal itself and the result is reported on
+// stdout as two lines: the mode ("run" after enter, "insert" after tab) and
+// the command line. The widget then executes the command or places it in the
+// prompt, so the command is visible and lands in the shell history. When
+// stdout is the terminal (no widget), enter runs the task here at the prompt
+// like a hand-typed command, propagating its exit code, and tab prints the
+// command line, as there is no prompt to insert it into.
 func Run(opts Options) error {
 	if opts.Inline && !inlineInputAvailable() {
 		fmt.Fprintf(os.Stderr, "%s: --inline requires an interactive terminal, running fullscreen\n", opts.prog())

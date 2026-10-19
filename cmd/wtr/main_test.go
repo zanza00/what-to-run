@@ -1,9 +1,44 @@
 package main
 
 import (
+	"bytes"
+	"io"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+// TestRunInitShells pins the init subcommand dispatch: each shell gets its own
+// integration, flags written after the shell name are honoured, and the
+// unsupported shells are refused.
+func TestRunInitShells(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"zsh", []string{"zsh"}, "zle -N wtr-widget"},
+		{"bash", []string{"bash"}, "for _wtr_keymap in emacs-standard vi-insert vi-command; do"},
+		{"bash, key after the shell", []string{"bash", "--key", "ctrl-g"}, `WTR_KEY='\C-g'`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+			if err := runInit(tt.args, &out); err != nil {
+				t.Fatalf("runInit(%q) error: %v", tt.args, err)
+			}
+			if !strings.Contains(out.String(), tt.want) {
+				t.Errorf("runInit(%q) output does not contain %q:\n%s", tt.args, tt.want, out.String())
+			}
+		})
+	}
+
+	for _, args := range [][]string{nil, {"fish"}, {"zsh", "bash"}} {
+		if err := runInit(args, io.Discard); err == nil {
+			t.Errorf("runInit(%q) should fail", args)
+		}
+	}
+}
 
 func TestProgName(t *testing.T) {
 	tests := []struct {

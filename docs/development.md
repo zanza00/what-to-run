@@ -11,8 +11,10 @@ make all   # format, vet, test, and build
 To try the widget from a checkout in the current shell:
 
 ```sh
-eval "$(make bind)"             # Ctrl-S
-eval "$(make bind KEY=ctrl-g)"  # choose another key
+eval "$(make bind)"                  # zsh, Ctrl-S
+eval "$(make bind-bash)"             # bash, Ctrl-S
+eval "$(make bind KEY=ctrl-g)"       # zsh on another key
+eval "$(make bind-bash KEY=ctrl-g)"  # bash on another key
 ```
 
 ## Release

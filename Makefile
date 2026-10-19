@@ -13,7 +13,7 @@ LDFLAGS := -X main.version=$(VERSION)
 # Where `make install` puts the binaries (override: PREFIX=/usr/local/bin).
 PREFIX ?= $(HOME)/.local/bin
 
-.PHONY: all build run test fmt lint tidy clean bind install help
+.PHONY: all build run test fmt lint tidy clean bind bind-bash install help
 
 all: fmt test build
 
@@ -27,6 +27,11 @@ build:
 bind:
 	@$(MAKE) --no-print-directory build 1>&2
 	@bin/$(BINARY_NAME) init zsh --key $(KEY)
+
+## bind-bash: Build and print the bash integration for eval (eval "$(make bind-bash)", KEY=combo)
+bind-bash:
+	@$(MAKE) --no-print-directory build 1>&2
+	@bin/$(BINARY_NAME) init bash --key $(KEY)
 
 ## install: Install both names into PREFIX (default ~/.local/bin)
 install: build

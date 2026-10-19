@@ -1,16 +1,16 @@
 Package: what-to-run
-Version: 0.3.0
+Version: 0.3.1
 Architecture: amd64
 Maintainer: Simone Picciani <codefloe@simonepicciani.it>
-Installed-Size: 10888
+Installed-Size: 10896
 Homepage: https://github.com/zanza00/what-to-run
 Priority: optional
 Section: utils
-Filename: pool/main/w/what-to-run/what-to-run_0.3.0_amd64.deb
-Size: 4474084
-SHA512: 352851468a0792f4bd8cacb4ac1f109f115241d489368beaf7084357ef413b9de9f363c1358150d7d1577137afa07df40b3e58433fac113261e1f6a35f292baf
-SHA256: e275a2920ddcc117e527a87fe12b71416c82ad6efc7e1d5ae11b372299fb982a
-SHA1: 154f5f09962c69121fc5141a2605b201aee673b1
-MD5sum: 1a2d50422a74d9bfe5ff2cac7ede3d26
+Filename: pool/main/w/what-to-run/what-to-run_0.3.1_amd64.deb
+Size: 4474522
+SHA512: 34715dd0d9c27433afeebbee5d3118faa6d5c84f69956c94eee1a31d2c9d130a91f91338b596f5dbe9298acc52c86ecdf6acd990a38fd7693ec8745fdf415512
+SHA256: dc84e54153f03bf4374cd8a26f32025dc9714a9816d1fce53a3a9d594ecb33ef
+SHA1: f69c60862d9cf50fb5107c0eace08f8bd61c1349
+MD5sum: 730822e60b2c0545a3660677e1e74713
 Description: Task picker for the commands you can never remember in a repository
 

@@ -1,16 +1,16 @@
 Package: what-to-run
-Version: 0.3.0
+Version: 0.3.1
 Architecture: arm64
 Maintainer: Simone Picciani <codefloe@simonepicciani.it>
 Installed-Size: 10368
 Homepage: https://github.com/zanza00/what-to-run
 Priority: optional
 Section: utils
-Filename: pool/main/w/what-to-run/what-to-run_0.3.0_arm64.deb
-Size: 4041572
-SHA512: dcdccc8138c14514f83e7eda59bf928c687fe06ab0d6c41a1ae7e0035be596c3f5a2f746a50fb6a8f319c1a768ca6a6f3a5108b42f37ce431732d1bbb7ba5ac7
-SHA256: f040a508b2fcb8117a4e3610d8348eed4a8d00b583804194e1963a7171eb481f
-SHA1: 4c59e31f81b3e676e21b3341e93a208ddab35c76
-MD5sum: daa385db94623f3253cc23b85d97a3c1
+Filename: pool/main/w/what-to-run/what-to-run_0.3.1_arm64.deb
+Size: 4043482
+SHA512: 33262d112426fa43cc50ae47bca23a86d43801b372745d879da1ed34779df44ef23cf161f25179eabda38825fa42f62ed25e707f4e81f8d8df05583bd7698787
+SHA256: 87ba55be958a3f4fc395c0504af657a088815449b782df2af0faf603f900ee0b
+SHA1: b6ca9433a774232496ca377501ebcfa454d3c758
+MD5sum: 13b7035662f052a697217dce99ce389e
 Description: Task picker for the commands you can never remember in a repository
 

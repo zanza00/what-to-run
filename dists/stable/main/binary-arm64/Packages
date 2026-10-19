@@ -1,0 +1,16 @@
+Package: what-to-run
+Version: 0.3.0
+Architecture: arm64
+Maintainer: Simone Picciani <codefloe@simonepicciani.it>
+Installed-Size: 10368
+Homepage: https://github.com/zanza00/what-to-run
+Priority: optional
+Section: utils
+Filename: pool/main/w/what-to-run/what-to-run_0.3.0_arm64.deb
+Size: 4041572
+SHA512: dcdccc8138c14514f83e7eda59bf928c687fe06ab0d6c41a1ae7e0035be596c3f5a2f746a50fb6a8f319c1a768ca6a6f3a5108b42f37ce431732d1bbb7ba5ac7
+SHA256: f040a508b2fcb8117a4e3610d8348eed4a8d00b583804194e1963a7171eb481f
+SHA1: 4c59e31f81b3e676e21b3341e93a208ddab35c76
+MD5sum: daa385db94623f3253cc23b85d97a3c1
+Description: Task picker for the commands you can never remember in a repository
+

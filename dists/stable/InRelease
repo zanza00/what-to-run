@@ -1,0 +1,56 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
+Origin: zanza00
+Label: what-to-run
+Suite: stable
+Codename: stable
+Date: Mon, 19 Oct 2026 10:01:57 UTC
+Architectures: amd64 arm64
+Components: main
+Description: Task picker for the commands you can never remember in a repository
+MD5Sum:
+ 9504accba5caabd6f6db9e3d636d7321 674 main/binary-amd64/Packages
+ e4f724cf1fc7ef7d667cf36834a8dbc2 10240 main/binary-amd64/Packages.gz
+ 37b7f57f6ca83a3dc715e5fb4e8ef6cd 168 main/binary-amd64/Release
+ 6429e24a72030b375cab17386ee3ff81 674 main/binary-arm64/Packages
+ 8afa3bc95497edb3a5b50734fe2eda39 10240 main/binary-arm64/Packages.gz
+ a51b4691ab2137c0d93307e8c60fbe09 168 main/binary-arm64/Release
+SHA1:
+ e4123ecd952855ab4553f90d099c99c63d9cf7f1 674 main/binary-amd64/Packages
+ 1dc08d5417475a0a3109cdb10ae3ff91825a54e4 10240 main/binary-amd64/Packages.gz
+ 84fc2c48e3254f4cd35f4b49f8d0c587b8a9c248 168 main/binary-amd64/Release
+ df855632784e217d2b336ff527dda08ab60e7e81 674 main/binary-arm64/Packages
+ 5065b54b026124431fad1e751a8247d0ed700eb8 10240 main/binary-arm64/Packages.gz
+ 37828536ba91ca1d63bcd07e708e0680e6a064a7 168 main/binary-arm64/Release
+SHA256:
+ 467c6500a274065533e17a8fac673b5a188a4e36b9cbf2aad15026e5aa32edb8 674 main/binary-amd64/Packages
+ 23586984d90f4bbde51646dc4bc1deb9ef53aaa8567dc1be3822edffcb3a888b 10240 main/binary-amd64/Packages.gz
+ 5d365fff681f83bf7571adb23a6e4212af867353dd28274efb9681172ece579d 168 main/binary-amd64/Release
+ e5c3196533a242c24a6d3557e403c91ee9f310bafed27c7862a5c3c1616b0dd7 674 main/binary-arm64/Packages
+ 3c369e4b89438374de26878abf5569419ce8ab1fd576c08853a6e2fc7616a213 10240 main/binary-arm64/Packages.gz
+ d94c0fb34f28fcbad47cda156adecf4bfb22ebdb66e63ebbec88984508015736 168 main/binary-arm64/Release
+SHA512:
+ 20cfb1e00f7fc34d4da8eec1ee295a68d73d2a8dfcfdbcad2976fe9f8a50a9e68c2ea46c3386932e8f2ddf35078bc42a984f11944bc9da72bf3aa840c3b59bc1 674 main/binary-amd64/Packages
+ f6c3fb6bd685b0fdf6a97b258a596cd0d00ff04b1c48e58e53c3de293d155dae77753ec299629ed1b68cfd47a220eac215ed51ac54bf037a2f945f1fedc58b38 10240 main/binary-amd64/Packages.gz
+ b09eec647e07d1773a7693f6c54d9fcd584fec3470a62764b927e9e29a2a39127fe7fd381584caca44c8a15a4b5c5acc145e4b8eb47d76883e1c75c9563876ff 168 main/binary-amd64/Release
+ cfcef98846888e8743aaee573052043ed37cbad00f6d5161c17f9b4c4449ffae18762e1382f9e1d1f59acd527ba66ba2ecefe1399519d4521a1691db9da3b958 674 main/binary-arm64/Packages
+ 1985d1060515b6ce561c56d312d163012902f44b8d34ec036b1a0420de3394da2de009753aaad94ed94803703da9f7746e68d4d47e152126b64d82c034a99107 10240 main/binary-arm64/Packages.gz
+ 4923feadb805991d9a7e145e11076dfb742e68231c9450045eba035ce4026eeb64b1579c3d861c0f5bff391544413cc975c81ead24b4761222750e870a8944d5 168 main/binary-arm64/Release
+-----BEGIN PGP SIGNATURE-----
+
+iQJPBAEBCAA5FiEE/0MtZAvqpeF0KApU+/Zx8N4HAwcFAmrV6pYbFIAAAAAABAAO
+bWFudTIsMi41KzEuMTIsMCwyAAoJEPv2cfDeBwMHoyEP/1R+ZABKOeMV7eqyorP6
+Et1J+cmKFwP3O9qkTZPazYnk7o6sW/88+kn9xy7YybuxoOD1pPzUFfWVMkEW/svv
+t6aO7T85Dr+yx9+W86RuM0mdw2flTvuVD/EdIYx7giHA8cIi41fNZuwV2UxAyI3j
+A+I0optDzdOskh0MaprC8KKvJ/369NLGmTiEa3/+DFtArUdXeaGvfetMVboM2PDc
+/EimOFiFMoWLF91tnCPFcrVozMLev3hnB1G1jxgeL1vBjz6bsJOREvUt8pN2SSoW
+Ei/UIXKAJfPNA9pznbyn3NbzoHr49peCqnRw380vzDDTb+Opf9XBOh9GKtCmrn3U
+9O75fLI3ZhdAYGWta9RuwQHeFwhbf4KZSK25lXi3wDl6kVb3CZGGaC51iRPeZU31
+hae7R3p6iIfhLw1tupgdDsWuTFFrb/rMrhmSa2Kc62GIoOSXBETdIiP4nOBVQYYb
+j/xu20XlNQTjCZdpondSEHVE7FpLDgwzdlEjpoA48hzNWD6ye7CShmRysR166phy
+pdc2lKXHQkhfPxt/G6G2BRqzZXt9m37iRGv43Dcnilkj3/5EuNc53z3jYvqQdpNG
+jRTxIWwL0jKqJwZ4UDPVd3DfP9xWoZBvIkTDHwX2aBL7A57LK59AYe2c87fmHSvP
+UJSgycEoCIA/3Z/eVt+pdTUo
+=HDIS
+-----END PGP SIGNATURE-----

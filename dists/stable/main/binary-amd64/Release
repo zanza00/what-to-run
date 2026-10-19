@@ -1,0 +1,6 @@
+Archive: stable
+Component: main
+Origin: zanza00
+Label: what-to-run
+Architecture: amd64
+Description: Task picker for the commands you can never remember in a repository

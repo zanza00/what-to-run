@@ -1,0 +1,8 @@
+Origin: zanza00
+Label: what-to-run
+Suite: stable
+Codename: stable
+Architectures: amd64 arm64
+Components: main
+Description: Task picker for the commands you can never remember in a repository
+SignWith: D37ADCA12D5035565D1C232291119F65C5CA2B1F

@@ -1,16 +1,21 @@
-# what-to-run
+<div align="center">
+
+# What to Run (wtr)
 
 A task picker for the commands you can never remember in a repository.
-
-I built `what-to-run` because I kept opening project files (`package.json`,
-`Makefile`, `deno.json`, `mise.toml`, ...) just to check what the project
-could run. It discovers their tasks and makes them available from one key. It
-is first and foremost a **zsh widget**: selected commands run through your
-shell and become part of your normal terminal history.
 
 ## Screenshot
 
 ![what-to-run running in a terminal](docs/images/what-to-run.png)
+</div>
+
+## Why
+
+I built `what-to-run` because I kept opening `package.json`, `Makefile`, or
+`Makefile.toml` just to check what the project could run. It discovers those tasks
+and makes them available from one key. It is first and foremost a **shell
+widget**: selected commands run through your shell and become part of your
+normal terminal history.
 
 ## Get started
 
@@ -22,46 +27,16 @@ On macOS or Linux with Homebrew (installs both `wtr` and `what-to-run`):
 brew install zanza00/tap/what-to-run
 ```
 
-On macOS or Linux with [mise](https://mise.jdx.dev/) (installs both binaries
-from the GitHub releases):
+With [mise](https://mise.jdx.dev/) instead:
 
 ```sh
 mise use -g github:zanza00/what-to-run
 ```
 
-On Ubuntu and Debian, add the project's apt repository (signed with the
-project's GPG key) and install from it:
+For the apt repository, `.deb` packages, release tarballs, or `go install`,
+see [Installation](docs/install.md).
 
-```sh
-curl -fsSL https://zanza00.github.io/what-to-run/key.gpg \
-  | sudo gpg --dearmor -o /usr/share/keyrings/what-to-run.gpg
-echo 'deb [signed-by=/usr/share/keyrings/what-to-run.gpg] https://zanza00.github.io/what-to-run stable main' \
-  | sudo tee /etc/apt/sources.list.d/what-to-run.list
-sudo apt update
-sudo apt install what-to-run
-```
-
-Alternatively, install directly from the `.deb` packages attached to each
-[release](https://github.com/zanza00/what-to-run/releases) (use the `arm64`
-file on ARM machines):
-
-```sh
-sudo apt install ./what-to-run_<version>_linux_amd64.deb
-```
-
-On Arch Linux, an AUR package (`what-to-run-bin`) is pending; until it is
-published, use the tarball below.
-
-Prebuilt tarballs with both binaries (macOS and Linux, Intel and ARM64) are
-attached to each release as an alternative to the packages above.
-
-With Go installed (installs only `wtr`):
-
-```sh
-go install github.com/zanza00/what-to-run/cmd/wtr@latest
-```
-
-### Set up the zsh widget
+### Set up the widget
 
 Add this line to your `~/.zshrc` (use `wtr` instead if that is the command name
 you installed):
@@ -89,8 +64,12 @@ The same picker is available for bash; add this line to your `~/.bashrc`
 eval "$(what-to-run init bash)"
 ```
 
-It behaves like the zsh widget, in the emacs and vi line editing modes alike,
-and takes the same `--key` option as `init zsh`.
+The widget is bound to **Ctrl-S** by default. To use another key, for example
+Ctrl-A, pass it to `init`:
+
+```sh
+eval "$(what-to-run init bash --key ctrl-a)"
+```
 
 ### Use the picker
 

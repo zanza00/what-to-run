@@ -39,15 +39,15 @@ the account page, and store the private `aur` file as the secret. It publishes
 through `scripts/publish-aur.py`; the first release creates the AUR package.
 While the secret is unset (AUR registration is currently closed), releases skip
 AUR publishing with a warning instead of failing. When the package exists, the
-Arch Linux section in the README can advertise `yay -S what-to-run-bin`.
+Arch Linux section in `docs/install.md` can advertise `yay -S what-to-run-bin`.
 
 The apt step needs an `APT_GPG_PRIVATE_KEY` repository secret holding the
 armored private key used to sign the repository (generated with
 `gpg --batch --gen-key`). It publishes through `scripts/publish-apt.py`, which
 updates the `gh-pages` branch served via GitHub Pages; the first release
 populates the repository. While the secret is unset, releases skip apt
-publishing with a warning instead of failing. The Debian/Ubuntu section in the
-README advertises the apt repository.
+publishing with a warning instead of failing. The Debian/Ubuntu section in
+`docs/install.md` advertises the apt repository.
 
 To validate the release setup without publishing:
 

@@ -134,7 +134,10 @@ wtr --inline # inline picker, below the current prompt
 
 Full-screen mode is the default. When you run a task there, the picker returns
 after the task finishes; its output remains in the terminal scrollback. Inline
-mode is intended for shell widgets and requires an interactive terminal.
+mode is intended for shell widgets and requires an interactive terminal. If the
+current directory declares no tasks, the inline picker stays open on a message
+listing the files it looked for (close it with `enter` or `esc`), while a
+full-screen run reports the error and exits.
 
 ## Configuration
 

@@ -100,7 +100,11 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 - The inline widget protocol (fzf-style): the generated widgets (`init zsh`,
   `init bash`) capture stdout, the picker renders on the terminal via
   `tea.OpenTTY`/`tea.WithOutput` and reports its result on stdout
-  (`run`/`insert` line + the command line from `Task.commandLine`). The zsh
+  (`run`/`insert` line + the command line from `Task.commandLine`). A
+  directory with no tasks keeps the inline picker open on a persistent
+  "no tasks found here" screen (enter/esc close), instead of printing an
+  error the prompt redraw would erase; a direct fullscreen run still fails
+  fast. The zsh
   widget fills the zle buffer and submits it with `zle accept-line`; the bash
   widget puts the command in `READLINE_LINE` and points the second half of the
   key's readline macro at `accept-line` — readline has no way to submit a line

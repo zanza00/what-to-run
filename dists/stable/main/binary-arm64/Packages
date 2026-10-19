@@ -8,8 +8,8 @@ Priority: optional
 Section: utils
 Filename: pool/main/w/what-to-run/what-to-run_0.3.1_arm64.deb
 Size: 4043482
-SHA256: 87ba55be958a3f4fc395c0504af657a088815449b782df2af0faf603f900ee0b
-SHA1: b6ca9433a774232496ca377501ebcfa454d3c758
-MD5sum: 13b7035662f052a697217dce99ce389e
+SHA256: 2865f93cba7bf71cb50a612beba89050691303d5d600177fdbea096ac1fe8342
+SHA1: 1671bdc3d490455d58bbb543b186576e7e37f74c
+MD5sum: e4bfada221afa8d9715b9c74816ed7a2
 Description: Task picker for the commands you can never remember in a repository
 

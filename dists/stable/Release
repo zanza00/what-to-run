@@ -2,28 +2,28 @@ Origin: zanza00
 Label: what-to-run
 Suite: stable
 Codename: stable
-Date: Mon, 19 Oct 2026 13:24:09 UTC
+Date: Mon, 19 Oct 2026 13:29:02 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Task picker for the commands you can never remember in a repository
 MD5Sum:
- 372776b536809b73afa5ffba177f26a9 537 main/binary-amd64/Packages
- 5b91022cf7d984035646f367fd87d73a 394 main/binary-amd64/Packages.gz
+ 3210c945a5b92d3db2cecbb7887c51a1 537 main/binary-amd64/Packages
+ e11c517c1a7c83dee0eea6ce390fc363 391 main/binary-amd64/Packages.gz
  37b7f57f6ca83a3dc715e5fb4e8ef6cd 168 main/binary-amd64/Release
- 60560e125a49f6c4c7e6a30d8538e59a 537 main/binary-arm64/Packages
- 777d6b5cc3a5f296446c3697dd46987c 393 main/binary-arm64/Packages.gz
+ b17c7b84332a8e925e3f39fae89ea96b 537 main/binary-arm64/Packages
+ 90a47505e296fc9448bdf14848177cba 392 main/binary-arm64/Packages.gz
  a51b4691ab2137c0d93307e8c60fbe09 168 main/binary-arm64/Release
 SHA1:
- d76148510224ce3f78ed70b98742eeb2941f6f7b 537 main/binary-amd64/Packages
- 5be8d17658255a0db02b9e29158fc9ad6a52e7a8 394 main/binary-amd64/Packages.gz
+ 0c471f7cf10ddf4b0f3f09ed4ada627e76243e37 537 main/binary-amd64/Packages
+ f96959ff3971142eb372676ed4626c5e117c1f8e 391 main/binary-amd64/Packages.gz
  84fc2c48e3254f4cd35f4b49f8d0c587b8a9c248 168 main/binary-amd64/Release
- e136f18173c8bae5af55368f8212226799a104ad 537 main/binary-arm64/Packages
- 4fbb02bc42d82866b33bf01e8cf1c7c843db1a83 393 main/binary-arm64/Packages.gz
+ 7542718931154ffc250a86855f97562a6b8c0a05 537 main/binary-arm64/Packages
+ 63f9ece1989e68518e848a6b39ba646a7211dfb8 392 main/binary-arm64/Packages.gz
  37828536ba91ca1d63bcd07e708e0680e6a064a7 168 main/binary-arm64/Release
 SHA256:
- 4406972e05bacbc67dfa7ab6993b0630b6b0621312597d587cce830dee2df694 537 main/binary-amd64/Packages
- e8d387c68a956a097aef5f3bdc22e9351cf8d6a56f76de0089261999f17d7c2f 394 main/binary-amd64/Packages.gz
+ 9179e788380cba622b66b068e77723698d63afff39ee4be22efdda46723f8ea3 537 main/binary-amd64/Packages
+ d2ac8036b443a7a7602cb1a59030c748de3bf014aa73543675d9a18c4d1420e7 391 main/binary-amd64/Packages.gz
  5d365fff681f83bf7571adb23a6e4212af867353dd28274efb9681172ece579d 168 main/binary-amd64/Release
- 501d4e3e9ca32ce99251c6e6154227b0d307e3fd335bd640aba32501d26130f4 537 main/binary-arm64/Packages
- 3a4fa9d688c70d365bee9f01775d5aa25b6ff0a02a24d80f57022cccff7cdf4c 393 main/binary-arm64/Packages.gz
+ 35815cbd0f0f53ae433cd538af93616559f0e8f9e1b5be66abdcfb7062e7c5d8 537 main/binary-arm64/Packages
+ a6fd1c810eeb9dbe1a3fdb8822429998ea3ac03bebf21842e23c6a4eb56a268f 392 main/binary-arm64/Packages.gz
  d94c0fb34f28fcbad47cda156adecf4bfb22ebdb66e63ebbec88984508015736 168 main/binary-arm64/Release

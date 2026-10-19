@@ -7,9 +7,9 @@ Homepage: https://github.com/zanza00/what-to-run
 Priority: optional
 Section: utils
 Filename: pool/main/w/what-to-run/what-to-run_0.3.1_amd64.deb
-Size: 4474522
-SHA256: dc84e54153f03bf4374cd8a26f32025dc9714a9816d1fce53a3a9d594ecb33ef
-SHA1: f69c60862d9cf50fb5107c0eace08f8bd61c1349
-MD5sum: 730822e60b2c0545a3660677e1e74713
+Size: 4474520
+SHA256: c1fcfb4c5ac0d441eb23350de4d713fcd45e46847a457be2dfe8d9933f63896f
+SHA1: a2a6f327c8f5de5da1feff712bd3348a1a4e214f
+MD5sum: 68aeb92a3348e1900deaef448656acc1
 Description: Task picker for the commands you can never remember in a repository
 

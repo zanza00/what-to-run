@@ -527,6 +527,50 @@ func TestViewNoMatchingTask(t *testing.T) {
 	}
 }
 
+func TestViewNoTasksShowsPersistentEmptyState(t *testing.T) {
+	m := update(newModel(Options{Inline: true}, nil, nil), tea.WindowSizeMsg{Width: 80, Height: 30})
+	m = update(m, tea.CursorPositionMsg{Y: 5})
+
+	got := m.View().Content
+	for _, want := range []string{
+		"no tasks found here",
+		"package.json",
+		"Makefile.toml",
+		".what-to-run.toml",
+		"enter/esc close",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("View() does not contain %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "type to filter") {
+		t.Errorf("View() invites filtering with no tasks:\n%s", got)
+	}
+}
+
+func TestNoTasksEmptyStateOnlyDismisses(t *testing.T) {
+	m := update(newModel(Options{Inline: true}, nil, nil), tea.WindowSizeMsg{Width: 80, Height: 30})
+	m = update(m, tea.CursorPositionMsg{Y: 5})
+
+	m = press(m, "abc")
+	if m.filter != "" {
+		t.Errorf("filter in the empty state = %q, want empty", m.filter)
+	}
+
+	for _, key := range []tea.KeyPressMsg{enterKey, escKey} {
+		next, cmd := m.Update(key)
+		if cmd == nil {
+			t.Fatalf("%s in the empty state returned no command, want tea.Quit", key.String())
+		}
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Errorf("%s in the empty state returned %T, want tea.QuitMsg", key.String(), cmd())
+		}
+		if chosen := next.(model).chosen; chosen != nil {
+			t.Errorf("%s in the empty state chose %+v, want nothing", key.String(), chosen)
+		}
+	}
+}
+
 func TestNavigation(t *testing.T) {
 	m := sized(Options{})
 

@@ -71,7 +71,8 @@ func (o Options) prog() string {
 }
 
 // Run starts the picker and blocks until the user quits or launches a task.
-// It returns an error only if the program fails to start or crashes.
+// It returns an error when a fullscreen run finds nothing to run, or when the
+// program fails to start or crashes. Inline mode shows an empty state instead.
 //
 // In fullscreen mode a task chosen with enter runs in place, in the picker:
 // the terminal is handed over to the task (tea.ExecProcess) and taken back
@@ -109,7 +110,7 @@ func Run(opts Options) error {
 	}
 
 	tasks, cfg, warnings := discover()
-	if len(tasks) == 0 {
+	if len(tasks) == 0 && !opts.Inline {
 		return noTasksError(warnings)
 	}
 	// The rc theme is the starting look; --theme wins for a single run.
@@ -381,6 +382,12 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.themeModal {
 		return m.handleThemeKey(msg)
+	}
+	if len(m.tasks) == 0 {
+		if key == "enter" || key == "esc" {
+			return m, tea.Quit
+		}
+		return m, nil
 	}
 
 	switch key {
@@ -1096,14 +1103,30 @@ func (m model) titleLine() string {
 
 // filterLine renders the filter input.
 func (m model) filterLine() string {
+	if len(m.tasks) == 0 {
+		return ""
+	}
 	if m.filter == "" {
 		return m.styles.filter.Render("» ") + m.styles.dim.Render("type to filter")
 	}
 	return m.styles.filter.Render("» ") + m.filter + m.styles.filter.Render("▏")
 }
 
+// emptyStateLines explains a directory with nothing to run.
+func (m model) emptyStateLines() []string {
+	return []string{
+		"  " + m.styles.title.Render("no tasks found here"),
+		"  " + m.styles.dim.Render("looked for package.json scripts, Makefile targets and Makefile.toml tasks"),
+		"  " + m.styles.dim.Render("add [[tasks]] to .what-to-run.toml for custom commands"),
+	}
+}
+
 // listLines renders the visible window of the filtered task list.
 func (m model) listLines(w int) []string {
+	if len(m.tasks) == 0 {
+		return m.emptyStateLines()
+	}
+
 	vis := m.visible()
 	if len(vis) == 0 {
 		if m.filter != "" {
@@ -1327,6 +1350,9 @@ func (m model) commandWidth() int {
 func (m model) helpLine(w int) string {
 	if m.status != "" {
 		return m.status
+	}
+	if len(m.tasks) == 0 {
+		return m.styles.dim.Render("enter/esc close")
 	}
 
 	count := fmt.Sprintf("%d tasks", len(m.tasks))

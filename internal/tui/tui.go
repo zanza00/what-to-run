@@ -269,6 +269,14 @@ type model struct {
 	// screen hides the shell prompt and restores it when toggled back.
 	fullscreen bool
 
+	// mainWidth remembers the main screen's width while the picker is
+	// expanded. Terminals can report a wider alternate screen (a scrollbar
+	// comes and goes, for example), and the first inline frame after
+	// toggling back must use the main screen's width: one column too many
+	// wraps every row, scrolls the frame and leaves the previous one on
+	// screen.
+	mainWidth int
+
 	filter string // current filter text; empty means no filtering
 	cursor int    // index into visible()
 	offset int    // index of the first visible row of the list
@@ -342,6 +350,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.ready = true
+		if !m.fullscreen {
+			// While the alternate screen is active the reported width is
+			// not necessarily the main screen's: keep the one the inline
+			// frame will return to.
+			m.mainWidth = msg.Width
+		}
 		m.keepCursorVisible()
 
 	case tea.CursorPositionMsg:
@@ -444,6 +458,11 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// to the inline area. There is no inline area to return to when
 		// the program was started fullscreen.
 		if m.opts.Inline {
+			if !m.fullscreen {
+				// Remember the main screen's width before the alternate
+				// screen starts reporting its own.
+				m.mainWidth = m.width
+			}
 			m.fullscreen = !m.fullscreen
 			m.keepCursorVisible()
 		}
@@ -990,9 +1009,9 @@ func (m model) View() tea.View {
 		}
 		if m.opts.DebugArea {
 			// The border takes 2 columns and 2 rows of the area for itself.
-			return tea.NewView(areaStyle.Render(m.render(max(h-2, 0), max(m.width-2, 0))))
+			return tea.NewView(areaStyle.Render(m.render(max(h-2, 0), max(m.inlineWidth()-2, 0))))
 		}
-		return tea.NewView(m.render(h, m.width))
+		return tea.NewView(m.render(h, m.inlineWidth()))
 	}
 
 	v := tea.NewView(m.render(m.viewHeight(), m.width))
@@ -1007,6 +1026,18 @@ func (m model) viewHeight() int {
 		return chromeRows + m.listHeight()
 	}
 	return m.height
+}
+
+// inlineWidth returns the columns the inline frame is laid out in. After
+// ctrl+f toggles back from the alternate screen it uses the main screen's
+// width, which the terminal may have reported differently in fullscreen;
+// rendering one column too many wraps every row and leaves the old frame on
+// screen.
+func (m model) inlineWidth() int {
+	if m.fullscreen || m.mainWidth <= 0 {
+		return m.width
+	}
+	return min(m.width, m.mainWidth)
 }
 
 // listHeight returns the number of task rows the list can show.

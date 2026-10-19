@@ -434,6 +434,42 @@ func TestViewInlineFullscreenToggle(t *testing.T) {
 	}
 }
 
+// The alternate screen can report a different terminal size (a scrollbar
+// comes and goes, for example). Toggling back must lay the inline frame out at
+// the main screen's size: a column too many wraps every row and leaves the
+// previous frame on screen.
+func TestViewInlineUsesMainScreenSizeAfterFullscreen(t *testing.T) {
+	m := sized(Options{Inline: true}) // 80x30, with the inline area starting at row 5
+
+	next, _ := m.Update(ctrlFKey)
+	m = next.(model)
+	m = update(m, tea.WindowSizeMsg{Width: 81, Height: 30}) // the alternate screen's width
+
+	next, _ = m.Update(ctrlFKey)
+	m = next.(model)
+	if got := m.inlineWidth(); got != 80 {
+		t.Errorf("inline width after toggling back = %d, want 80 (the main screen)", got)
+	}
+	v := m.View()
+	if got := strings.Count(v.Content, "\n") + 1; got != 25 {
+		t.Errorf("inline view height after toggling back = %d, want 25", got)
+	}
+	for _, line := range strings.Split(v.Content, "\n") {
+		if w := lipgloss.Width(line); w > 80 {
+			t.Errorf("inline view line is %d columns wide, want at most 80: %q", w, line)
+		}
+	}
+
+	// A resize of the main screen after toggling back is adopted.
+	m = update(m, tea.WindowSizeMsg{Width: 90, Height: 32})
+	if got := m.inlineWidth(); got != 90 {
+		t.Errorf("inline width after a main-screen resize = %d, want 90", got)
+	}
+	if got := strings.Count(m.View().Content, "\n") + 1; got != 27 {
+		t.Errorf("inline view height after a main-screen resize = %d, want 27", got)
+	}
+}
+
 func TestCtrlFIgnoredFullscreen(t *testing.T) {
 	next, cmd := sized(Options{}).Update(ctrlFKey)
 	if cmd != nil {

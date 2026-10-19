@@ -95,7 +95,11 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   any layout change. In inline mode `ctrl+f` expands the picker to the whole
   terminal and toggles back: it flips `View().AltScreen`, so the prompt and
   history are restored by the terminal, and enter/tab keep their inline
-  semantics (choose and quit, the shell runs the command).
+  semantics (choose and quit, the shell runs the command). Expanding
+  remembers the main screen's width: the alternate screen can report one
+  column more (a scrollbar disappears), and laying the first inline frame out
+  at that width wraps every row and leaves the old frame on screen (Herdr
+  reproduces this). The next main-screen `WindowSizeMsg` refreshes it.
 - Do not run tasks in place with `tea.ExecProcess` from the inline picker: the
   renderer cannot reposition the frame after the child scrolls the screen
   (verified in tmux: the child output gets erased and dead frame rows remain).

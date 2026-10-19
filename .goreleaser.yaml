@@ -66,5 +66,11 @@ publishers:
     env:
       - AUR_SSH_KEY_FILE={{ .Env.AUR_SSH_KEY_FILE }}
 
+# The release notes are the merged commits: a merge commit only carries the
+# branch or pull request name, so it is dropped and the commits it brought in
+# speak for themselves.
 changelog:
   sort: asc
+  filters:
+    exclude:
+      - "^Merge "

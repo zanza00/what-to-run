@@ -179,7 +179,7 @@ func noTasksError(warnings []error) error {
 	if len(warnings) > 0 {
 		return fmt.Errorf("no tasks found: %w", errors.Join(warnings...))
 	}
-	return errors.New("no tasks found: no package.json scripts, Makefile targets, cargo-make tasks or rc file tasks")
+	return errors.New("no tasks found: no supported task file or rc file tasks")
 }
 
 // Preview renders one frame of the picker with the real tasks of the current
@@ -1116,7 +1116,8 @@ func (m model) filterLine() string {
 func (m model) emptyStateLines() []string {
 	return []string{
 		"  " + m.styles.title.Render("no tasks found here"),
-		"  " + m.styles.dim.Render("looked for package.json scripts, Makefile targets and Makefile.toml tasks"),
+		"  " + m.styles.dim.Render("looked for task files: package.json, Makefile, Makefile.toml, devbox.json,"),
+		"  " + m.styles.dim.Render("composer.json, deno.json and mise.toml"),
 		"  " + m.styles.dim.Render("add [[tasks]] to .what-to-run.toml for custom commands"),
 	}
 }

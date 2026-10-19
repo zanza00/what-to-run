@@ -12,6 +12,10 @@
 //	package.json   npm/pnpm/yarn/bun scripts
 //	Makefile       make targets (also makefile, GNUmakefile)
 //	Makefile.toml  cargo-make tasks
+//	devbox.json    devbox shell scripts
+//	composer.json  Composer custom scripts
+//	deno.json      Deno tasks (also deno.jsonc)
+//	mise.toml      mise tasks (also .mise.toml)
 //
 // The rc file (see config.go) sits on top: its tasks are shown first and
 // shadow same-named tasks of the sources, and a source can be disabled by
@@ -51,6 +55,10 @@ func defaultSources(cfg config) []source {
 		packageJSONSource(cfg.PackageManager),
 		makeSource(),
 		cargoMakeSource(),
+		devboxSource(),
+		composerSource(),
+		denoSource(),
+		miseSource(),
 	}
 }
 
@@ -134,7 +142,9 @@ func rcTasks(cfg config, dir string) []Task {
 
 // discoverTasks scans dir for the tasks of the rc file and the built-in
 // sources, in display order: rc tasks first, then package.json, Makefile,
-// Makefile.toml. Scripts and cargo-make tasks are sorted by name; Makefile
+// Makefile.toml, devbox.json, composer.json, deno.json/deno.jsonc and
+// mise.toml/.mise.toml. Package scripts, cargo-make tasks, devbox scripts,
+// Composer scripts, Deno tasks and mise tasks are sorted by name; Makefile
 // targets keep the order they appear in the file. A source that fails to
 // parse is reported in errs and skipped (a disabled source is not read at
 // all), and rc tasks shadow same-named tasks of the built-in sources.

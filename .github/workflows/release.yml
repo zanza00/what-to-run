@@ -80,6 +80,10 @@ jobs:
             echo "APT_GPG_KEY_FILE=$RUNNER_TEMP/apt_key" >> "$GITHUB_ENV"
           fi
 
+      - name: Install apt repository tools
+        # The apt publisher shells out to reprepro, which the runner image does
+        # not ship.
+        run: sudo apt-get update && sudo apt-get install -y reprepro
       - name: Publish release
         uses: goreleaser/goreleaser-action@v7
         with:

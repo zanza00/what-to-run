@@ -43,7 +43,10 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `zanza00/homebrew-tap` using the `HOMEBREW_TAP_TOKEN` secret while
   `scripts/publish-aur.py` pushes the `what-to-run-bin` PKGBUILD to the AUR
   using the `AUR_SSH_PRIVATE_KEY` secret, skipped with a warning while that
-  secret is unset. `--version` prints the version
+  secret is unset, and `scripts/publish-apt.py` updates the apt repository on
+  the `gh-pages` branch (served via GitHub Pages) using the `APT_GPG_PRIVATE_KEY`
+  secret, skipped with a warning while that secret is unset. `--version` prints
+  the version
   injected with `-X main.version` (the tag in GoReleaser, `git describe` in the
   Makefile). The publishers have Python tests: run
   `python3 -m unittest discover -s scripts -p '*_test.py'` when touching them.

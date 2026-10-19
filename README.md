@@ -29,7 +29,19 @@ from the GitHub releases):
 mise use -g github:zanza00/what-to-run
 ```
 
-On Ubuntu and Debian, from the `.deb` packages attached to each
+On Ubuntu and Debian, add the project's apt repository (signed with the
+project's GPG key) and install from it:
+
+```sh
+curl -fsSL https://zanza00.github.io/what-to-run/key.gpg \
+  | sudo gpg --dearmor -o /usr/share/keyrings/what-to-run.gpg
+echo 'deb [signed-by=/usr/share/keyrings/what-to-run.gpg] https://zanza00.github.io/what-to-run stable main' \
+  | sudo tee /etc/apt/sources.list.d/what-to-run.list
+sudo apt update
+sudo apt install what-to-run
+```
+
+Alternatively, install directly from the `.deb` packages attached to each
 [release](https://github.com/zanza00/what-to-run/releases) (use the `arm64`
 file on ARM machines):
 

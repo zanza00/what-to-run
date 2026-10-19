@@ -65,6 +65,12 @@ publishers:
     cmd: python3 scripts/publish-aur.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
     env:
       - AUR_SSH_KEY_FILE={{ .Env.AUR_SSH_KEY_FILE }}
+  - name: apt
+    checksum: true
+    # The script publishes once for checksums.txt and ignores other artifacts.
+    cmd: python3 scripts/publish-apt.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
+    env:
+      - APT_GPG_KEY_FILE={{ .Env.APT_GPG_KEY_FILE }}
 
 # The release notes are the merged commits: a merge commit only carries the
 # branch or pull request name, so it is dropped and the commits it brought in

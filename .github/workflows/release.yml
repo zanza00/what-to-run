@@ -50,6 +50,7 @@ jobs:
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
         run: |
           if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
             echo 'Configure the HOMEBREW_TAP_TOKEN Actions secret before releasing.' >&2
@@ -60,15 +61,25 @@ jobs:
           if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
             echo 'AUR_SSH_KEY_FILE=' >> "$GITHUB_ENV"
             echo '::warning title=AUR publishing skipped::Set the AUR_SSH_PRIVATE_KEY secret to publish what-to-run-bin to the AUR.'
-            exit 0
+          else
+            umask 077
+            printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/aur_key"
+            if ! ssh-keygen -y -f "$RUNNER_TEMP/aur_key" >/dev/null 2>&1; then
+              echo 'AUR_SSH_PRIVATE_KEY is not a valid unencrypted SSH private key.' >&2
+              exit 1
+            fi
+            echo "AUR_SSH_KEY_FILE=$RUNNER_TEMP/aur_key" >> "$GITHUB_ENV"
           fi
-          umask 077
-          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/aur_key"
-          if ! ssh-keygen -y -f "$RUNNER_TEMP/aur_key" >/dev/null 2>&1; then
-            echo 'AUR_SSH_PRIVATE_KEY is not a valid unencrypted SSH private key.' >&2
-            exit 1
+          # APT repository publishing is optional while its key is unset.
+          if [ -z "$APT_GPG_PRIVATE_KEY" ]; then
+            echo 'APT_GPG_KEY_FILE=' >> "$GITHUB_ENV"
+            echo '::warning title=APT publishing skipped::Set the APT_GPG_PRIVATE_KEY secret to publish the apt repository.'
+          else
+            umask 077
+            printf '%s\n' "$APT_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/apt_key"
+            echo "APT_GPG_KEY_FILE=$RUNNER_TEMP/apt_key" >> "$GITHUB_ENV"
           fi
-          echo "AUR_SSH_KEY_FILE=$RUNNER_TEMP/aur_key" >> "$GITHUB_ENV"
+
       - name: Publish release
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -77,6 +88,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          APT_GPG_KEY_FILE: ${{ env.APT_GPG_KEY_FILE }}
       - name: Verify published release
         shell: bash
         env:

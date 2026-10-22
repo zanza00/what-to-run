@@ -10,10 +10,10 @@ A task picker for the commands you can never remember in a repository.
 ## Why
 
 I built `what-to-run` because I kept opening `package.json`, `Makefile`, or
-`Makefile.toml` just to check what the project could run. It discovers those tasks
-and makes them available from one key. It is first and foremost a **shell
-widget**: selected commands run through your shell and become part of your
-normal terminal history.
+`Makefile.toml` just to check what a project could run. It discovers those
+tasks and makes them available from one key. It is first and foremost a
+**shell widget**: selected commands run through your shell and become part of
+your normal terminal history.
 
 ## Get started
 
@@ -53,22 +53,6 @@ eval "$(what-to-run init bash)"
 The widget is bound to **Ctrl-S**. Pass `--key` to `init` to choose another
 key, for example `--key ctrl-g`.
 
-### Use the picker
-
-Type to filter the task list and use the arrow keys to select a task. Press
-`enter` to run it: the widget submits the command through your shell, so it
-appears in your shell history and its output stays in the terminal. Press `tab`
-to put the selected command on the prompt without running it. Press `esc` to
-clear the filter or close the picker. In inline mode, press `ctrl+f` to expand
-the picker to the whole terminal; press it again to return to the inline area.
-
-### Choose a theme
-
-Press `ctrl+t` while the picker is open to browse themes. Use the arrow keys to
-preview them, then press `enter` (or `ctrl+t` again) to select and save your
-choice. Press `esc` to cancel and restore the current theme. Your choice is
-saved in your user configuration and applies to future runs.
-
 ## Task sources
 
 The picker discovers tasks in the current project directory:
@@ -84,20 +68,18 @@ The picker discovers tasks in the current project directory:
 | `deno.json`, `deno.jsonc` | `tasks` | `deno task <name>` |
 | `mise.toml`, `.mise.toml` | `[tasks]` | `mise run <name>` |
 
-For `package.json`, the package manager is detected from the `packageManager`
-field or a lockfile, with npm as the fallback. The task list shows descriptions
-and each task's source file. If one source cannot be parsed, tasks from other
-sources can still be shown.
+### Caveats
 
-JSON files that allow comments (`devbox.json`, `deno.jsonc`) are parsed as
-JSONC. Composer lifecycle events are skipped because Composer runs them
-itself, and a `mise.toml` task with only `depends` is still listed, since
-`mise run <name>` remains valid.
+- The task list shows descriptions and each task's source file. If one source
+  cannot be parsed, tasks from the other sources are still shown.
+- For `package.json`, the package manager is detected from the `packageManager`
+  field or a lockfile, falling back to npm.
+- Composer lifecycle events are skipped because Composer runs them itself.
 
 ## Running without the widget
 
-You can also launch the picker directly from a terminal. Use the command name
-available on your `PATH` (`wtr` is the short alias):
+You can also launch the picker directly from a terminal, using the command
+name available on your `PATH` (`wtr` is the short alias):
 
 ```sh
 wtr          # full-screen picker
@@ -113,14 +95,19 @@ full-screen run reports the error and exits.
 
 ## Configuration
 
-Optional TOML files let you add custom tasks, override the package manager, or
-disable task sources:
+Two optional TOML files let you add custom tasks, override the package manager,
+or disable task sources:
 
 - `.what-to-run.toml` in a project, for settings shared with that repository;
 - `$XDG_CONFIG_HOME/what-to-run/config.toml` for personal settings and
   per-project overrides (normally `~/.config/what-to-run/config.toml`).
 
 See [Configuration](docs/config.md) for the full format and examples.
+
+### Themes
+
+While the picker is open, press `ctrl+t` to cycle through the themes. The one
+you choose is saved automatically to your user config and used from then on.
 
 ## Development
 

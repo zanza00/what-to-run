@@ -134,8 +134,10 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   the task itself after `restoreCursor`, and `tab` just prints the command
   line.
 - `.agents/skills/` is committed on purpose (see `skills-lock.json`);
-  `bubbletea-tfe` is a manual rename of `ggprompts/tfe` to avoid an id collision
-  with `bubbletea` — don't reinstall it unrenamed.
+  `release/` is this repository's own skill (not vendored, so it has no lock
+  entry) and walks the tag-to-verification release flow; `bubbletea-tfe` is a
+  manual rename of `ggprompts/tfe` to avoid an id collision with `bubbletea` —
+  don't reinstall it unrenamed.
 
 ## Charm v2 gotchas
 

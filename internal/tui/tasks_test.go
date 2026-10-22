@@ -8,10 +8,15 @@ import (
 	"testing"
 )
 
-// writeFile writes a fixture file inside dir.
+// writeFile writes a fixture file inside dir, creating parent directories for
+// nested paths like .cargo/config.toml.
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+	path := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -258,6 +263,7 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 	// resolve the earlier "makefile" candidate and change the badge.
 	writeFile(t, dir, "GNUmakefile", "test:\n\tgo test ./...\n")
 	writeFile(t, dir, "Makefile.toml", "[tasks.fmt]\ndescription = \"Format\"\n")
+	writeFile(t, dir, ".cargo/config.toml", "[alias]\nlint = \"clippy\"\n")
 
 	tasks, errs := discoverTasks(dir, config{})
 	if len(errs) != 0 {
@@ -268,7 +274,7 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 	for _, task := range tasks {
 		sources = append(sources, task.Source)
 	}
-	if want := []string{"package.json", "GNUmakefile", "Makefile.toml"}; !reflect.DeepEqual(sources, want) {
+	if want := []string{"package.json", "GNUmakefile", "Makefile.toml", ".cargo/config.toml"}; !reflect.DeepEqual(sources, want) {
 		t.Errorf("task sources = %v, want %v", sources, want)
 	}
 }

@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/tidwall/jsonc v0.3.3
+	go.yaml.in/yaml/v3 v3.0.5
 )
 
 require (

@@ -163,6 +163,39 @@ func TestParseMakeTargetsDeduplicates(t *testing.T) {
 	}
 }
 
+// TestDiscoverTaskfileOfThisRepo runs the source over the project's own
+// Taskfile, which is the repository's build entry point: every task a
+// contributor types must reach the picker with its description.
+func TestDiscoverTaskfileOfThisRepo(t *testing.T) {
+	tasks, err := discoverSource(taskfileSource(), "../..")
+	if err != nil {
+		t.Fatalf("discoverSource() error = %v", err)
+	}
+
+	byName := map[string]Task{}
+	for _, task := range tasks {
+		byName[task.Name] = task
+	}
+	for _, name := range []string{
+		"default", "all", "build", "bind", "bind-bash", "install", "run",
+		"test", "fmt", "lint", "tidy", "clean", "help",
+	} {
+		if _, ok := byName[name]; !ok {
+			t.Errorf("task %q not found in this repo's Taskfile, got %v", name, tasks)
+		}
+	}
+	if got := byName["build"].Source; got != "Taskfile.yml" {
+		t.Errorf("build source = %q, want Taskfile.yml", got)
+	}
+	const wantDesc = "Build bin/wtr and bin/what-to-run"
+	if got := byName["build"].Desc; got != wantDesc {
+		t.Errorf("build description = %q, want %q", got, wantDesc)
+	}
+	if got := byName["build"].Args; !reflect.DeepEqual(got, []string{"task", "build"}) {
+		t.Errorf("build args = %v, want [task build]", got)
+	}
+}
+
 // TestDiscoverSourceFirstFileWins pins the candidate-file preference: the
 // first name in source.Files that exists is the one parsed and shown. The
 // fixtures avoid names that differ only by case, which collide on the
@@ -244,6 +277,30 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 	}
 	if want := []string{"package.json", "GNUmakefile", "Makefile.toml", ".cargo/config.toml"}; !reflect.DeepEqual(sources, want) {
 		t.Errorf("task sources = %v, want %v", sources, want)
+	}
+}
+
+// TestDiscoverTasksTaskfileOrder: a directory with both a package.json and a
+// Taskfile lists the package scripts first and the Taskfile tasks second, with
+// the rc tasks still on top.
+func TestDiscoverTasksTaskfileOrder(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"scripts": {"dev": "vite"}}`)
+	writeFile(t, dir, "Taskfile.yml", "version: '3'\ntasks:\n  build:\n    desc: Build the app\n")
+
+	cfg := config{Tasks: []configTask{{Name: "deploy", Command: "./deploy.sh"}}}
+	tasks, errs := discoverTasks(dir, cfg)
+	if len(errs) != 0 {
+		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+	}
+
+	var got []string
+	for _, task := range tasks {
+		got = append(got, task.Source+"/"+task.Name)
+	}
+	want := []string{"rc/deploy", "package.json/dev", "Taskfile.yml/build"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("tasks = %v, want %v", got, want)
 	}
 }
 

@@ -23,10 +23,13 @@ the shell prompt without running it.
 
 Before any Go coding, review, debugging, troubleshooting, or setup task, load the `golang-how-to` skill first — it routes to whichever other Go skills the task needs.
 
-- `make all` is the full check (fmt + vet, race tests, build); CI
+- `task all` is the full check (fmt + vet, race tests, build); CI
   (`.github/workflows/checks.yml`, also called by the release workflow) runs
-  the same checks plus a gofmt gate on linux and macOS, so run `make all`
-  before committing. A single test:
+  the same Go commands plus a gofmt gate on linux and macOS, so run `task all`
+  before committing. `task` is a contributor prerequisite, not a runtime
+  dependency of `wtr`: install it with
+  `go install github.com/go-task/task/v3/cmd/task@v3.54.0`; when `task` is
+  missing, run the Go commands in `checks.yml` by hand. A single test:
   `go test -race ./internal/tui -run TestViewInlineHeight`.
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
   `tasks.go` = the Task model, `sources.go` = the discovery framework and the
@@ -40,7 +43,7 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `source` literal and its parser in a new `source_<name>.go`, one line in
   `defaultSources`, and table-driven tests next to them. Unknown `package.json`
   shapes etc. belong in the matching `source_*.go`.
-- `make build` compiles `cmd/wtr` twice: `bin/wtr` is the CLI name and
+- `task build` compiles `cmd/wtr` twice: `bin/wtr` is the CLI name and
   `bin/what-to-run` the explicit one for shell rc files. The invoked
   name is the one shown in usage, messages and the picker title, and
   `init zsh` and `init bash` embed the invoked command — the bare name via
@@ -58,8 +61,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   the `gh-pages` branch (served via GitHub Pages) using the `APT_GPG_PRIVATE_KEY`
   secret, skipped with a warning while that secret is unset. `--version` prints
   the version
-  injected with `-X main.version` (the tag in GoReleaser, `git describe` in the
-  Makefile). The publishers have Python tests: run
+  injected with `-X main.version` (the tag in GoReleaser, `git describe` in
+  `Taskfile.yml`). The publishers have Python tests: run
   `python3 -m unittest discover -s scripts -p '*_test.py'` when touching them.
 - The optional rc file (`config.go`, documented in `docs/config.md`;
   `.what-to-run.toml` in the project,
@@ -152,7 +155,7 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `stty -ixon` when Ctrl-S or Ctrl-Q is bound, because Ctrl-S is the XOFF
   flow-control character.
 - No PTY tests: verify inline behavior end-to-end in tmux (zsh + the widget
-  from `eval "$(make bind)"`, bash + the one from `eval "$(make bind-bash)"`,
+  from `eval "$(task bind)"`, bash + the one from `eval "$(task bind-bash)"`,
   with `KEY=ctrl-g` to bind another combo); the widget runs `bin/wtr` on every
-  invocation, so plain `make build` is enough for Go-only changes.
+  invocation, so plain `task build` is enough for Go-only changes.
   `--debug-area` draws a border around the managed area.

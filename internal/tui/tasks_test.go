@@ -163,38 +163,6 @@ func TestParseMakeTargetsDeduplicates(t *testing.T) {
 	}
 }
 
-// TestDiscoverMakeTargetsOfThisRepo runs the source over the project's own
-// Makefile, where the "## name: description" convention is already in use.
-func TestDiscoverMakeTargetsOfThisRepo(t *testing.T) {
-	tasks, err := discoverSource(makeSource(), "../..")
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
-	}
-
-	byName := map[string]Task{}
-	for _, task := range tasks {
-		byName[task.Name] = task
-	}
-	for _, name := range []string{"all", "build", "run", "test", "fmt", "lint", "tidy", "clean", "install", "help"} {
-		if _, ok := byName[name]; !ok {
-			t.Errorf("task %q not found in this repo's Makefile, got %v", name, tasks)
-		}
-	}
-	// The badge is the first candidate name that resolves; on a
-	// case-insensitive filesystem (macOS) "makefile" resolves to this
-	// repository's "Makefile".
-	if got := byName["build"].Source; got != "Makefile" && got != "makefile" {
-		t.Errorf("build source = %q, want a makefile name", got)
-	}
-	const wantDesc = "Build bin/wtr and bin/what-to-run"
-	if got := byName["build"].Desc; got != wantDesc {
-		t.Errorf("build description = %q, want %q", got, wantDesc)
-	}
-	if got := byName["build"].Args; !reflect.DeepEqual(got, []string{"make", "build"}) {
-		t.Errorf("build args = %v, want [make build]", got)
-	}
-}
-
 // TestDiscoverSourceFirstFileWins pins the candidate-file preference: the
 // first name in source.Files that exists is the one parsed and shown. The
 // fixtures avoid names that differ only by case, which collide on the

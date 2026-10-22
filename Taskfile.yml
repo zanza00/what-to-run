@@ -1,0 +1,107 @@
+version: '3'
+
+vars:
+  BINARY_NAME: wtr
+  # The same program is also built under its explicit name, meant for shell rc
+  # files (the invoked name is the one shown in messages and in the picker).
+  BINARY_ALIAS: what-to-run
+  GO: go
+  CMD: ./cmd/wtr
+  KEY: ctrl-s
+  # Version shown by --version, injected with ldflags: a git describe string for
+  # local builds, the release tag when GoReleaser builds the archives.
+  VERSION:
+    sh: echo "${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}"
+  LDFLAGS: -X main.version={{.VERSION}}
+  # Where `task install` puts the binaries (override: PREFIX=/usr/local/bin).
+  PREFIX:
+    sh: echo "${PREFIX:-$HOME/.local/bin}"
+
+tasks:
+  default:
+    desc: Show the available tasks
+    silent: true
+    cmds:
+      - '"{{.TASK_EXE}}" --list'
+
+  all:
+    desc: Format, vet, test, and build
+    # Sequential on purpose: deps run in parallel, and fmt rewrites the files
+    # test and build read.
+    cmds:
+      - task: fmt
+      - task: test
+      - task: build
+
+  build:
+    desc: Build bin/wtr and bin/what-to-run
+    silent: true
+    cmds:
+      - '{{.GO}} build -ldflags "{{.LDFLAGS}}" -o bin/{{.BINARY_NAME}} {{.CMD}}'
+      - '{{.GO}} build -ldflags "{{.LDFLAGS}}" -o bin/{{.BINARY_ALIAS}} {{.CMD}}'
+
+  bind:
+    desc: Build and print the zsh integration for eval (task bind KEY=combo)
+    silent: true
+    cmds:
+      - task: build
+      - bin/{{.BINARY_NAME}} init zsh --key {{.KEY}}
+
+  bind-bash:
+    desc: Build and print the bash integration for eval (task bind-bash KEY=combo)
+    silent: true
+    cmds:
+      - task: build
+      - bin/{{.BINARY_NAME}} init bash --key {{.KEY}}
+
+  install:
+    desc: Install both names into PREFIX (default ~/.local/bin)
+    deps: [build]
+    cmds:
+      - mkdir -p {{.PREFIX}}
+      - install -m755 bin/{{.BINARY_NAME}} {{.PREFIX}}/{{.BINARY_NAME}}
+      - install -m755 bin/{{.BINARY_ALIAS}} {{.PREFIX}}/{{.BINARY_ALIAS}}
+      - cmd: |
+          echo "Installed {{.BINARY_NAME}} and {{.BINARY_ALIAS}} into {{.PREFIX}}"
+          case ":$PATH:" in
+            *:{{.PREFIX}}:*) ;;
+            *) echo "Note: {{.PREFIX}} is not in your PATH" ;;
+          esac
+        silent: true
+
+  run:
+    desc: Run the application without building a binary
+    cmds:
+      - '{{.GO}} run {{.CMD}}'
+
+  test:
+    desc: Run tests with the race detector and coverage
+    cmds:
+      - '{{.GO}} test -race -coverprofile=coverage.out ./...'
+
+  fmt:
+    desc: Format and vet the code
+    cmds:
+      - '{{.GO}} fmt ./...'
+      - '{{.GO}} vet ./...'
+
+  lint:
+    desc: Run golangci-lint (requires golangci-lint installed)
+    cmds:
+      - golangci-lint run ./...
+
+  tidy:
+    desc: Tidy go.mod and go.sum
+    cmds:
+      - '{{.GO}} mod tidy'
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf bin/ dist/ coverage.out coverage.html
+
+  help:
+    desc: Show the available tasks
+    silent: true
+    cmds:
+      - '"{{.TASK_EXE}}" --list'

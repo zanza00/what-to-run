@@ -23,7 +23,7 @@ import (
 var prog = progName(os.Args[0])
 
 // version is the release version, injected at build time with
-// `-X main.version` (see the Makefile and .goreleaser.yaml); local builds
+// `-X main.version` (see Taskfile.yml and .goreleaser.yaml); local builds
 // report "dev".
 var version = "dev"
 

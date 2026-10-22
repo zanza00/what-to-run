@@ -36,38 +36,22 @@ see [Installation](docs/install.md).
 
 ### Set up the widget
 
-Add this line to your `~/.zshrc` (use `wtr` instead if that is the command name
-you installed):
+Add the line for your shell to its rc file, then start a new shell (or evaluate
+it in the current one). Use `wtr` instead of `what-to-run` if that is the
+command name you installed.
 
 ```sh
+# zsh: ~/.zshrc
 eval "$(what-to-run init zsh)"
 ```
 
-The widget is bound to **Ctrl-S** by default. To use another key, for example
-Ctrl-G, pass it to `init`:
-
 ```sh
-eval "$(what-to-run init zsh --key ctrl-g)"
-```
-
-Start a new shell, or evaluate the line in your current one, then press the
-chosen key at the prompt.
-
-### Set up the bash widget
-
-The same picker is available for bash; add this line to your `~/.bashrc`
-(bash 4.3 or later):
-
-```sh
+# bash 4.3 or later: ~/.bashrc
 eval "$(what-to-run init bash)"
 ```
 
-The widget is bound to **Ctrl-S** by default. To use another key, for example
-Ctrl-A, pass it to `init`:
-
-```sh
-eval "$(what-to-run init bash --key ctrl-a)"
-```
+The widget is bound to **Ctrl-S**. Pass `--key` to `init` to choose another
+key, for example `--key ctrl-g`.
 
 ### Use the picker
 

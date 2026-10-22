@@ -94,6 +94,7 @@ The picker discovers tasks in the current project directory:
 | `package.json` | `scripts` | `<package-manager> run <name>` |
 | `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
 | `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
+| `.cargo/config`, `.cargo/config.toml` | `[alias]` (chains resolved for the description) | `cargo <name>` |
 | `devbox.json` | `shell.scripts` | `devbox run <name>` |
 | `composer.json` | custom `scripts` (lifecycle events are not listed) | `composer run-script <name>` |
 | `deno.json`, `deno.jsonc` | `tasks` | `deno task <name>` |

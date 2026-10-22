@@ -12,6 +12,7 @@
 //	package.json   npm/pnpm/yarn/bun scripts
 //	Makefile       make targets (also makefile, GNUmakefile)
 //	Makefile.toml  cargo-make tasks
+//	.cargo/config  cargo aliases (also .cargo/config.toml)
 //	devbox.json    devbox shell scripts
 //	composer.json  Composer custom scripts
 //	deno.json      Deno tasks (also deno.jsonc)
@@ -37,9 +38,9 @@ import (
 // source is one family of project files. Adding a source is a literal in
 // defaultSources plus a parser function; the framework does the rest.
 type source struct {
-	// Files are candidate base names in preference order: the first that
-	// exists in the project directory is parsed. Its name becomes the
-	// badge of the tasks the source returns.
+	// Files are candidate paths in preference order, relative to the
+	// project directory: the first that exists is parsed. Its name becomes
+	// the badge of the tasks the source returns.
 	Files []string
 
 	// Parse turns the winning file's content into tasks: it receives the
@@ -55,6 +56,7 @@ func defaultSources(cfg config) []source {
 		packageJSONSource(cfg.PackageManager),
 		makeSource(),
 		cargoMakeSource(),
+		cargoAliasSource(),
 		devboxSource(),
 		composerSource(),
 		denoSource(),
@@ -142,12 +144,12 @@ func rcTasks(cfg config, dir string) []Task {
 
 // discoverTasks scans dir for the tasks of the rc file and the built-in
 // sources, in display order: rc tasks first, then package.json, Makefile,
-// Makefile.toml, devbox.json, composer.json, deno.json/deno.jsonc and
-// mise.toml/.mise.toml. Package scripts, cargo-make tasks, devbox scripts,
-// Composer scripts, Deno tasks and mise tasks are sorted by name; Makefile
-// targets keep the order they appear in the file. A source that fails to
-// parse is reported in errs and skipped (a disabled source is not read at
-// all), and rc tasks shadow same-named tasks of the built-in sources.
+// Makefile.toml, .cargo/config, devbox.json, composer.json, deno.json/deno.jsonc
+// and mise.toml/.mise.toml. Package scripts, cargo-make tasks, cargo aliases,
+// devbox scripts, Composer scripts, Deno tasks and mise tasks are sorted by
+// name; Makefile targets keep the order they appear in the file. A source that
+// fails to parse is reported in errs and skipped (a disabled source is not read
+// at all), and rc tasks shadow same-named tasks of the built-in sources.
 func discoverTasks(dir string, cfg config) ([]Task, []error) {
 	sources, errs := enabledSources(defaultSources(cfg), cfg.Disable)
 

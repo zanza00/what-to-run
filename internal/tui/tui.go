@@ -1164,8 +1164,8 @@ func (m model) filterLine() string {
 func (m model) emptyStateLines() []string {
 	return []string{
 		"  " + m.styles.title.Render("no tasks found here"),
-		"  " + m.styles.dim.Render("looked for task files: package.json, Makefile, Makefile.toml, devbox.json,"),
-		"  " + m.styles.dim.Render("composer.json, deno.json and mise.toml"),
+		"  " + m.styles.dim.Render("looked for task files: package.json, Makefile, Makefile.toml,"),
+		"  " + m.styles.dim.Render(".cargo/config.toml, devbox.json, composer.json, deno.json and mise.toml"),
 		"  " + m.styles.dim.Render("add [[tasks]] to .what-to-run.toml for custom commands"),
 	}
 }

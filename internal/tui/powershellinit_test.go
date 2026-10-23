@@ -65,6 +65,7 @@ func TestPowerShellInitScript(t *testing.T) {
 		"# wtr: PowerShell integration, Ctrl-G opens the inline picker.",
 		`$script:WtrBin = if ($env:WTR_BIN) { $env:WTR_BIN } else { 'C:\Users\O''Brien\wtr.exe' }`,
 		`$result = @(& $script:WtrBin --inline --shell powershell @flags)`,
+		"[Microsoft.PowerShell.PSConsoleReadLine]::InvokePrompt()",
 		"[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)",
 		"[Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $result[1])",
 		"[Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()",

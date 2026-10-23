@@ -70,6 +70,11 @@ function global:Invoke-WtrWidget {
     # --shell powershell: the line comes back quoted for the prompt it lands
     # in. Our own flags come first so WTR_FLAGS can override them.
     $result = @(& $script:WtrBin --inline --shell powershell @flags)
+    # The picker started on the prompt line and cleared its area on exit:
+    # redraw the prompt and the line being edited before using the result, or
+    # PSReadLine paints the command at a stale position and the prompt stays
+    # erased.
+    [Microsoft.PowerShell.PSConsoleReadLine]::InvokePrompt()
     if ($result.Count -lt 2) { return }
 
     switch ($result[0]) {

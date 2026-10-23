@@ -1,0 +1,6 @@
+includes:
+  nested: ./nested/Taskfile.yml
+
+tasks:
+  serve:
+    desc: Serve the documentation

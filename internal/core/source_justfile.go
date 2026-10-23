@@ -3,17 +3,20 @@ package core
 
 import (
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 )
 
 // justfileSource returns the source for just recipes: the first of the three
-// file names just itself looks for, in that order.
+// file names just itself looks for, in that order. Like just, it also looks in
+// the parent directories of the project directory.
 func justfileSource() source {
 	return source{
-		Files: []string{"justfile", "Justfile", ".justfile"},
-		Parse: parseJustfile,
+		Files:         []string{"justfile", "Justfile", ".justfile"},
+		SearchParents: true,
+		Parse:         parseJustfile,
 	}
 }
 
@@ -39,13 +42,27 @@ var justModuleRe = regexp.MustCompile(`^(import|mod)\??\s`)
 // ":=" is not mistaken for an assignment.
 var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 
-// parseJustfile returns the recipes declared by a justfile, sorted by name
-// like the ungrouped part of "just --list", each run as "just <name>".
+// parseJustfile returns the recipes a justfile declares on the running
+// platform, sorted by name like the ungrouped part of "just --list", each run
+// as "just <name>". Tests use parseJustfileFor to pick the platform.
+func parseJustfile(dir string, data []byte) ([]Task, error) {
+	return parseJustfileFor(runtime.GOOS, dir, data)
+}
+
+// parseJustfileFor returns the recipes a justfile declares for goos, sorted by
+// name like the ungrouped part of "just --list", each run as "just <name>".
 //
 // The parser is line-based and forgiving. It recognizes a recipe header at
 // column 0, keeps the last contiguous "#" comment line above it or its
 // "[doc(...)]" attribute as the description, and hides private recipes: the
-// "_" prefix and the "[private]" attribute. A doc attribute always decides,
+// "_" prefix and the "[private]" attribute. Platform attributes filter a
+// recipe: [windows], [linux], [macos] and [unix] list it only on a matching
+// GOOS, where unix means any GOOS but Windows, and several platform attributes
+// are OR-ed. Other attributes do not affect the list. When a recipe is defined
+// more than once, the first definition enabled on goos is the one just sees:
+// its doc and privacy decide the row, and a name with no enabled definition is
+// dropped. So a recipe defined under [unix] and again under [windows] shows
+// one row with the doc of the active definition. A doc attribute always decides,
 // even when its text is empty or blank: just then shows no description, so the
 // "#" comment above it does not apply. An attribute list may carry a
 // trailing "#" comment and may list several attributes separated by commas,
@@ -82,19 +99,20 @@ var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 // recipes differently from "just --list". Triple-quoted strings can contain a
 // column-0 line that looks like a recipe header, which the line-based parser
 // cannot tell from a real one.
-func parseJustfile(_ string, data []byte) ([]Task, error) {
+func parseJustfileFor(goos, _ string, data []byte) ([]Task, error) {
 	var (
 		tasks      []Task
-		seen       = map[string]bool{}
+		defs       []justRecipe
 		comment    string   // last contiguous "#" line
 		docAttr    string   // "[doc(...)]" attribute
 		hasDocAttr bool     // whether a "[doc(...)]" attribute was seen
 		private    bool     // "[private]" attribute
+		platforms  []string // platform attributes, OR-ed
 		attrParts  []string // lines of an attribute list not closed yet
 	)
 
 	reset := func() {
-		comment, docAttr, hasDocAttr, private, attrParts = "", "", false, false, nil
+		comment, docAttr, hasDocAttr, private, platforms, attrParts = "", "", false, false, nil, nil
 	}
 
 	first := true
@@ -141,13 +159,14 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 				continue
 			}
 			attrParts = nil
-			doc, hasDoc, isPrivate := justAttributes(attrs[:end+1])
-			if hasDoc {
+			parsed := justAttributes(attrs[:end+1])
+			if parsed.hasDoc {
 				// The flag is set even for an empty text: just then shows no
 				// description, rather than the comment above it.
-				docAttr, hasDocAttr = doc, true
+				docAttr, hasDocAttr = parsed.doc, true
 			}
-			private = private || isPrivate
+			private = private || parsed.private
+			platforms = append(platforms, parsed.platforms...)
 			// Other attributes, like [group("...")], leave the pending
 			// description and privacy alone.
 			continue
@@ -181,19 +200,36 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 		} else {
 			desc = comment
 		}
-		skip := private || strings.HasPrefix(name, "_") || seen[name]
+		// A recipe may be defined once per platform, so keep every definition
+		// until the whole file is read: only then can the first variant enabled
+		// on goos be picked.
+		defs = append(defs, justRecipe{
+			name:      name,
+			desc:      desc,
+			private:   private,
+			platforms: platforms,
+		})
 		// just clears the pending attributes after every recipe header, even
 		// with no blank line between two recipes: a [doc] or [private] recipe
 		// must not leak its description or privacy onto the next one.
 		reset()
-		if skip {
+	}
+
+	selected := make(map[string]bool, len(defs))
+	for _, def := range defs {
+		if selected[def.name] || !justPlatformEnabled(def.platforms, goos) {
 			continue
 		}
-		seen[name] = true
+		selected[def.name] = true
+		// Hiding applies to the selected definition only, as in just: the
+		// first enabled variant is the one the tool would see.
+		if def.private || strings.HasPrefix(def.name, "_") {
+			continue
+		}
 		tasks = append(tasks, Task{
-			Name: name,
-			Desc: desc,
-			Args: []string{"just", name},
+			Name: def.name,
+			Desc: def.desc,
+			Args: []string{"just", def.name},
 		})
 	}
 
@@ -202,6 +238,45 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 	}
 	slices.SortFunc(tasks, func(a, b Task) int { return strings.Compare(a.Name, b.Name) })
 	return tasks, nil
+}
+
+// justRecipe is one definition of a recipe in a justfile. The same name may
+// appear more than once with different platform attributes.
+type justRecipe struct {
+	name      string
+	desc      string
+	private   bool
+	platforms []string // empty means every platform
+}
+
+// justPlatformEnabled reports whether a recipe carrying the platform
+// attributes is visible on goos. No attribute means every platform; several
+// attributes are OR-ed, as in just, and "unix" covers every GOOS but Windows.
+func justPlatformEnabled(attrs []string, goos string) bool {
+	if len(attrs) == 0 {
+		return true
+	}
+	for _, attr := range attrs {
+		switch attr {
+		case "windows":
+			if goos == "windows" {
+				return true
+			}
+		case "linux":
+			if goos == "linux" {
+				return true
+			}
+		case "macos":
+			if goos == "darwin" {
+				return true
+			}
+		case "unix":
+			if goos != "windows" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // justLogicalLine returns the logical line that starts at lines[i] and the
@@ -330,34 +405,49 @@ func justHeaderColon(line string) bool {
 	return false
 }
 
-// justAttributes parses a "[...]" attribute list and returns the doc text, if
-// the list carries a "doc(...)", and whether it marks the recipe private. The
-// text may be a single line or the lines of a multi-line list that
-// parseJustfile joined with spaces; it may carry a trailing "#" comment and
-// several comma-separated attributes, as in [private, group("g")] # why;
-// commas and "#" inside a quoted doc string are not separators.
-func justAttributes(list string) (doc string, hasDoc, private bool) {
-	attrs, ok := strings.CutPrefix(strings.TrimSpace(stripJustComment(list)), "[")
+// justAttrs is the part of a "[...]" attribute list that the picker uses: the
+// doc text, whether a doc attribute was present, privacy, and the platform
+// attributes that filter a recipe.
+type justAttrs struct {
+	doc       string
+	hasDoc    bool
+	private   bool
+	platforms []string
+}
+
+// justAttributes parses a "[...]" attribute list and returns its doc text, if
+// the list carries a "doc(...)", whether it marks the recipe private, and its
+// platform attributes. Only [windows], [linux], [macos] and [unix] are
+// platform attributes; other attributes are ignored. The text may be a single
+// line or the lines of a multi-line list that parseJustfileFor joined with
+// spaces; it may carry a trailing "#" comment and several comma-separated
+// attributes, as in [private, group("g")] # why; commas and "#" inside a
+// quoted doc string are not separators.
+func justAttributes(list string) justAttrs {
+	body, ok := strings.CutPrefix(strings.TrimSpace(stripJustComment(list)), "[")
 	if !ok {
-		return "", false, false
+		return justAttrs{}
 	}
-	attrs, ok = strings.CutSuffix(strings.TrimSpace(attrs), "]")
+	body, ok = strings.CutSuffix(strings.TrimSpace(body), "]")
 	if !ok {
-		return "", false, false
+		return justAttrs{}
 	}
 
-	for _, attr := range splitJustAttributes(attrs) {
+	var parsed justAttrs
+	for _, attr := range splitJustAttributes(body) {
 		attr = strings.TrimSpace(attr)
 		switch {
 		case attr == "private":
-			private = true
+			parsed.private = true
+		case attr == "windows" || attr == "linux" || attr == "macos" || attr == "unix":
+			parsed.platforms = append(parsed.platforms, attr)
 		case strings.HasPrefix(attr, "doc("):
 			if text, ok := justDocText(attr); ok {
-				doc, hasDoc = text, true
+				parsed.doc, parsed.hasDoc = text, true
 			}
 		}
 	}
-	return doc, hasDoc, private
+	return parsed
 }
 
 // justAttributeEnd returns the index of the "]" that closes an attribute list,

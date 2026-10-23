@@ -4,27 +4,46 @@ package core
 import (
 	"bytes"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
 
+// taskfileNames are the eight default Taskfile names, in the order go-task
+// searches them: the preference order of the source, and the names a
+// directory include is searched for.
+var taskfileNames = []string{
+	"Taskfile.yml", "taskfile.yml", "Taskfile.yaml", "taskfile.yaml",
+	"Taskfile.dist.yml", "taskfile.dist.yml",
+	"Taskfile.dist.yaml", "taskfile.dist.yaml",
+}
+
 // taskfileSource returns the source for go-task tasks: the first of the eight
 // default Taskfile names that exists, in the order go-task itself searches.
-func taskfileSource() source {
+// Like task, it also looks in the parent directories of the project directory.
+func taskfileSource(files Files) source {
 	return source{
-		Files: []string{
-			"Taskfile.yml", "taskfile.yml", "Taskfile.yaml", "taskfile.yaml",
-			"Taskfile.dist.yml", "taskfile.dist.yml",
-			"Taskfile.dist.yaml", "taskfile.dist.yaml",
+		Files:         slices.Clone(taskfileNames),
+		SearchParents: true,
+		Parse: func(dir string, data []byte) ([]Task, error) {
+			return parseTaskfile(files, dir, data)
 		},
-		Parse: parseTaskfile,
 	}
 }
 
-// parseTaskfile returns the tasks declared under a Taskfile's top-level tasks
-// map, sorted by name like "task --list", each run as "task <name>".
+// taskfileDoc is one Taskfile document: its own tasks and the local Taskfiles
+// it includes.
+type taskfileDoc struct {
+	Version  string         `yaml:"version"`
+	Includes map[string]any `yaml:"includes"`
+	Tasks    map[string]any `yaml:"tasks"`
+}
+
+// parseTaskfile returns the tasks a Taskfile declares, its local includes
+// followed recursively, sorted by name like "task --list-all", each run as
+// "task <name>".
 //
 // The description is the task's desc, else the first line of its summary,
 // else its command line: a Taskfile has no help convention beyond those
@@ -33,40 +52,174 @@ func taskfileSource() source {
 // Internal tasks are skipped: "task --list" hides them and they cannot be
 // called directly.
 //
-// Only the file's own tasks are read: includes and remote Taskfiles are not
-// followed, aliases are not listed as extra rows, and label does not rename
-// the task. desc and summary are shown as written, without evaluating Task
-// templates.
-func parseTaskfile(_ string, data []byte) ([]Task, error) {
+// Includes bring in another local Taskfile, relative to the including file's
+// directory, and their tasks are namespaced with the include key ("docs:build",
+// chained for nested includes). An include with flatten: true keeps the
+// inherited namespace instead of adding its key, an internal include hides
+// all its tasks (nested ones too), and aliases are not listed as extra rows.
+// Remote and templated include paths are not followed. An include that is
+// missing, unreadable or unparseable is skipped without losing the tasks
+// already gathered; only an error in the root file is returned.
+//
+// desc and summary are shown as written, without evaluating Task templates.
+// The include dir field only affects where task runs, not the listed names.
+// The first definition of a final name wins: the root tasks come before the
+// includes, and includes are read in sorted key order.
+func parseTaskfile(files Files, dir string, data []byte) ([]Task, error) {
 	// An empty file declares no tasks: report it like a missing one
 	// instead of failing on an empty YAML document.
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, nil
 	}
 
-	var doc struct {
-		Tasks map[string]any `yaml:"tasks"`
-	}
-	if err := yaml.Unmarshal(data, &doc); err != nil {
+	doc, err := taskfileDocOf(data)
+	if err != nil {
 		return nil, err
 	}
 
-	tasks := make([]Task, 0, len(doc.Tasks))
-	for _, name := range slices.Sorted(maps.Keys(doc.Tasks)) {
-		desc, ok := taskfileDesc(doc.Tasks[name])
-		if !ok {
-			continue
-		}
-		tasks = append(tasks, Task{
-			Name: name,
-			Desc: desc,
-			Args: []string{"task", name},
-		})
+	// Keyed by final name so a duplicate (a flatten collision, or the same
+	// name reached twice) keeps the first definition.
+	collected := make(map[string]Task)
+	taskfileCollect(files, doc, dir, "", nil, collected)
+
+	tasks := make([]Task, 0, len(collected))
+	for _, name := range slices.Sorted(maps.Keys(collected)) {
+		tasks = append(tasks, collected[name])
 	}
 	if len(tasks) == 0 {
 		return nil, nil
 	}
 	return tasks, nil
+}
+
+// taskfileDocOf unmarshals one Taskfile document. An empty file is a document
+// without tasks, not an error.
+func taskfileDocOf(data []byte) (taskfileDoc, error) {
+	var doc taskfileDoc
+	if len(bytes.TrimSpace(data)) == 0 {
+		return doc, nil
+	}
+	err := yaml.Unmarshal(data, &doc)
+	return doc, err
+}
+
+// taskfileCollect adds one document's tasks to collected and recurses into its
+// includes. prefix is the namespace inherited from the parent include and
+// active holds the absolute paths on the current include chain: a file already
+// on it is a cycle, while the same file included from a sibling branch is read
+// again under that branch's namespace.
+func taskfileCollect(files Files, doc taskfileDoc, dir, prefix string, active map[string]bool, collected map[string]Task) {
+	for _, name := range slices.Sorted(maps.Keys(doc.Tasks)) {
+		desc, ok := taskfileDesc(doc.Tasks[name])
+		if !ok {
+			continue
+		}
+		final := prefix + name
+		if _, exists := collected[final]; !exists {
+			collected[final] = Task{Name: final, Desc: desc, Args: []string{"task", final}}
+		}
+	}
+
+	// No directory means no file reads: the tests that parse bytes in
+	// memory see the root document only.
+	if dir == "" {
+		return
+	}
+	if active == nil {
+		active = make(map[string]bool)
+	}
+
+	for _, key := range slices.Sorted(maps.Keys(doc.Includes)) {
+		inc, ok := taskfileIncludeOf(doc.Includes[key])
+		if !ok || inc.internal {
+			continue
+		}
+		path, data, ok := taskfileIncludeFile(files, dir, inc.path)
+		if !ok {
+			continue
+		}
+		abs, err := filepath.Abs(path)
+		if err != nil || active[abs] {
+			continue
+		}
+		included, err := taskfileDocOf(data)
+		if err != nil {
+			continue
+		}
+		next := prefix
+		if !inc.flatten {
+			next += key + ":"
+		}
+		active[abs] = true
+		taskfileCollect(files, included, filepath.Dir(path), next, active, collected)
+		delete(active, abs)
+	}
+}
+
+// taskfileInclude is one normalized includes entry: the path to read and the
+// flags that affect the tasks it brings in. The dir field only changes where
+// task runs, so it is ignored here.
+type taskfileInclude struct {
+	path     string
+	internal bool
+	flatten  bool
+}
+
+// taskfileIncludeOf normalizes an includes value. A string is the path; a
+// table carries it in taskfile, which must be a string. ok is false for a
+// table without a taskfile and for a remote or templated path, which the
+// parser does not follow.
+func taskfileIncludeOf(v any) (taskfileInclude, bool) {
+	inc := taskfileInclude{}
+	switch entry := v.(type) {
+	case string:
+		inc.path = entry
+	case map[string]any:
+		path, isString := entry["taskfile"].(string)
+		if !isString || path == "" {
+			return inc, false
+		}
+		inc.path = path
+		if internal, isBool := entry["internal"].(bool); isBool {
+			inc.internal = internal
+		}
+		if flatten, isBool := entry["flatten"].(bool); isBool {
+			inc.flatten = flatten
+		}
+	default:
+		return inc, false
+	}
+
+	if inc.path == "" || strings.Contains(inc.path, "{{") || strings.Contains(inc.path, "}}") {
+		return inc, false
+	}
+	for _, remote := range []string{"http://", "https://", "git@"} {
+		if strings.HasPrefix(inc.path, remote) {
+			return inc, false
+		}
+	}
+	return inc, true
+}
+
+// taskfileIncludeFile resolves an include path against the including file's
+// directory and reads it. A directory is searched for the eight default names
+// in go-task's order. The Files port has no Stat, so a path that reads as a
+// file wins and a directory is the one whose default name reads. ok is false
+// when nothing readable exists there.
+func taskfileIncludeFile(files Files, dir, path string) (string, []byte, bool) {
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(dir, path)
+	}
+	if data, err := files.ReadFile(path); err == nil {
+		return path, data, true
+	}
+	for _, name := range taskfileNames {
+		candidate := filepath.Join(path, name)
+		if data, err := files.ReadFile(candidate); err == nil {
+			return candidate, data, true
+		}
+	}
+	return "", nil, false
 }
 
 // taskfileDesc turns one tasks value into the description of the task and

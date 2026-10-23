@@ -3,9 +3,14 @@
 // A source is one family of project files the picker understands. Each
 // source owns the file names it looks for and a parser that turns one
 // file's bytes into tasks; the framework below finds the first existing
-// candidate file, stamps the tasks with that file name as their badge, and
-// turns a failed parse into a warning instead of losing the tasks of the
-// other sources.
+// candidate file, stamps the tasks with its path relative to the project
+// directory as their badge, and turns a failed parse into a warning instead
+// of losing the tasks of the other sources.
+//
+// Most sources look only in the project directory. The justfile and Taskfile
+// sources also search its ancestors, like the just and task tools do: the
+// nearest directory holding a candidate wins, and a file found above the
+// project directory is badged with the relative path, such as ../justfile.
 //
 // The built-in sources, in this fixed order:
 //
@@ -40,13 +45,20 @@ import (
 // defaultSources plus a parser function; the framework does the rest.
 type source struct {
 	// Files are candidate paths in preference order, relative to the
-	// project directory: the first that exists is parsed. Its name becomes
-	// the badge of the tasks the source returns.
+	// directory being searched: the first that exists is parsed. Its path
+	// relative to the project directory becomes the badge of the tasks the
+	// source returns.
 	Files []string
 
+	// SearchParents makes the source look in the project directory's
+	// ancestors after the directory itself, as just and task do. It is
+	// false for every other source: their files are directory-local.
+	SearchParents bool
+
 	// Parse turns the winning file's content into tasks: it receives the
-	// project directory for sibling lookups (lock files) and the file's
-	// bytes. Task.Source is stamped by the framework, not by the parser.
+	// directory containing the file for sibling lookups (lock files,
+	// referenced files) and the file's bytes. Task.Source is stamped by the
+	// framework, not by the parser.
 	Parse func(dir string, data []byte) ([]Task, error)
 }
 
@@ -77,7 +89,7 @@ func defaultSources(settings Settings, files Files) []source {
 	return []source{
 		packageJSONSource(settings.PackageManager, files),
 		makeSource(),
-		taskfileSource(),
+		taskfileSource(files),
 		justfileSource(),
 		cargoMakeSource(),
 		cargoAliasSource(),
@@ -88,27 +100,66 @@ func defaultSources(settings Settings, files Files) []source {
 	}
 }
 
-// discoverSource runs one source over dir: the first candidate file that
-// exists is parsed and its tasks are stamped with the file name.
+// discoverSource runs one source over dir, and over its ancestors when the
+// source searches parents: in each directory the first candidate file that
+// exists is parsed, the nearest directory wins, and its path relative to dir
+// becomes the badge (a bare file name in dir itself, ../justfile above it).
 func discoverSource(files Files, src source, dir string) ([]Task, error) {
+	// Read the project directory through the caller's path, so an in-memory
+	// Files keyed by relative names still matches. Parent search needs
+	// absolute paths: filepath.Dir(".") is ".".
+	tasks, found, err := readSourceFile(files, src, dir, "")
+	if found || err != nil || !src.SearchParents {
+		return tasks, err
+	}
+	base, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", dir, err)
+	}
+	for current := filepath.Dir(base); ; current = filepath.Dir(current) {
+		prefix, relErr := filepath.Rel(base, current)
+		if relErr != nil {
+			prefix = current
+		}
+		tasks, found, err := readSourceFile(files, src, current, filepath.ToSlash(prefix))
+		if found || err != nil {
+			return tasks, err
+		}
+		if filepath.Dir(current) == current {
+			return nil, nil
+		}
+	}
+}
+
+// readSourceFile reads the first candidate file of src that exists in dir and
+// runs the parser on it. prefix is the directory's path relative to the project
+// directory, empty for the project directory itself: the badge is the file name
+// there and prefix/name above it. found tells whether a file was read, whether
+// it parsed or not.
+func readSourceFile(files Files, src source, dir, prefix string) (tasks []Task, found bool, err error) {
 	for _, name := range src.Files {
-		data, err := files.ReadFile(filepath.Join(dir, name))
+		path := filepath.Join(dir, name)
+		data, err := files.ReadFile(path)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", name, err)
+		badge := name
+		if prefix != "" {
+			badge = filepath.ToSlash(filepath.Join(prefix, name))
 		}
-		tasks, err := src.Parse(dir, data)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", name, err)
+			return nil, true, fmt.Errorf("%s: %w", badge, err)
+		}
+		tasks, err := src.Parse(filepath.Dir(path), data)
+		if err != nil {
+			return nil, true, fmt.Errorf("%s: %w", badge, err)
 		}
 		for i := range tasks {
-			tasks[i].Source = name
+			tasks[i].Source = badge
 		}
-		return tasks, nil
+		return tasks, true, nil
 	}
-	return nil, nil
+	return nil, false, nil
 }
 
 // enabledSources drops the sources named in disable and reports the entries

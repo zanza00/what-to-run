@@ -55,13 +55,16 @@ key, for example `--key ctrl-g`.
 
 ## Task sources
 
-The picker discovers tasks in the current project directory:
+The picker discovers tasks in the current project directory. The `justfile`
+and `Taskfile` sources also look in parent directories, like `just` and `task`
+themselves do: the nearest file wins, and its badge is the path relative to the
+current directory (for example `../../justfile`).
 
 | File | Discovered tasks | Command |
 | --- | --- | --- |
 | `package.json` | `scripts` | `<package-manager> run <name>` |
 | `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
-| `Taskfile.yml` and the other go-task default names | `tasks` (internal tasks hidden) | `task <name>` |
+| `Taskfile.yml` and the other go-task default names | `tasks` and local `includes` (internal tasks hidden) | `task <name>` |
 | `justfile`, `Justfile`, `.justfile` | Recipes (private recipes hidden) | `just <name>` |
 | `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
 | `.cargo/config`, `.cargo/config.toml` | `[alias]` (chains resolved for the description) | `cargo <name>` |
@@ -77,10 +80,16 @@ The picker discovers tasks in the current project directory:
 - For `package.json`, the package manager is detected from the `packageManager`
   field or a lockfile, falling back to npm.
 - Composer lifecycle events are skipped because Composer runs them itself.
-- For Taskfiles, only the tasks in the file itself are listed: `includes` and
-  remote Taskfiles are not followed, aliases are not listed as extra rows and
-  `label` does not rename a task. Internal tasks are hidden; a task described
-  only by a template shows the template as written.
+- For Taskfiles, local `includes` are followed recursively, relative to the
+  including file: an included task is namespaced (`docs:build`) unless the
+  include sets `flatten: true`, and an `internal` include hides all its tasks.
+  Remote and templated include paths are not followed, and a missing include
+  (optional or not) or an unparsable one is skipped without losing the other
+  tasks. On a flatten collision the first definition wins (the root file
+  before the includes).
+  Aliases are not listed as extra rows and `label` does not rename a task.
+  Internal tasks are hidden; a task described only by a template shows the
+  template as written.
 - For justfiles, only the recipes in the file itself are listed: `import` and
   `mod` files are not followed and aliases are not listed as extra rows. Private
   recipes are hidden (a `_` prefix or `[private]`); `@` only marks a silent

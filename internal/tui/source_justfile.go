@@ -45,7 +45,9 @@ var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 // The parser is line-based and forgiving. It recognizes a recipe header at
 // column 0, keeps the last contiguous "#" comment line above it or its
 // "[doc(...)]" attribute as the description, and hides private recipes: the
-// "_" prefix and the "[private]" attribute. An attribute list may carry a
+// "_" prefix and the "[private]" attribute. A doc attribute always decides,
+// even when its text is empty or blank: just then shows no description, so the
+// "#" comment above it does not apply. An attribute list may carry a
 // trailing "#" comment and may list several attributes separated by commas,
 // as in [private, group("g")] # why: the scanner ignores commas and "#"
 // inside a quoted doc string, reads "private" and "doc(...)", and leaves any
@@ -82,16 +84,17 @@ var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 // cannot tell from a real one.
 func parseJustfile(_ string, data []byte) ([]Task, error) {
 	var (
-		tasks     []Task
-		seen      = map[string]bool{}
-		comment   string   // last contiguous "#" line
-		docAttr   string   // "[doc(...)]" attribute
-		private   bool     // "[private]" attribute
-		attrParts []string // lines of an attribute list not closed yet
+		tasks      []Task
+		seen       = map[string]bool{}
+		comment    string   // last contiguous "#" line
+		docAttr    string   // "[doc(...)]" attribute
+		hasDocAttr bool     // whether a "[doc(...)]" attribute was seen
+		private    bool     // "[private]" attribute
+		attrParts  []string // lines of an attribute list not closed yet
 	)
 
 	reset := func() {
-		comment, docAttr, private, attrParts = "", "", false, nil
+		comment, docAttr, hasDocAttr, private, attrParts = "", "", false, false, nil
 	}
 
 	first := true
@@ -140,7 +143,9 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 			attrParts = nil
 			doc, hasDoc, isPrivate := justAttributes(attrs[:end+1])
 			if hasDoc {
-				docAttr = doc
+				// The flag is set even for an empty text: just then shows no
+				// description, rather than the comment above it.
+				docAttr, hasDocAttr = doc, true
 			}
 			private = private || isPrivate
 			// Other attributes, like [group("...")], leave the pending
@@ -164,8 +169,16 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 			continue
 		}
 		name := m[1]
-		desc := docAttr
-		if desc == "" {
+		// A doc attribute decides the description whenever one was seen, even
+		// with an empty or blank text: just shows no description there, so the
+		// "#" comment above it does not come back. Only without a doc
+		// attribute does the comment apply.
+		var desc string
+		if hasDocAttr {
+			if strings.TrimSpace(docAttr) != "" {
+				desc = docAttr
+			}
+		} else {
 			desc = comment
 		}
 		skip := private || strings.HasPrefix(name, "_") || seen[name]

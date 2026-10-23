@@ -128,6 +128,43 @@ test:
 			},
 		},
 		{
+			name: "an empty doc attribute means no description, not the comment",
+			in: `# A comment
+[doc("")]
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a whitespace-only doc attribute means no description",
+			in: `# A comment
+[doc("   ")]
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "an empty doc attribute does not leak onto the next recipe",
+			in: `# A comment
+[doc("")]
+build:
+    echo build
+# Test the build
+test:
+    echo test
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				{Name: "test", Desc: "Test the build", Args: []string{"just", "test"}},
+			},
+		},
+		{
 			name: "a single-quoted doc attribute is read too",
 			in: `[doc('Single quoted doc')]
 test:

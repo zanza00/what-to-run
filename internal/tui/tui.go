@@ -83,16 +83,6 @@ func (o Options) prog() string {
 	return o.Prog
 }
 
-// shell returns the command-line dialect, falling back to the platform
-// default for an unknown value (newModel reports it as a warning).
-func (o Options) shell() core.ShellDialect {
-	shell, err := core.ParseShellDialect(o.Shell)
-	if err != nil {
-		return core.DefaultShellDialect()
-	}
-	return shell
-}
-
 // Run starts the picker and blocks until the user quits or launches a task.
 // It returns an error when a fullscreen run finds nothing to run, or when the
 // program fails to start or crashes. Inline mode shows an empty state instead.
@@ -180,13 +170,13 @@ func Run(opts Options) error {
 	if widget {
 		// Widget mode: the shell runs the command (enter) or inserts it in
 		// the prompt (tab).
-		reportChoice(os.Stdout, *m.chosen, m.chosenInsert, opts.shell())
+		reportChoice(os.Stdout, *m.chosen, m.chosenInsert, m.shell)
 		return nil
 	}
 
 	if m.chosenInsert {
 		// No widget to insert into: print the command line.
-		fmt.Println(m.chosen.CommandLineFor(opts.shell()))
+		fmt.Println(m.chosen.CommandLineFor(m.shell))
 		return nil
 	}
 
@@ -324,7 +314,10 @@ type taskDoneMsg struct {
 // model is the root Bubble Tea model: a filterable list of the project's
 // tasks.
 type model struct {
-	opts     Options
+	opts Options
+	// shell is the command-line dialect, parsed once from opts.Shell: an
+	// unknown value warns and falls back to the platform default.
+	shell    core.ShellDialect
 	tasks    []core.Task
 	warnings []error
 
@@ -401,14 +394,15 @@ func newModel(opts Options, tasks []core.Task, warnings []error) model {
 			"unknown theme %q, using %q (--list-themes shows the available ones)",
 			opts.Theme, defaultTheme)}, warnings...)
 	}
-	if opts.Shell != "" {
-		if _, err := core.ParseShellDialect(opts.Shell); err != nil {
-			warnings = append([]error{err}, warnings...)
-		}
+	shell, err := core.ParseShellDialect(opts.Shell)
+	if err != nil {
+		warnings = append([]error{err}, warnings...)
+		shell = core.DefaultShellDialect()
 	}
 	warnOpen, warnIdx := openWarningsAtStart(warnings)
 	return model{
 		opts:         opts,
+		shell:        shell,
 		tasks:        tasks,
 		warnings:     warnings,
 		themeIdx:     idx,
@@ -787,7 +781,7 @@ func (m model) visible() []core.Task {
 		score int
 	}
 	matches := make([]scoredTask, 0, len(m.tasks))
-	shell := m.opts.shell()
+	shell := m.shell
 	for _, t := range m.tasks {
 		if score, ok := taskMatchScore(t, tokens, shell); ok {
 			matches = append(matches, scoredTask{task: t, score: score})
@@ -1345,7 +1339,7 @@ func (m model) taskRow(t core.Task, selected bool, w int) string {
 	tokens := m.filterTokens()
 
 	cmdW := min(m.commandWidth(), avail)
-	cmdRaw := t.CommandLineFor(m.opts.shell())
+	cmdRaw := t.CommandLineFor(m.shell)
 	cmd, cmdMatch := truncateMatched(cmdRaw, matchPositions(cmdRaw, tokens), cmdW)
 	cmd += strings.Repeat(" ", max(cmdW-lipgloss.Width(cmd), 0))
 
@@ -1515,7 +1509,7 @@ func renderMatched(s string, matched []bool, base, highlight lipgloss.Style) str
 // command line, so the descriptions of all rows start together. taskRow caps
 // it to the room the row has; only a command longer than that is truncated.
 func (m model) commandWidth() int {
-	shell := m.opts.shell()
+	shell := m.shell
 	cmdW := 0
 	for _, t := range m.visible() {
 		cmdW = max(cmdW, lipgloss.Width(t.CommandLineFor(shell)))

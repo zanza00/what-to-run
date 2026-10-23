@@ -47,6 +47,47 @@ func sized(opts Options) model {
 	return m
 }
 
+func TestNewModelShellDialect(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	tests := []struct {
+		name        string
+		shell       string
+		want        core.ShellDialect
+		wantWarning bool
+	}{
+		{name: "empty means the platform default", shell: "", want: core.DefaultShellDialect()},
+		{name: "cmd", shell: "cmd", want: core.ShellCmd},
+		{
+			name:        "unknown falls back to the platform default",
+			shell:       "fish",
+			want:        core.DefaultShellDialect(),
+			wantWarning: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newModel(Options{Shell: tt.shell}, nil, nil)
+			if m.shell != tt.want {
+				t.Errorf("newModel(Shell: %q).shell = %v, want %v", tt.shell, m.shell, tt.want)
+			}
+			if !tt.wantWarning {
+				if len(m.warnings) != 0 {
+					t.Errorf("warnings = %v, want none", m.warnings)
+				}
+				return
+			}
+			if len(m.warnings) != 1 {
+				t.Fatalf("warnings = %v, want exactly one", m.warnings)
+			}
+			if got := m.warnings[0].Error(); !strings.Contains(got, "unknown shell") {
+				t.Errorf("warning = %q, want it to mention the unknown shell", got)
+			}
+		})
+	}
+}
+
 var (
 	enterKey  = tea.KeyPressMsg{Code: tea.KeyEnter}
 	tabKey    = tea.KeyPressMsg{Code: tea.KeyTab}

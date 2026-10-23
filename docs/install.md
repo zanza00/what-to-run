@@ -68,6 +68,33 @@ sudo install -m 755 wtr what-to-run /usr/local/bin/
 
 Use `what-to-run_<version>_darwin_arm64.tar.gz` on Apple silicon, and so on.
 
+## Windows
+
+Each release attaches a zip for Windows on Intel and ARM64:
+
+- `what-to-run_<version>_windows_amd64.zip`
+- `what-to-run_<version>_windows_arm64.zip`
+
+Extract it, put the folder on your `PATH`, and verify the install from
+PowerShell:
+
+```powershell
+Expand-Archive what-to-run_<version>_windows_amd64.zip -DestinationPath C:\Tools\what-to-run
+$env:Path = "C:\Tools\what-to-run;$env:Path"   # or add it permanently
+wtr --version
+what-to-run --version
+```
+
+The archive contains both `wtr.exe` and `what-to-run.exe`: the invoked name is
+the one shown in usage, messages and the picker title.
+
+The binaries are not code-signed, so SmartScreen may block the first run.
+`Unblock-File` clears the mark of the web on the extracted files:
+
+```powershell
+Get-ChildItem C:\Tools\what-to-run | Unblock-File
+```
+
 ## Go
 
 With Go installed, `go install` compiles the program locally (it installs only
@@ -81,5 +108,5 @@ This requires Go 1.27.2 or later.
 
 ## Next steps
 
-To bind the picker to a key in zsh or bash, see
+To bind the picker to a key in zsh, bash or PowerShell, see
 [Set up the widget](../README.md#set-up-the-widget) in the README.

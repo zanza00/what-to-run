@@ -67,6 +67,28 @@ one-off test, but later `make build` runs are not picked up until you evaluate
 the output again. Use the bare-name `init` above when the shell should always
 follow the checkout.
 
+## Windows
+
+Cross-build the Windows binary from any platform:
+
+```sh
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/wtr.exe ./cmd/wtr
+```
+
+To try the PowerShell widget from the checkout, run this in an interactive
+PowerShell from the repository root:
+
+```powershell
+$env:Path = "$PWD\bin;$env:Path"
+wtr.exe init powershell | Out-String | Invoke-Expression
+```
+
+`Out-String` keeps the script's newlines and `#` comments, which
+`Invoke-Expression` needs. There are no PTY tests for Windows: try the widget by
+hand in Windows Terminal and in conhost. Both answer the cursor position query
+on Windows 11, so the inline frame works there; consoles that do not answer
+fall back to the full-screen picker after 250 ms.
+
 ## Release
 
 Releases are automated. Push a `vX.Y.Z` tag on a commit contained in `main`:

@@ -32,7 +32,8 @@ mise use -g github:zanza00/what-to-run
 ```
 
 For the apt repository, `.deb` packages, release tarballs, or `go install`,
-see [Installation](docs/install.md).
+see [Installation](docs/install.md). On Windows, use the release zip described
+there.
 
 ### Set up the widget
 
@@ -50,8 +51,18 @@ eval "$(what-to-run init zsh)"
 eval "$(what-to-run init bash)"
 ```
 
+```powershell
+# PowerShell 5.1 or 7+, in $PROFILE
+what-to-run init powershell | Out-String | Invoke-Expression
+```
+
+`Out-String` preserves the newlines and the `#` comments of the generated
+script; piping `init` straight into `Invoke-Expression` would collapse it to one
+line and comment out everything after the first `#`.
+
 The widget is bound to **Ctrl-S**. Pass `--key` to `init` to choose another
-key, for example `--key ctrl-g`.
+key, for example `--key ctrl-g`. PowerShell takes key names only (`ctrl-s`,
+`alt-x`), not the raw sequences used by zsh and bash.
 
 ## Task sources
 
@@ -100,7 +111,8 @@ or disable task sources:
 
 - `.what-to-run.toml` in a project, for settings shared with that repository;
 - `$XDG_CONFIG_HOME/what-to-run/config.toml` for personal settings and
-  per-project overrides (normally `~/.config/what-to-run/config.toml`).
+  per-project overrides (normally `~/.config/what-to-run/config.toml`;
+  `%AppData%\what-to-run\config.toml` on Windows).
 
 See [Configuration](docs/config.md) for the full format and examples.
 

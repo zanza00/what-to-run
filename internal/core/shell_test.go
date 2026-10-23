@@ -121,6 +121,8 @@ func TestQuotePowerShellArg(t *testing.T) {
 	}
 }
 
+// TestQuoteCmdArg pins the best-effort output of the cmd dialect, not a
+// round-trip: cmd expands %VAR% and !VAR! even inside double quotes.
 func TestQuoteCmdArg(t *testing.T) {
 	tests := []struct {
 		name string
@@ -142,7 +144,7 @@ func TestQuoteCmdArg(t *testing.T) {
 		{"redirection", "a>b", `"a>b"`},
 		{"caret", "a^b", `"a^b"`},
 		{"parentheses", "a(b)", `"a(b)"`},
-		{"percent variable", "%PATH%", `"%PATH%"`},
+		{"percent is expanded by cmd despite quotes", "%PATH%", `"%PATH%"`},
 		{"bang", "a!b", `"a!b"`},
 	}
 

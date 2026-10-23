@@ -89,7 +89,11 @@ func cmdLineFor(command string) string {
 	return `/d /s /c "` + command + `"`
 }
 
-// quoteArgFor quotes arg the way shell reads it back unchanged.
+// quoteArgFor quotes arg the way shell reads it back. POSIX and PowerShell
+// round-trip exactly; the cmd dialect is best-effort, because cmd expands
+// %VAR% and !VAR! even inside double quotes and a newline cannot be
+// represented in one command line, so callers must not rely on a lossless
+// round-trip for those inputs.
 func quoteArgFor(shell ShellDialect, arg string) string {
 	switch shell {
 	case ShellPowerShell:
@@ -139,6 +143,10 @@ func quotePowerShellArg(arg string) string {
 // metacharacters passes through, anything else is double-quoted and its
 // quotes are escaped the way the C runtime parses them back (backslash
 // doubling before a quote and before the closing quote).
+//
+// The result is best-effort: cmd expands %VAR% (and !VAR! with delayed
+// expansion) even inside double quotes, and a newline cannot be represented
+// in one command line, so those inputs do not round-trip.
 func quoteCmdArg(arg string) string {
 	if arg == "" {
 		return `""`

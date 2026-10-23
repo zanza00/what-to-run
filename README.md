@@ -64,6 +64,19 @@ The widget is bound to **Ctrl-S**. Pass `--key` to `init` to choose another
 key, for example `--key ctrl-g`. PowerShell takes key names only (`ctrl-s`,
 `alt-x`), not the raw sequences used by zsh and bash.
 
+## Shell dialect
+
+The picker shows one command line per task and the inline widget places it in
+the prompt, so every argument is quoted for the shell that reads it back. The
+zsh and bash widgets pass `--shell posix`, the PowerShell widget passes
+`--shell powershell`, and a direct run uses `auto`: PowerShell on Windows,
+POSIX elsewhere. `--shell cmd` targets cmd.exe.
+
+cmd.exe expands `%VAR%` and `!VAR!` even inside double quotes, and a newline
+cannot be represented in one command line, so arguments containing them cannot
+be reproduced exactly. When an exact round-trip matters, PowerShell is the
+better choice.
+
 ## Task sources
 
 The picker discovers tasks in the current project directory. The `justfile`

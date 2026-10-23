@@ -54,7 +54,7 @@ func main() {
 	shell := flag.String("shell", "",
 		"shell dialect the command lines are quoted for: \"posix\", \"powershell\"\n"+
 			"or \"cmd\"; empty or \"auto\" means the platform default (PowerShell on\n"+
-			"Windows, POSIX elsewhere)")
+			"Windows, POSIX elsewhere); cmd expands %VAR% and !VAR! inside quotes")
 	listThemes := flag.Bool("list-themes", false,
 		"list the available themes and exit")
 	showVersion := flag.Bool("version", false,

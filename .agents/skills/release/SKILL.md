@@ -19,7 +19,7 @@ to reach that tag with evidence and then prove that every channel moved.
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
 | Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY` (missing → channel skipped with a warning) |
 | Release assets | `checksums.txt`, 4 tarballs, 2 `.deb` files (7 total) |
-| Version string | `wtr --version` prints `wtr X.Y.Z` in released binaries, `wtr vX.Y.Z-N-g…` from `make build` |
+| Version string | `wtr --version` prints `wtr X.Y.Z` in released binaries, `wtr vX.Y.Z-N-g…` from `task build` |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
 | AUR | `what-to-run-bin` |
@@ -73,13 +73,15 @@ not seen.
 Run the full gate from the repository root:
 
 ```sh
-make all
+task all
 git status --short
 ```
 
-`make all` is what CI runs: format, vet, race tests, build. If it reformats
-files, commit that separately and push before tagging — the tag must contain
-what passed, and a dirty tree means the checks ran on something else.
+`task all` mirrors what CI runs locally: format, vet, race tests, build. CI
+itself calls the Go commands directly in `.github/workflows/checks.yml`, plus a
+gofmt gate. If it reformats files, commit that separately and push before
+tagging — the tag must contain what passed, and a dirty tree means the checks
+ran on something else.
 
 When `goreleaser` is installed, validate the config and build every artifact
 without publishing:

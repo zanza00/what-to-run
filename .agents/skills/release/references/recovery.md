@@ -35,7 +35,7 @@ is the cheap case.
 ```sh
 git tag -d vX.Y.Z
 git push origin :refs/tags/vX.Y.Z
-# fix, make all, commit, push main, then redo the tag
+# fix, task all, commit, push main, then redo the tag
 ```
 
 Deleting a tag is only safe while `gh release view vX.Y.Z` says "not found".
@@ -105,7 +105,7 @@ decide to redo it. Confirm explicitly, then:
 
 ```sh
 gh release delete vX.Y.Z --yes --cleanup-tag
-# fix main, make all, commit, push main, tag the fix, push the tag
+# fix main, task all, commit, push main, tag the fix, push the tag
 ```
 
 `--cleanup-tag` deletes the remote tag too. The next tag push reruns validate,

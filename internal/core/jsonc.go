@@ -1,5 +1,5 @@
 // JSONC support: decoding JSON files that allow comments and trailing commas.
-package tui
+package core
 
 import (
 	"encoding/json"

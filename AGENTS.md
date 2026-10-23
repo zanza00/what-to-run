@@ -47,18 +47,26 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `PATH`; when `task` is missing, run the Go commands in `checks.yml` by hand.
   A single test:
   `go test -race ./internal/tui -run TestViewInlineHeight`.
-- All runtime code lives in `internal/tui` (`tui.go` = model and layout,
-  `tasks.go` = the Task model, `sources.go` = the discovery framework and the
-  source registry, `source_*.go` = one parser per source, `theme.go` = the
+- Runtime code is split in three internal packages. `internal/core` is the task
+  domain: `task.go` = the Task model, `discover.go` = the discovery framework
+  and the source registry, `source_*.go` = one parser per source, `jsonc.go` =
+  the JSON-with-comments decoder, `files.go` = the `Files` port (`ReadFile` and
+  `Exists`) that discovery and the rc loader read through. `internal/tui` is
+  the Bubble Tea picker: `tui.go` = model and layout, `config.go` = the rc file,
+  `files.go` = the `Files` OS adapter, `theme.go` = the
   named looks and the styles derived from them, `theme_modal.go` = the ctrl+t
   theme picker overlay, `warning_modal.go` = the ctrl+w warning modal and
-  dismissed-warnings cache, `notice.go` = the transient toast, `zshinit.go`
-  and `bashinit.go` = the shell widgets printed by `init zsh` and `init bash`);
-  `cmd/wtr` only parses flags/subcommands and calls `tui.Run` / `tui.Preview` /
-  `tui.ZshInit` / `tui.BashInit`. Adding a source: a
-  `source` literal and its parser in a new `source_<name>.go`, one line in
-  `defaultSources`, and table-driven tests next to them. Unknown `package.json`
-  shapes etc. belong in the matching `source_*.go`.
+  dismissed-warnings cache, `notice.go` = the transient toast. `internal/shell`
+  holds the shell integrations (`zshinit.go` and `bashinit.go` = the shell
+  widgets printed by `init zsh` and `init bash`). `cmd/wtr` only parses
+  flags/subcommands and calls `tui.Run` / `tui.Preview` / `shell.ZshInit` /
+  `shell.BashInit`. Adding a source: a `source` literal and its parser in a new
+  `internal/core/source_<name>.go`, one line in the `defaultSources` registry in
+  `internal/core`, and table-driven tests next to the parser. Unknown
+  `package.json` shapes etc. belong in the matching `source_*.go`.
+  `internal/core` itself has no direct filesystem access — only `os/exec`, for
+  `Task.Command` — so discovery and config parsing can run against an in-memory
+  port in tests.
 - `task build` compiles `cmd/wtr` twice: `bin/wtr` is the CLI name and
   `bin/what-to-run` the explicit one for shell rc files. The invoked
   name is the one shown in usage, messages and the picker title, and
@@ -110,7 +118,7 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   active when it opened. The notice and the box are composited cell by cell
   over the rendered rows (the lipgloss canvas, `overlay`), so a tinted
   background crossing their edges is not broken.
-- Rows show the command line (`Task.commandLine`), the description and the
+- Rows show the command line (`Task.CommandLine`), the description and the
   source badge: no name column, the command already contains the name. The
   command column is the widest visible command line, so descriptions start
   together; it is capped to the room the row has, and the description takes
@@ -137,7 +145,7 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 - The inline widget protocol (fzf-style): the generated widgets (`init zsh`,
   `init bash`) capture stdout, the picker renders on the terminal via
   `tea.OpenTTY`/`tea.WithOutput` and reports its result on stdout
-  (`run`/`insert` line + the command line from `Task.commandLine`). A
+  (`run`/`insert` line + the command line from `Task.CommandLine`). A
   directory with no tasks keeps the inline picker open on a persistent
   "no tasks found here" screen (enter/esc close), instead of printing an
   error the prompt redraw would erase; a direct fullscreen run still fails

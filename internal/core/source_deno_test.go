@@ -1,4 +1,4 @@
-package tui
+package core
 
 import (
 	"reflect"
@@ -107,7 +107,7 @@ func TestDiscoverDenoTasks(t *testing.T) {
 				writeFile(t, dir, name, content)
 			}
 
-			got, err := discoverSource(denoSource(), dir)
+			got, err := discoverSource(osFiles{}, denoSource(), dir)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("discoverSource() succeeded, want error")
@@ -128,7 +128,7 @@ func TestDiscoverDenoTasks(t *testing.T) {
 }
 
 func TestDiscoverDenoTasksMissingFile(t *testing.T) {
-	got, err := discoverSource(denoSource(), t.TempDir())
+	got, err := discoverSource(osFiles{}, denoSource(), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}

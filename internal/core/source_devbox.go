@@ -1,5 +1,5 @@
 // The devbox.json source: Jetify devbox shell scripts.
-package tui
+package core
 
 import (
 	"bytes"

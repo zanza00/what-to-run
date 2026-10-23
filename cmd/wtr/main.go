@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/zanza00/what-to-run/internal/shell"
 	"github.com/zanza00/what-to-run/internal/tui"
 )
 
@@ -112,7 +113,7 @@ func main() {
 //	eval "$(what-to-run init bash)"
 func runInit(args []string, w io.Writer) error {
 	fs := flag.NewFlagSet(prog+" init", flag.ExitOnError)
-	key := fs.String("key", tui.DefaultKey,
+	key := fs.String("key", shell.DefaultKey,
 		"combo that opens the picker: a name like ctrl-s or alt-x, or a raw\n"+
 			"sequence as the shell binds keys (^[x for zsh, \\e[15~ for bash)")
 	fs.Usage = func() {
@@ -130,14 +131,14 @@ func runInit(args []string, w io.Writer) error {
 	if len(rest) == 0 {
 		return fmt.Errorf("missing shell argument: use '%s init zsh|bash [--key combo]'", prog)
 	}
-	shell, tail := rest[0], rest[1:]
-	init := tui.ZshInit
-	switch shell {
+	sh, tail := rest[0], rest[1:]
+	init := shell.ZshInit
+	switch sh {
 	case "zsh":
 	case "bash":
-		init = tui.BashInit
+		init = shell.BashInit
 	default:
-		return fmt.Errorf("unsupported shell %q: only zsh and bash are supported", shell)
+		return fmt.Errorf("unsupported shell %q: only zsh and bash are supported", sh)
 	}
 	// flag stops at the first positional argument, so a flag written after
 	// the shell name ("init zsh --key ctrl-g") needs a second pass.

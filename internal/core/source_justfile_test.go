@@ -1,4 +1,4 @@
-package tui
+package core
 
 import (
 	"reflect"
@@ -744,7 +744,7 @@ func TestDiscoverJustfileFirstFileWins(t *testing.T) {
 	writeFile(t, dir, ".justfile", "dot-only:\n    echo dot\n")
 	writeFile(t, dir, "justfile", "local-only:\n    echo local\n")
 
-	tasks, err := discoverSource(justfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, justfileSource(), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -760,7 +760,7 @@ func TestDiscoverJustfileDotFallback(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".justfile", "# Build the app\nbuild:\n    echo build\n")
 
-	tasks, err := discoverSource(justfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, justfileSource(), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -771,7 +771,7 @@ func TestDiscoverJustfileDotFallback(t *testing.T) {
 }
 
 func TestDiscoverJustfileMissingFile(t *testing.T) {
-	got, err := discoverSource(justfileSource(), t.TempDir())
+	got, err := discoverSource(osFiles{}, justfileSource(), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}
@@ -785,10 +785,10 @@ func TestDiscoverTasksJustfileOrder(t *testing.T) {
 	writeFile(t, dir, "Taskfile.yml", "version: '3'\ntasks:\n  build:\n    desc: Build the app\n")
 	writeFile(t, dir, "justfile", "test:\n    echo test\n")
 
-	cfg := config{Tasks: []configTask{{Name: "deploy", Command: "./deploy.sh"}}}
-	tasks, errs := discoverTasks(dir, cfg)
+	settings := Settings{Tasks: []RCTask{{Name: "deploy", Command: "./deploy.sh"}}}
+	tasks, errs := Discover(osFiles{}, dir, settings)
 	if len(errs) != 0 {
-		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
 
 	var got []string
@@ -809,12 +809,12 @@ func TestDiscoverTasksOddJustfileKeepsSiblings(t *testing.T) {
 	writeFile(t, dir, "justfile", "this is not a justfile %%%\n    indented?\n")
 	writeFile(t, dir, "package.json", `{"scripts": {"dev": "vite"}}`)
 
-	tasks, errs := discoverTasks(dir, config{})
+	tasks, errs := Discover(osFiles{}, dir, Settings{})
 	if len(errs) != 0 {
-		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
 	want := []Task{{Source: "package.json", Name: "dev", Desc: "vite", Args: []string{"npm", "run", "dev"}}}
 	if !reflect.DeepEqual(tasks, want) {
-		t.Errorf("discoverTasks() = %+v, want %+v", tasks, want)
+		t.Errorf("Discover() = %+v, want %+v", tasks, want)
 	}
 }

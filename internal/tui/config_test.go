@@ -21,8 +21,22 @@ func TestDefaultConfigFiles(t *testing.T) {
 	}
 }
 
+// TestLoadConfigInMemoryFiles proves the rc loader reads through the Files
+// port: the project file exists only in the map.
+func TestLoadConfigInMemoryFiles(t *testing.T) {
+	files := memFiles{"project.toml": "package_manager = \"bun\"\n"}
+
+	cfg, errs := loadConfig(files, "project.toml", "")
+	if len(errs) != 0 {
+		t.Fatalf("loadConfig() warnings = %v, want none", errs)
+	}
+	if cfg.PackageManager != "bun" {
+		t.Errorf("loadConfig() package_manager = %q, want %q", cfg.PackageManager, "bun")
+	}
+}
+
 func TestLoadConfigMissingFiles(t *testing.T) {
-	cfg, errs := loadConfig(filepath.Join(t.TempDir(), ".what-to-run.toml"), "")
+	cfg, errs := loadConfig(osFiles{}, filepath.Join(t.TempDir(), ".what-to-run.toml"), "")
 	if len(errs) != 0 {
 		t.Errorf("loadConfig() warnings = %v, want none", errs)
 	}
@@ -57,7 +71,7 @@ name = "build"
 command = "project build"
 `)
 
-	cfg, errs := loadConfig(filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
+	cfg, errs := loadConfig(osFiles{}, filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
 	if len(errs) != 0 {
 		t.Fatalf("loadConfig() warnings = %v, want none", errs)
 	}
@@ -91,7 +105,7 @@ name = 123
 command = "bad"
 `)
 
-	cfg, errs := loadConfig(filepath.Join(dir, "project.toml"), "")
+	cfg, errs := loadConfig(osFiles{}, filepath.Join(dir, "project.toml"), "")
 	if len(errs) != 4 {
 		t.Fatalf("loadConfig() warnings = %v, want 4", errs)
 	}
@@ -178,7 +192,7 @@ command = "echo local"
 
 	// Inside ~/work/api/sub (accessed via the real /var/home path while
 	// config uses ~/ through the /home symlink): global < local < ~/work < ~/work/api.
-	cfg, errs := loadConfig(filepath.Join(apiSub, ".what-to-run.toml"), globalFile)
+	cfg, errs := loadConfig(osFiles{}, filepath.Join(apiSub, ".what-to-run.toml"), globalFile)
 	if len(errs) != 0 {
 		t.Fatalf("loadConfig() warnings = %v, want none", errs)
 	}
@@ -199,7 +213,7 @@ command = "echo local"
 	// Inside ~/work/api-2: ~/work matches, but ~/work/api must NOT match on
 	// a prefix that is not a directory boundary.
 	api2 := filepath.Join(realHome, "work", "api-2")
-	cfg2, errs := loadConfig(filepath.Join(api2, ".what-to-run.toml"), globalFile)
+	cfg2, errs := loadConfig(osFiles{}, filepath.Join(api2, ".what-to-run.toml"), globalFile)
 	if len(errs) != 0 {
 		t.Fatalf("loadConfig(api-2) warnings = %v, want none", errs)
 	}
@@ -226,7 +240,7 @@ unknown = 1
 package_manager = "yarn"
 `)
 
-	cfg, errs := loadConfig(filepath.Join(dir, ".what-to-run.toml"), filepath.Join(dir, "global.toml"))
+	cfg, errs := loadConfig(osFiles{}, filepath.Join(dir, ".what-to-run.toml"), filepath.Join(dir, "global.toml"))
 	if len(errs) != 4 {
 		t.Fatalf("loadConfig() warnings = %v, want 4", errs)
 	}
@@ -242,7 +256,7 @@ func TestLoadConfigBrokenGlobalKeepsProject(t *testing.T) {
 	writeFile(t, dir, "global.toml", "package_manager = [\n")
 	writeFile(t, dir, "project.toml", "package_manager = \"bun\"\n")
 
-	cfg, errs := loadConfig(filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
+	cfg, errs := loadConfig(osFiles{}, filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
 	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "global.toml") {
 		t.Errorf("loadConfig() warnings = %v, want one about global.toml", errs)
 	}
@@ -284,7 +298,7 @@ name = "ok"
 command = "echo ok"
 `)
 
-	cfg, errs := loadConfig(filepath.Join(dir, "project.toml"), "")
+	cfg, errs := loadConfig(osFiles{}, filepath.Join(dir, "project.toml"), "")
 	if len(errs) != 5 {
 		t.Errorf("loadConfig() warnings = %v, want 5", errs)
 	}
@@ -306,7 +320,7 @@ func TestLoadConfigThemeIsAUserSetting(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "global.toml", "theme = \"nord\"\n")
 
-	cfg, errs := loadConfig(filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
+	cfg, errs := loadConfig(osFiles{}, filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
 	if len(errs) != 0 {
 		t.Fatalf("loadConfig() warnings = %v, want none", errs)
 	}
@@ -315,7 +329,7 @@ func TestLoadConfigThemeIsAUserSetting(t *testing.T) {
 	}
 
 	writeFile(t, dir, "project.toml", "theme = \"tokyo\"\n")
-	cfg, errs = loadConfig(filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
+	cfg, errs = loadConfig(osFiles{}, filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
 	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "user setting") {
 		t.Errorf("loadConfig() warnings = %v, want one about the user setting", errs)
 	}
@@ -328,7 +342,7 @@ func TestLoadConfigUnknownTheme(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "global.toml", "theme = \"nope\"\n")
 
-	cfg, errs := loadConfig(filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
+	cfg, errs := loadConfig(osFiles{}, filepath.Join(dir, "project.toml"), filepath.Join(dir, "global.toml"))
 	if len(errs) != 1 || !strings.Contains(errs[0].Error(), `"nope"`) {
 		t.Errorf("loadConfig() warnings = %v, want one about %q", errs, "nope")
 	}

@@ -1,5 +1,5 @@
 // The .cargo/config source: cargo aliases.
-package tui
+package core
 
 import (
 	"bytes"

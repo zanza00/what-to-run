@@ -20,19 +20,18 @@
 //	deno.json      Deno tasks (also deno.jsonc)
 //	mise.toml      mise tasks (also .mise.toml)
 //
-// The rc file (see config.go) sits on top: its tasks are shown first and
-// shadow same-named tasks of the sources, and a source can be disabled by
-// the names of the files it looks for. A source that is missing contributes
-// nothing; a source that exists but fails to parse is reported in errs and
-// skipped, so one broken file does not hide the tasks of the others.
+// The rc file (decoded by the caller) sits on top: its tasks are shown
+// first and shadow same-named tasks of the sources, and a source can be
+// disabled by the names of the files it looks for. A source that is missing
+// contributes nothing; a source that exists but fails to parse is reported in
+// errs and skipped, so one broken file does not hide the tasks of the others.
 
-package tui
+package core
 
 import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 )
@@ -51,11 +50,32 @@ type source struct {
 	Parse func(dir string, data []byte) ([]Task, error)
 }
 
+// Settings is the part of the rc file that reaches task discovery.
+type Settings struct {
+	// PackageManager overrides the runner used for package.json scripts
+	// (npm, pnpm, yarn, bun); empty means autodetect.
+	PackageManager string
+
+	// Disable names the sources to skip, by the file names they look for.
+	Disable []string
+
+	// Tasks are the rc file's custom tasks, shown above the discovered ones.
+	Tasks []RCTask
+}
+
+// RCTask is one custom task declared in the rc file.
+type RCTask struct {
+	Name        string
+	Command     string
+	Description string
+	Cwd         string
+}
+
 // defaultSources returns the built-in sources in display order, wired with
 // the rc file settings that reach into them.
-func defaultSources(cfg config) []source {
+func defaultSources(settings Settings, files Files) []source {
 	return []source{
-		packageJSONSource(cfg.PackageManager),
+		packageJSONSource(settings.PackageManager, files),
 		makeSource(),
 		taskfileSource(),
 		justfileSource(),
@@ -70,9 +90,9 @@ func defaultSources(cfg config) []source {
 
 // discoverSource runs one source over dir: the first candidate file that
 // exists is parsed and its tasks are stamped with the file name.
-func discoverSource(src source, dir string) ([]Task, error) {
+func discoverSource(files Files, src source, dir string) ([]Task, error) {
 	for _, name := range src.Files {
-		data, err := os.ReadFile(filepath.Join(dir, name))
+		data, err := files.ReadFile(filepath.Join(dir, name))
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
@@ -125,9 +145,9 @@ func enabledSources(sources []source, disable []string) ([]source, []error) {
 // rcTasks converts the rc file's custom tasks into picker tasks: they show
 // the "rc" badge, run through the shell, and a relative cwd is resolved
 // against the project directory.
-func rcTasks(cfg config, dir string) []Task {
+func rcTasks(settings Settings, dir string) []Task {
 	var tasks []Task
-	for _, t := range cfg.Tasks {
+	for _, t := range settings.Tasks {
 		desc := t.Description
 		if desc == "" {
 			desc = t.Command
@@ -146,7 +166,7 @@ func rcTasks(cfg config, dir string) []Task {
 	return tasks
 }
 
-// discoverTasks scans dir for the tasks of the rc file and the built-in
+// Discover scans dir for the tasks of the rc file and the built-in
 // sources, in display order: rc tasks first, then package.json, Makefile,
 // Taskfile.yml, justfile, Makefile.toml, .cargo/config, devbox.json,
 // composer.json, deno.json/deno.jsonc and mise.toml/.mise.toml. Package
@@ -155,10 +175,10 @@ func rcTasks(cfg config, dir string) []Task {
 // name; Makefile targets keep the order they appear in the file. A source that
 // fails to parse is reported in errs and skipped (a disabled source is not read
 // at all), and rc tasks shadow same-named tasks of the built-in sources.
-func discoverTasks(dir string, cfg config) ([]Task, []error) {
-	sources, errs := enabledSources(defaultSources(cfg), cfg.Disable)
+func Discover(files Files, dir string, settings Settings) ([]Task, []error) {
+	sources, errs := enabledSources(defaultSources(settings, files), settings.Disable)
 
-	rc := rcTasks(cfg, dir)
+	rc := rcTasks(settings, dir)
 	shadowed := make(map[string]bool, len(rc))
 	for _, t := range rc {
 		shadowed[t.Name] = true
@@ -167,7 +187,7 @@ func discoverTasks(dir string, cfg config) ([]Task, []error) {
 	var tasks []Task
 	tasks = append(tasks, rc...)
 	for _, src := range sources {
-		ts, err := discoverSource(src, dir)
+		ts, err := discoverSource(files, src, dir)
 		if err != nil {
 			errs = append(errs, err)
 			continue

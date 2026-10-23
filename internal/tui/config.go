@@ -35,6 +35,7 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+	"github.com/zanza00/what-to-run/internal/core"
 )
 
 // config is the merged content of the rc files.
@@ -94,9 +95,9 @@ func defaultConfigFiles(dir string) (project, global string) {
 // blocks from the global file ordered from outermost parent directory to the
 // deepest match. Missing files are fine; broken keys or entries are reported
 // as warnings and skipped while the rest of the file still applies.
-func loadConfig(projectFile, globalFile string) (config, []error) {
-	global, errs := readConfig(globalFile, false)
-	project, projectErrs := readConfig(projectFile, true)
+func loadConfig(files core.Files, projectFile, globalFile string) (config, []error) {
+	global, errs := readConfig(files, globalFile, false)
+	project, projectErrs := readConfig(files, projectFile, true)
 	errs = append(errs, projectErrs...)
 
 	cfg := config{
@@ -151,11 +152,11 @@ func firstTasks(tasks []configTask) []configTask {
 // missing file yield the zero config. A TOML syntax error skips the file with
 // a warning; unknown keys, wrong types, and invalid entries drop only the
 // offending item with a warning each so the rest of the file still applies.
-func readConfig(path string, isProject bool) (config, []error) {
+func readConfig(files core.Files, path string, isProject bool) (config, []error) {
 	if path == "" {
 		return config{}, nil
 	}
-	data, err := os.ReadFile(path)
+	data, err := files.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return config{}, nil
 	}
@@ -236,7 +237,7 @@ func decodePackageManager(val any, disp, scope string, errs *[]error) (string, b
 	if s == "" {
 		return "", true
 	}
-	name, valid := packageManagerName(s)
+	name, valid := core.PackageManagerName(s)
 	if !valid {
 		*errs = append(*errs, fmt.Errorf("rc file %s: %sunknown package_manager %q", disp, scope, s))
 		return "", false

@@ -1,4 +1,4 @@
-package tui
+package core
 
 import (
 	"reflect"
@@ -267,7 +267,7 @@ func TestDiscoverTaskfileBadYAML(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.yml", "tasks:\n  build: [\n")
 
-	tasks, err := discoverSource(taskfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, taskfileSource(), dir)
 	if err == nil {
 		t.Fatalf("discoverSource() = %+v, nil; want a parse error", tasks)
 	}
@@ -284,7 +284,7 @@ func TestDiscoverTaskfileFirstFileWins(t *testing.T) {
 	writeFile(t, dir, "Taskfile.dist.yml", "tasks:\n  dist-only:\n    desc: From the dist file\n")
 	writeFile(t, dir, "Taskfile.yml", "tasks:\n  local-only:\n    desc: From the local file\n")
 
-	tasks, err := discoverSource(taskfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, taskfileSource(), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -300,7 +300,7 @@ func TestDiscoverTaskfileDistFallback(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.dist.yml", "tasks:\n  build:\n    desc: Build from the dist file\n")
 
-	tasks, err := discoverSource(taskfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, taskfileSource(), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -311,7 +311,7 @@ func TestDiscoverTaskfileDistFallback(t *testing.T) {
 }
 
 func TestDiscoverTaskfileMissingFile(t *testing.T) {
-	got, err := discoverSource(taskfileSource(), t.TempDir())
+	got, err := discoverSource(osFiles{}, taskfileSource(), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}

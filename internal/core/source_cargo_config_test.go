@@ -1,4 +1,4 @@
-package tui
+package core
 
 import (
 	"reflect"
@@ -104,7 +104,7 @@ qt = "tq"
 				writeFile(t, dir, name, content)
 			}
 
-			got, err := discoverSource(cargoAliasSource(), dir)
+			got, err := discoverSource(osFiles{}, cargoAliasSource(), dir)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("discoverSource() succeeded, want error")
@@ -125,7 +125,7 @@ qt = "tq"
 }
 
 func TestDiscoverCargoAliasesMissingFile(t *testing.T) {
-	got, err := discoverSource(cargoAliasSource(), t.TempDir())
+	got, err := discoverSource(osFiles{}, cargoAliasSource(), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}

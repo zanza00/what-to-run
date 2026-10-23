@@ -1,5 +1,5 @@
 // The composer.json source: Composer custom scripts.
-package tui
+package core
 
 import (
 	"bytes"

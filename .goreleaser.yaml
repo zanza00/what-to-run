@@ -79,13 +79,14 @@ publishers:
     cmd: python3 scripts/publish-aur.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
     env:
       - AUR_SSH_KEY_FILE={{ .Env.AUR_SSH_KEY_FILE }}
-  - name: apt
+  - name: packages
     checksum: true
     # The script publishes once for checksums.txt and ignores other artifacts.
-    # It needs a token to push the gh-pages branch: GoReleaser only passes the
-    # env listed here to the publisher, so GITHUB_TOKEN must be forwarded
-    # explicitly or the push goes out unauthenticated.
-    cmd: python3 scripts/publish-apt.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
+    # It writes both the apt and the RPM repository to gh-pages. It needs a
+    # token to push the branch: GoReleaser only passes the env listed here to
+    # the publisher, so GITHUB_TOKEN must be forwarded explicitly or the push
+    # goes out unauthenticated.
+    cmd: python3 scripts/publish-repo.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
     env:
       - APT_GPG_KEY_FILE={{ .Env.APT_GPG_KEY_FILE }}
       - GITHUB_TOKEN={{ .Env.GITHUB_TOKEN }}

@@ -1,8 +1,8 @@
-name: republish apt
+name: republish packages
 
-# Recovery path for a release whose GitHub assets were published but whose apt
-# step failed (for example on the gh-pages push): publishes an existing tag to
-# the repository served from gh-pages without recreating the release.
+# Recovery path for a release whose GitHub assets were published but whose
+# repository step failed (for example on the gh-pages push): publishes an
+# existing tag to the apt and RPM repositories without recreating the release.
 on:
   workflow_dispatch:
     inputs:
@@ -15,11 +15,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: republish-apt
+  group: republish-packages
   cancel-in-progress: false
 
 jobs:
-  apt:
+  packages:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -35,7 +35,7 @@ jobs:
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           gh release view "$RELEASE_TAG" --json isDraft \
             --jq '.isDraft == false' | grep -qx true
-      - name: Require apt credentials
+      - name: Require package repository credentials
         env:
           APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
         run: |
@@ -46,8 +46,8 @@ jobs:
           umask 077
           printf '%s\n' "$APT_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/apt_key"
           echo "APT_GPG_KEY_FILE=$RUNNER_TEMP/apt_key" >> "$GITHUB_ENV"
-      - name: Install apt repository tools
-        run: sudo apt-get update && sudo apt-get install -y reprepro
+      - name: Install repository tools
+        run: sudo apt-get update && sudo apt-get install -y reprepro createrepo-c
       - name: Download release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -55,12 +55,14 @@ jobs:
         run: |
           mkdir -p dist
           gh release download "$RELEASE_TAG" --dir dist --clobber \
-            --pattern checksums.txt --pattern 'what-to-run_*_linux_*.deb'
-      - name: Publish apt repository
+            --pattern checksums.txt \
+            --pattern 'what-to-run_*_linux_*.deb' \
+            --pattern 'what-to-run_*_linux_*.rpm'
+      - name: Publish package repositories
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: python3 scripts/publish-apt.py --tag "$RELEASE_TAG" --artifact dist/checksums.txt
+        run: python3 scripts/publish-repo.py --tag "$RELEASE_TAG" --artifact dist/checksums.txt
       - name: Verify apt repository
         shell: bash
         env:
@@ -70,3 +72,17 @@ jobs:
           version="${RELEASE_TAG#v}"
           gh api "repos/$GITHUB_REPOSITORY/contents/dists/stable/main/binary-amd64/Packages?ref=gh-pages" \
             --jq '.content' | base64 -d | grep -qx "Version: $version"
+      - name: Verify RPM repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          # Releases made before RPM support have no .rpm assets.
+          if ! compgen -G "dist/*.rpm" >/dev/null; then
+            echo "No RPM assets for $RELEASE_TAG; skipping RPM verification."
+            exit 0
+          fi
+          version="${RELEASE_TAG#v}"
+          gh api "repos/$GITHUB_REPOSITORY/contents/rpm/repodata/primary.xml.gz?ref=gh-pages" \
+            --jq '.content' | base64 -d | gzip -d | grep -q "ver=\"$version\""

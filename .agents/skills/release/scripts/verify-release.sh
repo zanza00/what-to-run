@@ -4,9 +4,10 @@
 # Usage: verify-release.sh vX.Y.Z
 #
 # Checks the GitHub release and its exact asset set, the Homebrew formula, the
-# apt index on gh-pages, the AUR package when that channel is configured, and a
-# downloaded binary of this machine's platform. Channels whose Actions secret
-# is unset are reported as skipped, matching the release workflow.
+# apt index and RPM metadata on gh-pages, the AUR package when that channel is
+# configured, and a downloaded binary of this machine's platform. Channels
+# whose Actions secret is unset are reported as skipped, matching the release
+# workflow.
 set -uo pipefail
 
 repo=zanza00/what-to-run
@@ -56,13 +57,14 @@ version=${tag#v}
 need gh
 need tar
 
-# The release workflow skips apt and AUR publication when their secret is
-# unset. Read the names (not the values) to know what this release promised.
+# The release workflow skips the package repositories and the AUR when their
+# secret is unset. Read the names (not the values) to know what this release
+# promised.
 secrets=""
 known_secrets=1
 if ! secrets=$(gh api "repos/$repo/actions/secrets" --jq '.secrets[].name' 2>/dev/null); then
   known_secrets=0
-  warn "cannot read Actions secrets; apt and AUR problems are reported without failing"
+  warn "cannot read Actions secrets; repository and AUR problems are reported without failing"
 fi
 has_secret() {
   [[ $known_secrets == 1 ]] && grep -qx "$1" <<<"$secrets"
@@ -90,17 +92,19 @@ if [[ $release_found == 1 ]]; then
     "what-to-run_${version}_darwin_amd64.tar.gz" \
     "what-to-run_${version}_darwin_arm64.tar.gz" \
     "what-to-run_${version}_linux_amd64.deb" \
+    "what-to-run_${version}_linux_amd64.rpm" \
     "what-to-run_${version}_linux_amd64.tar.gz" \
     "what-to-run_${version}_linux_arm64.deb" \
+    "what-to-run_${version}_linux_arm64.rpm" \
     "what-to-run_${version}_linux_arm64.tar.gz" \
     "what-to-run_${version}_windows_amd64.zip" \
     "what-to-run_${version}_windows_arm64.zip" | sort)
   actual=$(gh release view "$tag" --repo "$repo" \
     --json assets --jq '.assets[].name' 2>/dev/null | sort)
   if [[ $actual == "$expected" ]]; then
-    ok "release carries exactly the 9 expected assets"
+    ok "release carries exactly the 11 expected assets"
   else
-    bad "release assets differ from the expected 9"
+    bad "release assets differ from the expected 11"
     while IFS= read -r name; do
       [[ -z $name ]] && continue
       grep -qxF "$name" <<<"$actual" ||
@@ -128,14 +132,14 @@ else
   bad "cannot read Formula/what-to-run.rb from $tap_repo"
 fi
 
-# --- apt repository -------------------------------------------------------
+# --- apt and RPM repositories ---------------------------------------------
 
-apt_expected=1
+repositories_expected=1
 if [[ $known_secrets == 1 ]] && ! has_secret APT_GPG_PRIVATE_KEY; then
-  apt_expected=0
-  skip "apt repository: APT_GPG_PRIVATE_KEY is not configured"
+  repositories_expected=0
+  skip "apt and RPM repositories: APT_GPG_PRIVATE_KEY is not configured"
 fi
-if [[ $apt_expected == 1 ]]; then
+if [[ $repositories_expected == 1 ]]; then
   for arch in amd64 arm64; do
     packages=$(gh api \
       "repos/$repo/contents/dists/stable/main/binary-$arch/Packages?ref=gh-pages" \
@@ -157,6 +161,32 @@ if [[ $apt_expected == 1 ]]; then
       fi
     fi
   done
+
+  if ! metadata=$(gh api \
+    "repos/$repo/contents/rpm/repodata/primary.xml.gz?ref=gh-pages" \
+    -H "Accept: application/vnd.github.raw" 2>/dev/null | gzip -dc); then
+    metadata=""
+  fi
+  if [[ -z $metadata ]]; then
+    if [[ $known_secrets == 1 ]]; then
+      bad "cannot read the RPM metadata from gh-pages"
+    else
+      warn "cannot read the RPM metadata from gh-pages"
+    fi
+  else
+    for arch in x86_64 aarch64; do
+      if grep -q "<arch>$arch</arch>" <<<"$metadata" &&
+        grep -q "ver=\"$version\"" <<<"$metadata"; then
+        ok "RPM metadata carries $version for $arch"
+      else
+        if [[ $known_secrets == 1 ]]; then
+          bad "RPM metadata does not carry $version for $arch"
+        else
+          warn "RPM metadata does not carry $version for $arch"
+        fi
+      fi
+    done
+  fi
 fi
 
 # --- AUR ------------------------------------------------------------------

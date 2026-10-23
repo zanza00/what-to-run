@@ -55,6 +55,19 @@ var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 // an indented continuation is not mistaken for a recipe body. A leading "#!"
 // is a shebang, not a doc comment. Lines inside recipe bodies are ignored.
 //
+// A recipe header may continue on the next line: a column-0 line that ends
+// with a backslash, after any trailing spaces or tabs, joins the following
+// line — indented or not — with a single space, and several continuations
+// join in turn, so "foo \" and "  bar:" declare the recipe "foo bar". An
+// indented line never continues, so a shell line ending with a backslash
+// inside a recipe body stays a body line and does not swallow the recipe
+// below it. A "#" comment is never continued either, whether it opens the line
+// or follows a header ("build: # note \"): just keeps that backslash as
+// comment text, so the recipe below it stays a recipe. The same goes for a
+// backslash left inside an unterminated quoted string. A continued setting or
+// assignment line is skipped like the one-line form, and a continuation the
+// file never closes is dropped.
+//
 // Settings, aliases, exports, imports and modules are skipped, as are
 // top-level variable assignments: the assignment rule is anchored on the name
 // and the ":=", so a recipe header with a trailing comment or a parameter
@@ -82,8 +95,16 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 	}
 
 	first := true
-	for line := range strings.Lines(string(data)) {
-		line = strings.TrimRight(line, "\r\n")
+	lines := slices.Collect(strings.Lines(string(data)))
+	for i := 0; i < len(lines); i++ {
+		line, next, ok := justLogicalLine(lines, i)
+		if !ok {
+			// A continuation the file never closes cannot be read: ignore it,
+			// with the attributes buffered above it.
+			reset()
+			break
+		}
+		i = next - 1
 
 		// A shebang describes the interpreter, not the recipe below it.
 		if first {
@@ -168,6 +189,83 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 	}
 	slices.SortFunc(tasks, func(a, b Task) int { return strings.Compare(a.Name, b.Name) })
 	return tasks, nil
+}
+
+// justLogicalLine returns the logical line that starts at lines[i] and the
+// index of the first line after it. A line that starts at column 0 and ends
+// with a backslash, after any trailing spaces or tabs, continues on the next
+// line, which may be indented: just joins the two with a space, and several
+// continuations join in turn.
+//
+// Only a column-0 line continues: an indented line is a recipe body line, and
+// a shell line ending with a backslash there must stay one instead of
+// swallowing the recipe below it. A "#" comment does not continue either,
+// since just keeps the backslash in the comment text — whether the "#" opens
+// the line or follows a header, as in "build: # note \". So does a backslash
+// left inside an unterminated quoted string, which is text rather than a
+// continuation. ok is false when the continuation runs off the end of the
+// file.
+func justLogicalLine(lines []string, i int) (line string, next int, ok bool) {
+	line = strings.TrimRight(lines[i], "\r\n")
+	next = i + 1
+	if line == "" || line[0] == ' ' || line[0] == '\t' || line[0] == '#' {
+		return line, next, true
+	}
+	for {
+		text := strings.TrimRight(line, " \t")
+		if !justContinues(text) {
+			return line, next, true
+		}
+		if next >= len(lines) {
+			return "", next, false
+		}
+		left := strings.TrimRight(text[:len(text)-1], " \t")
+		cont := strings.TrimSpace(strings.TrimRight(lines[next], "\r\n"))
+		next++
+		// A line carrying nothing but the backslash leaves the continuation
+		// at column 0, as just reads it.
+		if left == "" {
+			line = cont
+		} else {
+			line = left + " " + cont
+		}
+		// The joined line may itself continue; a "#" or an empty continuation
+		// ends the join.
+		if line == "" || line[0] == '#' {
+			return line, next, true
+		}
+	}
+}
+
+// justContinues reports whether the right-trimmed line ends with a backslash
+// that continues it on the next line. The backslash counts only outside a
+// quoted string and outside a "#" comment: just keeps the trailing backslash
+// of "build: # note \" as comment text, and the scanner cannot tell an
+// unterminated string from a continuation either, so it leaves both alone.
+// Quoted strings and escapes are read like justHeaderColon reads them.
+func justContinues(text string) bool {
+	if !strings.HasSuffix(text, `\`) {
+		return false
+	}
+	var quote byte
+	for i := 0; i < len(text)-1; i++ {
+		c := text[i]
+		switch {
+		case quote != 0:
+			if c == '\\' {
+				i++ // skip the escaped byte
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '#':
+			return false
+		}
+	}
+	return quote == 0
 }
 
 // isJustSetting reports whether the line declares a setting, an assignment, an

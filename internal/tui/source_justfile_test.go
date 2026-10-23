@@ -393,6 +393,131 @@ build:
 			},
 		},
 		{
+			name: "a continued recipe header is listed under its first word",
+			in: `foo \
+  bar:
+    echo foo
+`,
+			want: []Task{
+				{Name: "foo", Desc: "", Args: []string{"just", "foo"}},
+			},
+		},
+		{
+			name: "two continuations join into one recipe header",
+			in: `foo \
+  bar \
+  baz:
+    echo foo
+`,
+			want: []Task{
+				{Name: "foo", Desc: "", Args: []string{"just", "foo"}},
+			},
+		},
+		{
+			name: "a continued header keeps its parameters and dependencies",
+			in: `foo \
+  bar="1": dep \
+  other
+    echo foo
+
+dep:
+    echo dep
+
+other:
+    echo other
+`,
+			want: []Task{
+				{Name: "dep", Desc: "", Args: []string{"just", "dep"}},
+				{Name: "foo", Desc: "", Args: []string{"just", "foo"}},
+				{Name: "other", Desc: "", Args: []string{"just", "other"}},
+			},
+		},
+		{
+			name: "a continued header keeps the doc comment and the attributes above it",
+			in: `# Build the app
+foo \
+  bar:
+    echo foo
+
+[private]
+secret \
+  name:
+    echo secret
+
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "foo", Desc: "Build the app", Args: []string{"just", "foo"}},
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "a continued comment is not continued and keeps its recipe",
+			in: `# Build the app \
+foo \
+  bar:
+    echo foo
+`,
+			want: []Task{
+				{Name: "foo", Desc: `Build the app \`, Args: []string{"just", "foo"}},
+			},
+		},
+		{
+			name: "a header inline comment ending with a backslash keeps the next recipe",
+			in: `build: # note \
+test:
+    echo test
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				{Name: "test", Desc: "", Args: []string{"just", "test"}},
+			},
+		},
+		{
+			name: "a trailing backslash inside a quoted parameter default does not continue",
+			in: `build args="a \
+other:
+    echo other
+`,
+			want: []Task{
+				{Name: "other", Desc: "", Args: []string{"just", "other"}},
+			},
+		},
+		{
+			name: "a continued setting or assignment is still skipped",
+			in: `version := "1.0" + \
+  "-dev"
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a body line ending with a backslash does not consume the next recipe",
+			in: `build:
+    echo one \
+test:
+    echo test
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				{Name: "test", Desc: "", Args: []string{"just", "test"}},
+			},
+		},
+		{
+			name: "an unclosed continuation at the end of the file is ignored",
+			in: `build:
+    echo build
+
+foo \`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
 			name: "a doc attribute does not leak onto the next recipe",
 			in: `[doc("Only the first")]
 first:

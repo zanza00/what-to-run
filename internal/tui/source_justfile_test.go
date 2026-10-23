@@ -208,6 +208,98 @@ visible:
 			},
 		},
 		{
+			name: "a private attribute split across two lines hides the recipe",
+			in: `[private,
+ group("g")]
+secret:
+    echo secret
+
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "a multi-line doc attribute hides its recipe and does not leak the doc",
+			in: `[doc("multi-line doc"),
+ private]
+secret:
+    echo secret
+
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "an attribute list split across three lines lists the recipe with its doc",
+			in: `[doc("x"),
+ group("g"),
+ no-cd]
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "x", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a blank line inside an attribute list keeps the list and the comment above it",
+			in: `# doc
+[group("a"),
+
+ group("b")]
+build:
+    echo b
+`,
+			want: []Task{
+				{Name: "build", Desc: "doc", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a closing bracket inside a doc string does not close the attribute list",
+			in: `[doc("a ] b"),
+ private]
+secret:
+    echo secret
+
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "a multi-line private recipe does not hide the next recipe without a blank line",
+			in: `[private,
+ group("g")]
+secret:
+    echo secret
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "an unclosed attribute at the end of the file is ignored",
+			in: `build:
+    echo build
+
+[private,
+ group("g")
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
 			name: "a recipe with an underscore prefix is hidden",
 			in: `_hidden:
     echo hidden

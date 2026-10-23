@@ -45,12 +45,15 @@ var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 // The parser is line-based and forgiving. It recognizes a recipe header at
 // column 0, keeps the last contiguous "#" comment line above it or its
 // "[doc(...)]" attribute as the description, and hides private recipes: the
-// "_" prefix and the "[private]" attribute. An attribute line may carry a
+// "_" prefix and the "[private]" attribute. An attribute list may carry a
 // trailing "#" comment and may list several attributes separated by commas,
 // as in [private, group("g")] # why: the scanner ignores commas and "#"
 // inside a quoted doc string, reads "private" and "doc(...)", and leaves any
-// other attribute alone. A leading "#!" is a shebang, not a doc comment.
-// Lines inside recipe bodies are ignored.
+// other attribute alone. The list may also span several lines, as just allows
+// ([private, on one line and group("g")] on the next, indented): its lines,
+// blank ones included, are buffered until the "]" outside a quoted string, so
+// an indented continuation is not mistaken for a recipe body. A leading "#!"
+// is a shebang, not a doc comment. Lines inside recipe bodies are ignored.
 //
 // Settings, aliases, exports, imports and modules are skipped, as are
 // top-level variable assignments: the assignment rule is anchored on the name
@@ -66,15 +69,16 @@ var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 // cannot tell from a real one.
 func parseJustfile(_ string, data []byte) ([]Task, error) {
 	var (
-		tasks   []Task
-		seen    = map[string]bool{}
-		comment string // last contiguous "#" line
-		docAttr string // "[doc(...)]" attribute
-		private bool   // "[private]" attribute
+		tasks     []Task
+		seen      = map[string]bool{}
+		comment   string   // last contiguous "#" line
+		docAttr   string   // "[doc(...)]" attribute
+		private   bool     // "[private]" attribute
+		attrParts []string // lines of an attribute list not closed yet
 	)
 
 	reset := func() {
-		comment, docAttr, private = "", "", false
+		comment, docAttr, private, attrParts = "", "", false, nil
 	}
 
 	first := true
@@ -89,6 +93,11 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 			}
 		}
 		if strings.TrimSpace(line) == "" {
+			// A blank line inside an attribute list belongs to the list: just
+			// keeps the list, and the comment block above it, across it.
+			if len(attrParts) > 0 {
+				continue
+			}
 			reset()
 			continue
 		}
@@ -96,8 +105,19 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 			comment = strings.TrimSpace(rest)
 			continue
 		}
-		if strings.HasPrefix(line, "[") {
-			doc, hasDoc, isPrivate := justAttributes(line)
+		// An attribute list opens at column 0 and may span several lines: just
+		// closes it at the "]" outside a quoted string, and the continuation
+		// lines may be indented, so they must not be read as a recipe body. A
+		// list the file never closes is dropped.
+		if line[0] == '[' || len(attrParts) > 0 {
+			attrParts = append(attrParts, stripJustComment(line))
+			attrs := strings.Join(attrParts, " ")
+			end := justAttributeEnd(attrs)
+			if end < 0 {
+				continue
+			}
+			attrParts = nil
+			doc, hasDoc, isPrivate := justAttributes(attrs[:end+1])
 			if hasDoc {
 				docAttr = doc
 			}
@@ -199,17 +219,18 @@ func justHeaderColon(line string) bool {
 	return false
 }
 
-// justAttributes parses a "[...]" attribute line and returns the doc text, if
+// justAttributes parses a "[...]" attribute list and returns the doc text, if
 // the list carries a "doc(...)", and whether it marks the recipe private. The
-// line may have a trailing "#" comment and several comma-separated attributes,
-// as in [private, group("g")] # why; commas and "#" inside a quoted doc string
-// are not separators.
-func justAttributes(line string) (doc string, hasDoc, private bool) {
-	attrs, ok := strings.CutPrefix(strings.TrimSpace(stripJustComment(line)), "[")
+// text may be a single line or the lines of a multi-line list that
+// parseJustfile joined with spaces; it may carry a trailing "#" comment and
+// several comma-separated attributes, as in [private, group("g")] # why;
+// commas and "#" inside a quoted doc string are not separators.
+func justAttributes(list string) (doc string, hasDoc, private bool) {
+	attrs, ok := strings.CutPrefix(strings.TrimSpace(stripJustComment(list)), "[")
 	if !ok {
 		return "", false, false
 	}
-	attrs, ok = strings.CutSuffix(attrs, "]")
+	attrs, ok = strings.CutSuffix(strings.TrimSpace(attrs), "]")
 	if !ok {
 		return "", false, false
 	}
@@ -226,6 +247,31 @@ func justAttributes(line string) (doc string, hasDoc, private bool) {
 		}
 	}
 	return doc, hasDoc, private
+}
+
+// justAttributeEnd returns the index of the "]" that closes an attribute list,
+// or -1 while the list is still open. A "]" inside a quoted string does not
+// close it, so a bracket in a doc string is read like any other character.
+func justAttributeEnd(text string) int {
+	var quote byte
+	for i := 0; i < len(text); i++ {
+		c := text[i]
+		switch {
+		case quote != 0:
+			if c == '\\' {
+				i++ // skip the escaped byte
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == ']':
+			return i
+		}
+	}
+	return -1
 }
 
 // stripJustComment drops a trailing "#" comment from an attribute line,

@@ -23,6 +23,16 @@ with `--inline` (the widget flow from `init zsh` and `init bash`), propagating
 the task's exit code. In inline mode `tab` instead places the command line in
 the shell prompt without running it.
 
+## Pull requests
+
+- **Merges are manual.** Only the maintainer merges a pull request, by hand.
+  Agents never run `gh pr merge`, never push to `main`, and open PRs as drafts;
+  do not mark a PR ready unless the user asks in that turn. Stop for review.
+- **Complex work uses stacked PRs.** Split a multi-part change into a chain of
+  small PRs, each based on the previous, and open them as drafts. After the
+  maintainer merges a parent, rebase/retarget the next onto `main`; never merge
+  a layer.
+
 ## Go development
 
 Before any Go coding, review, debugging, troubleshooting, or setup task, load the `golang-how-to` skill first — it routes to whichever other Go skills the task needs.

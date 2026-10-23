@@ -12,6 +12,7 @@
 //	package.json   npm/pnpm/yarn/bun scripts
 //	Makefile       make targets (also makefile, GNUmakefile)
 //	Taskfile.yml   go-task tasks (also taskfile.yml, Taskfile.dist.yml)
+//	justfile       just recipes (also Justfile, .justfile)
 //	Makefile.toml  cargo-make tasks
 //	.cargo/config  cargo aliases (also .cargo/config.toml)
 //	devbox.json    devbox shell scripts
@@ -57,6 +58,7 @@ func defaultSources(cfg config) []source {
 		packageJSONSource(cfg.PackageManager),
 		makeSource(),
 		taskfileSource(),
+		justfileSource(),
 		cargoMakeSource(),
 		cargoAliasSource(),
 		devboxSource(),
@@ -146,13 +148,13 @@ func rcTasks(cfg config, dir string) []Task {
 
 // discoverTasks scans dir for the tasks of the rc file and the built-in
 // sources, in display order: rc tasks first, then package.json, Makefile,
-// Taskfile.yml, Makefile.toml, .cargo/config, devbox.json, composer.json,
-// deno.json/deno.jsonc and mise.toml/.mise.toml. Package scripts, Taskfile
-// tasks, cargo-make tasks, cargo aliases, devbox scripts, Composer scripts,
-// Deno tasks and mise tasks are sorted by name; Makefile targets keep the
-// order they appear in the file. A source that fails to parse is reported in
-// errs and skipped (a disabled source is not read at all), and rc tasks shadow
-// same-named tasks of the built-in sources.
+// Taskfile.yml, justfile, Makefile.toml, .cargo/config, devbox.json,
+// composer.json, deno.json/deno.jsonc and mise.toml/.mise.toml. Package
+// scripts, Taskfile tasks, just recipes, cargo-make tasks, cargo aliases,
+// devbox scripts, Composer scripts, Deno tasks and mise tasks are sorted by
+// name; Makefile targets keep the order they appear in the file. A source that
+// fails to parse is reported in errs and skipped (a disabled source is not read
+// at all), and rc tasks shadow same-named tasks of the built-in sources.
 func discoverTasks(dir string, cfg config) ([]Task, []error) {
 	sources, errs := enabledSources(defaultSources(cfg), cfg.Disable)
 

@@ -49,8 +49,9 @@ type config struct {
 	Theme string `toml:"theme"`
 
 	// Disable names the sources to skip, by the file names they look for
-	// (any of "package.json", "Makefile", "Taskfile.yml", "Makefile.toml",
-	// "devbox.json", "composer.json", "deno.json", "mise.toml", and so on).
+	// (any of "package.json", "Makefile", "Taskfile.yml", "justfile",
+	// "Makefile.toml", "devbox.json", "composer.json", "deno.json",
+	// "mise.toml", and so on).
 	Disable []string `toml:"disable"`
 
 	// Tasks are custom tasks, shown above the discovered ones.

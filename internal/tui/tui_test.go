@@ -647,6 +647,7 @@ func TestViewNoTasksShowsPersistentEmptyState(t *testing.T) {
 		"package.json",
 		"Makefile.toml",
 		"Taskfile.yml",
+		"justfile",
 		".cargo/config.toml",
 		"devbox.json",
 		"composer.json",

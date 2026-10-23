@@ -8,6 +8,7 @@ project. Supported task files:
 - `Taskfile.yml` and the other go-task default names (`taskfile.yml`,
   `Taskfile.yaml`, `taskfile.yaml`, `Taskfile.dist.yml`, `taskfile.dist.yml`,
   `Taskfile.dist.yaml`, `taskfile.dist.yaml`)
+- `justfile`, `Justfile`, `.justfile`
 - `Makefile.toml`
 - `.cargo/config`, `.cargo/config.toml`
 - `devbox.json`

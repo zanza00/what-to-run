@@ -28,7 +28,7 @@ theme = "dracula"
 package_manager = "npm"
 
 # Sources disabled globally, by any of their file names (package.json,
-# Makefile, Taskfile.yml, Makefile.toml, .cargo/config, devbox.json,
+# Makefile, Taskfile.yml, justfile, Makefile.toml, .cargo/config, devbox.json,
 # composer.json, deno.json, mise.toml).
 disable = ["Makefile.toml"]
 
@@ -83,6 +83,7 @@ only warns and does not hide the tasks of the other sources.
 | `package.json` | `scripts` | `<package-manager> run <name>` |
 | `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
 | `Taskfile.yml`, `taskfile.yml`, `Taskfile.yaml`, `taskfile.yaml`, `Taskfile.dist.yml`, `taskfile.dist.yml`, `Taskfile.dist.yaml`, `taskfile.dist.yaml` | `tasks` (internal tasks hidden) | `task <name>` |
+| `justfile`, `Justfile`, `.justfile` | Recipes (private recipes hidden) | `just <name>` |
 | `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
 | `.cargo/config`, `.cargo/config.toml` | `[alias]` | `cargo <name>` |
 | `devbox.json` | `shell.scripts` | `devbox run <name>` |

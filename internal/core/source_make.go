@@ -1,5 +1,5 @@
 // The Makefile source: make targets.
-package tui
+package core
 
 import (
 	"regexp"

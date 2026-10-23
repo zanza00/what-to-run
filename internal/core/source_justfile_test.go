@@ -1,4 +1,4 @@
-package tui
+package core
 
 import (
 	"reflect"
@@ -785,10 +785,10 @@ func TestDiscoverTasksJustfileOrder(t *testing.T) {
 	writeFile(t, dir, "Taskfile.yml", "version: '3'\ntasks:\n  build:\n    desc: Build the app\n")
 	writeFile(t, dir, "justfile", "test:\n    echo test\n")
 
-	cfg := config{Tasks: []configTask{{Name: "deploy", Command: "./deploy.sh"}}}
-	tasks, errs := discoverTasks(dir, cfg)
+	settings := Settings{Tasks: []RCTask{{Name: "deploy", Command: "./deploy.sh"}}}
+	tasks, errs := Discover(dir, settings)
 	if len(errs) != 0 {
-		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
 
 	var got []string
@@ -809,12 +809,12 @@ func TestDiscoverTasksOddJustfileKeepsSiblings(t *testing.T) {
 	writeFile(t, dir, "justfile", "this is not a justfile %%%\n    indented?\n")
 	writeFile(t, dir, "package.json", `{"scripts": {"dev": "vite"}}`)
 
-	tasks, errs := discoverTasks(dir, config{})
+	tasks, errs := Discover(dir, Settings{})
 	if len(errs) != 0 {
-		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
 	want := []Task{{Source: "package.json", Name: "dev", Desc: "vite", Args: []string{"npm", "run", "dev"}}}
 	if !reflect.DeepEqual(tasks, want) {
-		t.Errorf("discoverTasks() = %+v, want %+v", tasks, want)
+		t.Errorf("Discover() = %+v, want %+v", tasks, want)
 	}
 }

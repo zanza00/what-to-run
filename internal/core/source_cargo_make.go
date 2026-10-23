@@ -1,5 +1,5 @@
 // The Makefile.toml source: cargo-make tasks.
-package tui
+package core
 
 import (
 	"maps"

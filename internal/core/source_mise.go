@@ -1,5 +1,5 @@
 // The mise.toml source: mise tasks.
-package tui
+package core
 
 import (
 	"bytes"

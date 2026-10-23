@@ -1,5 +1,5 @@
 // The Taskfile.yml source: go-task tasks.
-package tui
+package core
 
 import (
 	"bytes"

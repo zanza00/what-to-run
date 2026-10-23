@@ -1,5 +1,5 @@
 // The deno.json source: Deno tasks.
-package tui
+package core
 
 import (
 	"bytes"

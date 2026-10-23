@@ -1,5 +1,5 @@
 // The package.json source: npm/pnpm/yarn/bun scripts.
-package tui
+package core
 
 import (
 	"encoding/json"
@@ -44,9 +44,9 @@ func parsePackageScripts(dir string, data []byte, runnerOverride string) ([]Task
 	return tasks, nil
 }
 
-// packageManagerName returns the bare name of a package manager declaration
+// PackageManagerName returns the bare name of a package manager declaration
 // ("bun@1.2.3" or just "bun") when it names one of the supported managers.
-func packageManagerName(declared string) (string, bool) {
+func PackageManagerName(declared string) (string, bool) {
 	name := declared
 	if i := strings.IndexByte(declared, '@'); i > 0 {
 		name = declared[:i]
@@ -63,7 +63,7 @@ func packageManagerName(declared string) (string, bool) {
 // then the lock file in use, then npm.
 func packageRunner(dir, declared, override string) []string {
 	for _, name := range []string{override, declared} {
-		if pm, ok := packageManagerName(name); ok {
+		if pm, ok := PackageManagerName(name); ok {
 			return []string{pm, "run"}
 		}
 	}

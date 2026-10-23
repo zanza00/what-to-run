@@ -1,25 +1,11 @@
-package tui
+package core
 
 import (
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 )
-
-// writeFile writes a fixture file inside dir, creating parent directories for
-// nested paths like .cargo/config.toml.
-func writeFile(t *testing.T, dir, name, content string) {
-	t.Helper()
-	path := filepath.Join(dir, name)
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
 
 func TestDiscoverPackageScripts(t *testing.T) {
 	tests := []struct {
@@ -266,9 +252,9 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 	writeFile(t, dir, "Makefile.toml", "[tasks.fmt]\ndescription = \"Format\"\n")
 	writeFile(t, dir, ".cargo/config.toml", "[alias]\nlint = \"clippy\"\n")
 
-	tasks, errs := discoverTasks(dir, config{})
+	tasks, errs := Discover(dir, Settings{})
 	if len(errs) != 0 {
-		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
 
 	var sources []string
@@ -288,10 +274,10 @@ func TestDiscoverTasksTaskfileOrder(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"scripts": {"dev": "vite"}}`)
 	writeFile(t, dir, "Taskfile.yml", "version: '3'\ntasks:\n  build:\n    desc: Build the app\n")
 
-	cfg := config{Tasks: []configTask{{Name: "deploy", Command: "./deploy.sh"}}}
-	tasks, errs := discoverTasks(dir, cfg)
+	settings := Settings{Tasks: []RCTask{{Name: "deploy", Command: "./deploy.sh"}}}
+	tasks, errs := Discover(dir, settings)
 	if len(errs) != 0 {
-		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
 
 	var got []string
@@ -309,12 +295,12 @@ func TestDiscoverTasksSkipsBrokenSource(t *testing.T) {
 	writeFile(t, dir, "package.json", `not json`)
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := discoverTasks(dir, config{})
+	tasks, errs := Discover(dir, Settings{})
 	if len(errs) != 1 {
-		t.Fatalf("discoverTasks() errors = %v, want exactly one", errs)
+		t.Fatalf("Discover() errors = %v, want exactly one", errs)
 	}
 	if len(tasks) != 1 || tasks[0].Name != "build" {
-		t.Errorf("discoverTasks() tasks = %+v, want the Makefile build task", tasks)
+		t.Errorf("Discover() tasks = %+v, want the Makefile build task", tasks)
 	}
 }
 
@@ -324,14 +310,14 @@ func TestDiscoverTasksRCTasksFirst(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
 
-	cfg := config{Tasks: []configTask{
+	settings := Settings{Tasks: []RCTask{
 		{Name: "deploy", Command: "scripts/deploy.sh --prod", Description: "Deploy to production", Cwd: "ops"},
 		{Name: "status", Command: "git status"},
 	}}
 
-	tasks, errs := discoverTasks(dir, cfg)
+	tasks, errs := Discover(dir, settings)
 	if len(errs) != 0 {
-		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
 	want := []Task{
 		{Source: "rc", Name: "deploy", Desc: "Deploy to production", Args: []string{"sh", "-c", "scripts/deploy.sh --prod"}, Dir: filepath.Join(dir, "ops")},
@@ -339,7 +325,7 @@ func TestDiscoverTasksRCTasksFirst(t *testing.T) {
 		{Source: "package.json", Name: "build", Desc: "go build ./...", Args: []string{"npm", "run", "build"}},
 	}
 	if !reflect.DeepEqual(tasks, want) {
-		t.Errorf("discoverTasks() = %+v, want %+v", tasks, want)
+		t.Errorf("Discover() = %+v, want %+v", tasks, want)
 	}
 }
 
@@ -349,13 +335,13 @@ func TestDiscoverTasksRCShadowsBuiltin(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
 
-	cfg := config{Tasks: []configTask{{Name: "build", Command: "make -C tools build"}}}
-	tasks, errs := discoverTasks(dir, cfg)
+	settings := Settings{Tasks: []RCTask{{Name: "build", Command: "make -C tools build"}}}
+	tasks, errs := Discover(dir, settings)
 	if len(errs) != 0 {
-		t.Fatalf("discoverTasks() errors = %v, want none", errs)
+		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
 	if len(tasks) != 1 || tasks[0].Source != "rc" || tasks[0].Name != "build" {
-		t.Errorf("discoverTasks() = %+v, want just the rc build task", tasks)
+		t.Errorf("Discover() = %+v, want just the rc build task", tasks)
 	}
 }
 
@@ -366,12 +352,12 @@ func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 	writeFile(t, dir, "Makefile.toml", "[tasks\n") // broken, but disabled
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := discoverTasks(dir, config{Disable: []string{"Makefile.toml"}})
+	tasks, errs := Discover(dir, Settings{Disable: []string{"Makefile.toml"}})
 	if len(errs) != 0 {
-		t.Fatalf("discoverTasks() errors = %v, want none from the disabled source", errs)
+		t.Fatalf("Discover() errors = %v, want none from the disabled source", errs)
 	}
 	if len(tasks) != 1 || tasks[0].Name != "build" {
-		t.Errorf("discoverTasks() = %+v, want the Makefile build task", tasks)
+		t.Errorf("Discover() = %+v, want the Makefile build task", tasks)
 	}
 }
 
@@ -381,46 +367,11 @@ func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := discoverTasks(dir, config{Disable: []string{"cargo"}})
+	tasks, errs := Discover(dir, Settings{Disable: []string{"cargo"}})
 	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "cargo") {
-		t.Errorf("discoverTasks() errors = %v, want one warning about %q", errs, "cargo")
+		t.Errorf("Discover() errors = %v, want one warning about %q", errs, "cargo")
 	}
 	if len(tasks) != 1 || tasks[0].Name != "build" {
-		t.Errorf("discoverTasks() = %+v, want the Makefile build task", tasks)
-	}
-}
-
-func TestTaskCommand(t *testing.T) {
-	task := Task{Args: []string{"make", "build", "GOFLAGS=-v"}, Dir: "ops"}
-
-	cmd := task.command()
-	if got, want := cmd.Args, []string{"make", "build", "GOFLAGS=-v"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("command().Args = %v, want %v", got, want)
-	}
-	if got := cmd.Dir; got != "ops" {
-		t.Errorf("command().Dir = %q, want %q", got, "ops")
-	}
-}
-
-func TestCommandLine(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{"plain words pass through", []string{"make", "test"}, "make test"},
-		{"path and flag characters pass through", []string{"./bin/tool", "--flag=x,y"}, "./bin/tool --flag=x,y"},
-		{"argument with spaces is quoted", []string{"echo", "a b"}, "echo 'a b'"},
-		{"single quotes are escaped", []string{"echo", "it's"}, `echo 'it'\''s'`},
-		{"empty argument", []string{"cmd", ""}, "cmd ''"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			task := Task{Source: "rc", Name: "t", Args: tt.args}
-			if got := task.commandLine(); got != tt.want {
-				t.Errorf("commandLine() = %q, want %q", got, tt.want)
-			}
-		})
+		t.Errorf("Discover() = %+v, want the Makefile build task", tasks)
 	}
 }

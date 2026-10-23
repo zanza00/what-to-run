@@ -1,5 +1,6 @@
-// The Task model: a script discovered in a project.
-package tui
+// Package core is the task domain: the model, the source registry and the
+// parsers. It has no dependency on the terminal UI.
+package core
 
 import (
 	"os/exec"
@@ -17,17 +18,16 @@ type Task struct {
 	Dir    string   // working directory; "" runs in the picker's directory
 }
 
-// command returns the process that runs the task.
-func (t Task) command() *exec.Cmd {
+// Command returns the process that runs the task.
+func (t Task) Command() *exec.Cmd {
 	cmd := exec.Command(t.Args[0], t.Args[1:]...)
 	cmd.Dir = t.Dir
 	return cmd
 }
 
-// commandLine returns the task's command as a shell line, ready to be placed
-// in the shell prompt by the inline widget (see shell.ZshInit and
-// shell.BashInit).
-func (t Task) commandLine() string {
+// CommandLine returns the task's command as a shell line, ready to be placed
+// in the shell prompt by the inline widget (see internal/shell).
+func (t Task) CommandLine() string {
 	parts := make([]string, len(t.Args))
 	for i, arg := range t.Args {
 		parts[i] = quoteArg(arg)

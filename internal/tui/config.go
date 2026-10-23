@@ -35,6 +35,7 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+	"github.com/zanza00/what-to-run/internal/core"
 )
 
 // config is the merged content of the rc files.
@@ -236,7 +237,7 @@ func decodePackageManager(val any, disp, scope string, errs *[]error) (string, b
 	if s == "" {
 		return "", true
 	}
-	name, valid := packageManagerName(s)
+	name, valid := core.PackageManagerName(s)
 	if !valid {
 		*errs = append(*errs, fmt.Errorf("rc file %s: %sunknown package_manager %q", disp, scope, s))
 		return "", false

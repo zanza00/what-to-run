@@ -1,5 +1,5 @@
 // The justfile source: just recipes.
-package tui
+package core
 
 import (
 	"regexp"

@@ -65,7 +65,7 @@ current directory (for example `../../justfile`).
 | `package.json` | `scripts` | `<package-manager> run <name>` |
 | `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
 | `Taskfile.yml` and the other go-task default names | `tasks` and local `includes` (internal tasks hidden) | `task <name>` |
-| `justfile`, `Justfile`, `.justfile` | Recipes and local `import`s (private recipes hidden) | `just <name>` |
+| `justfile`, `Justfile`, `.justfile` | Recipes, local `import`s and modules (private recipes hidden) | `just <name>` |
 | `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
 | `.cargo/config`, `.cargo/config.toml` | `[alias]` (chains resolved for the description) | `cargo <name>` |
 | `devbox.json` | `shell.scripts` | `devbox run <name>` |
@@ -92,10 +92,13 @@ current directory (for example `../../justfile`).
   template as written.
 - For justfiles, local `import`s are followed recursively, relative to the
   importing file: an imported recipe keeps the root file's name and command, so
-  the picker still runs `just <name>`. A missing, unreadable or unparsable
-  import is skipped, and an import cycle terminates instead of recursing. When
-  a name is defined more than once, the shallowest file wins and, at equal
-  depth, the earlier import. Modules (`mod`) are not followed and aliases are
+  the picker still runs `just <name>`. Modules (`mod`) are followed too: the
+  source is `name.just`, `name/mod.just` or `name/justfile`/`name/.justfile` in
+  any capitalization, an explicit quoted path may name the file or its
+  directory, and the module's recipes are listed as `name::recipe`, chained for
+  nested modules. A missing, unreadable or unparsable file is skipped, and a
+  cycle terminates instead of recursing. When a name is defined more than once,
+  the shallowest file wins and, at equal depth, the earlier include. Aliases are
   not listed as extra rows. Private recipes are hidden (a `_` prefix or
   `[private]`); `@` only marks a silent recipe, which is still listed. Recipe
   parameters do not appear in the command line: the picker runs `just <name>`

@@ -16,3 +16,14 @@ func (osFiles) Exists(name string) bool {
 	_, err := os.Stat(name)
 	return err == nil
 }
+func (osFiles) ReadDir(name string) ([]core.DirEntry, error) {
+	entries, err := os.ReadDir(name)
+	if err != nil {
+		return nil, err
+	}
+	directories := make([]core.DirEntry, len(entries))
+	for i, entry := range entries {
+		directories[i] = entry
+	}
+	return directories, nil
+}

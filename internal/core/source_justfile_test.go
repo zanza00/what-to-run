@@ -1035,6 +1035,125 @@ func TestParseJustfileImports(t *testing.T) {
 	}
 }
 
+// TestParseJustfileModules covers how modules join the list: their recipes are
+// namespaced with "name::", the source is looked up where just looks for it,
+// and nested modules chain the namespace.
+func TestParseJustfileModules(t *testing.T) {
+	tests := []struct {
+		name string
+		main string
+		tree map[string]string
+		want []Task
+	}{
+		{
+			name: "mod name loads name.just",
+			main: "mod tools\n\nroot:\n    echo root\n",
+			tree: map[string]string{
+				"tools.just": "# Format the code\nfmt:\n    echo fmt\n",
+			},
+			want: []Task{
+				{Name: "root", Args: []string{"just", "root"}},
+				{Name: "tools::fmt", Desc: "Format the code", Args: []string{"just", "tools::fmt"}},
+			},
+		},
+		{
+			name: "mod name loads name/mod.just",
+			main: "mod tools\n",
+			tree: map[string]string{
+				"tools/mod.just": "fmt:\n    echo fmt\n",
+			},
+			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+		},
+		{
+			name: "mod name loads name/justfile in any capitalization",
+			main: "mod tools\n",
+			tree: map[string]string{
+				"tools/JustFile": "fmt:\n    echo fmt\n",
+			},
+			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+		},
+		{
+			name: "an explicit path reads a file",
+			main: "mod tools \"lib/tools.just\"\n",
+			tree: map[string]string{
+				"lib/tools.just": "fmt:\n    echo fmt\n",
+			},
+			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+		},
+		{
+			name: "an explicit path reads a directory",
+			main: "mod tools \"lib/tools\"\n",
+			tree: map[string]string{
+				"lib/tools/mod.just": "fmt:\n    echo fmt\n",
+			},
+			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+		},
+		{
+			name: "missing modules are skipped, optional or not",
+			main: "mod missing\nmod? also-missing\n\nroot:\n    echo root\n",
+			want: []Task{{Name: "root", Args: []string{"just", "root"}}},
+		},
+		{
+			name: "nested modules chain the namespace",
+			main: "mod outer\n",
+			tree: map[string]string{
+				"outer/mod.just":   "mod inner\n\nouter-task:\n    echo outer\n",
+				"outer/inner.just": "inner-task:\n    echo inner\n",
+			},
+			want: []Task{
+				{Name: "outer::inner::inner-task", Args: []string{"just", "outer::inner::inner-task"}},
+				{Name: "outer::outer-task", Args: []string{"just", "outer::outer-task"}},
+			},
+		},
+		{
+			name: "an import inside a module keeps the module namespace",
+			main: "mod tools \"lib/mod.just\"\n",
+			tree: map[string]string{
+				"lib/mod.just":    "import \"shared.just\"\n",
+				"lib/shared.just": "shared:\n    echo shared\n",
+			},
+			want: []Task{{Name: "tools::shared", Args: []string{"just", "tools::shared"}}},
+		},
+		{
+			name: "private recipes stay hidden inside a module",
+			main: "mod tools\n",
+			tree: map[string]string{
+				"tools.just": "_hidden:\n    echo hidden\n\nshown:\n    echo shown\n",
+			},
+			want: []Task{{Name: "tools::shown", Args: []string{"just", "tools::shown"}}},
+		},
+		{
+			name: "a module cycle terminates",
+			main: "mod a\n",
+			tree: map[string]string{
+				"a.just": "mod b\n\nfrom-a:\n    echo a\n",
+				"b.just": "mod a\n\nfrom-b:\n    echo b\n",
+			},
+			want: []Task{
+				{Name: "a::b::from-b", Args: []string{"just", "a::b::from-b"}},
+				{Name: "a::from-a", Args: []string{"just", "a::from-a"}},
+			},
+		},
+		{
+			name: "platform attributes filter module recipes too",
+			main: "mod tools\n",
+			tree: map[string]string{
+				"tools.just": "[windows]\nwin:\n    echo win\n\n[linux]\nlin:\n    echo lin\n",
+			},
+			want: []Task{{Name: "tools::lin", Args: []string{"just", "tools::lin"}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseJustfileTree(t, "linux", t.TempDir(), tt.main, tt.tree)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseJustfileFor() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestParseJustfileImportAbsolute: an absolute import path is read as written.
 func TestParseJustfileImportAbsolute(t *testing.T) {
 	root := t.TempDir()
@@ -1134,6 +1253,24 @@ func TestDiscoverJustfileImports(t *testing.T) {
 	want := []Task{
 		{Source: "justfile", Name: "root", Desc: "Root recipe", Args: []string{"just", "root"}},
 		{Source: "justfile", Name: "shared", Desc: "Shared recipe", Args: []string{"just", "shared"}},
+	}
+	if !reflect.DeepEqual(tasks, want) {
+		t.Errorf("discoverSource() = %+v, want %+v", tasks, want)
+	}
+}
+
+// TestDiscoverJustfileModules: module recipes are listed under the root file's
+// badge, since the picker runs "just name::recipe" from the project directory.
+func TestDiscoverJustfileModules(t *testing.T) {
+	dir := "testdata/justfile-modules"
+
+	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
+	if err != nil {
+		t.Fatalf("discoverSource() error = %v", err)
+	}
+	want := []Task{
+		{Source: "justfile", Name: "root", Desc: "Root recipe", Args: []string{"just", "root"}},
+		{Source: "justfile", Name: "tools::fmt", Desc: "Format the code", Args: []string{"just", "tools::fmt"}},
 	}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("discoverSource() = %+v, want %+v", tasks, want)

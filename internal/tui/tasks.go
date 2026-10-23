@@ -3,8 +3,6 @@ package tui
 
 import (
 	"os/exec"
-	"strings"
-	"unicode"
 )
 
 // Task is a script discovered in the project: it can be run and shown in
@@ -24,28 +22,9 @@ func (t Task) command() *exec.Cmd {
 	return cmd
 }
 
-// commandLine returns the task's command as a shell line, ready to be placed
-// in the shell prompt by the inline widget (see ZshInit and BashInit).
+// commandLine returns the task's command as a shell line in the platform's
+// default dialect, ready to be placed in the shell prompt by the inline
+// widget (see ZshInit, BashInit and PowerShellInit).
 func (t Task) commandLine() string {
-	parts := make([]string, len(t.Args))
-	for i, arg := range t.Args {
-		parts[i] = quoteArg(arg)
-	}
-	return strings.Join(parts, " ")
-}
-
-// quoteArg quotes arg the way a shell reads it back unchanged: plain words
-// pass through, anything else is single-quoted.
-func quoteArg(arg string) string {
-	if arg == "" {
-		return "''"
-	}
-	for _, r := range arg {
-		if r == '_' || r == '.' || r == '/' || r == '-' || r == '@' || r == '%' ||
-			r == ':' || r == '=' || r == '+' || r == ',' || unicode.IsLetter(r) || unicode.IsDigit(r) {
-			continue
-		}
-		return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
-	}
-	return arg
+	return t.commandLineFor(defaultShell())
 }

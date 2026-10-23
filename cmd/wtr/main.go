@@ -47,6 +47,10 @@ func main() {
 	theme := flag.String("theme", "",
 		"theme to render the picker with (\"classic\", \"nord\", \"dracula\", …);\n"+
 			"ctrl+t opens the theme picker")
+	shell := flag.String("shell", "",
+		"shell dialect the command lines are quoted for: \"posix\", \"powershell\"\n"+
+			"or \"cmd\"; empty or \"auto\" means the platform default (PowerShell on\n"+
+			"Windows, POSIX elsewhere)")
 	listThemes := flag.Bool("list-themes", false,
 		"list the available themes and exit")
 	showVersion := flag.Bool("version", false,
@@ -76,14 +80,14 @@ func main() {
 	}
 
 	if *preview {
-		if err := tui.Preview(os.Stdout, tui.Options{Prog: prog, Theme: *theme}, 80, 24); err != nil {
+		if err := tui.Preview(os.Stdout, tui.Options{Prog: prog, Theme: *theme, Shell: *shell}, 80, 24); err != nil {
 			fmt.Fprintf(os.Stderr, "%s: %v\n", prog, err)
 			os.Exit(1)
 		}
 		return
 	}
 
-	err := tui.Run(tui.Options{Prog: prog, Inline: *inline, DebugArea: *debugArea, Theme: *theme})
+	err := tui.Run(tui.Options{Prog: prog, Inline: *inline, DebugArea: *debugArea, Theme: *theme, Shell: *shell})
 	if err == nil {
 		return
 	}

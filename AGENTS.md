@@ -29,7 +29,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   before committing. A single test:
   `go test -race ./internal/tui -run TestViewInlineHeight`.
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
-  `tasks.go` = the Task model, `sources.go` = the discovery framework and the
+  `tasks.go` = the Task model, `shell.go` = the shell dialects and the
+  command-line quoting, `sources.go` = the discovery framework and the
   source registry, `source_*.go` = one parser per source, `theme.go` = the
   named looks and the styles derived from them, `theme_modal.go` = the ctrl+t
   theme picker overlay, `warning_modal.go` = the ctrl+w warning modal and
@@ -96,8 +97,9 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   command column is the widest visible command line, so descriptions start
   together; it is capped to the room the row has, and the description takes
   what is left — dropped before the command shrinks. An rc task without a
-  custom description defaults to its own command, which `sh -c` already shows
-  in the command column, so the duplicate description is hidden there. The
+  custom description defaults to its own command, which the platform shell
+  (`sh -c`, `cmd /c` on Windows) already shows in the command column, so the
+  duplicate description is hidden there. The
   filter matches tokens against
   the task name, the command line or the description, highlighting the matched
   characters in the row.

@@ -4,6 +4,7 @@ package tui
 import (
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -25,22 +26,35 @@ var justRecipeRe = regexp.MustCompile(`^@?([A-Za-z_][A-Za-z0-9_-]*)[^:]*:`)
 // "?" forms, which take a path up to a space.
 var justModuleRe = regexp.MustCompile(`^(import|mod)\?? `)
 
+// justAssignmentRe matches a top-level variable assignment. It is anchored and
+// requires the ":=" right after the name, so a recipe header carrying a
+// trailing comment ("build: # see FOO:=1") or a parameter default containing
+// ":=" is not mistaken for an assignment.
+var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
+
 // parseJustfile returns the recipes declared by a justfile, sorted by name
 // like the ungrouped part of "just --list", each run as "just <name>".
 //
 // The parser is line-based and forgiving. It recognizes a recipe header at
 // column 0, keeps the last contiguous "#" comment line above it or its
 // "[doc(...)]" attribute as the description, and hides private recipes: the
-// "_" prefix and the "[private]" attribute. A leading "#!" is a shebang, not
-// a doc comment. Lines inside recipe bodies are ignored.
+// "_" prefix and the "[private]" attribute. An attribute line may carry a
+// trailing "#" comment and may list several attributes separated by commas,
+// as in [private, group("g")] # why: the scanner ignores commas and "#"
+// inside a quoted doc string, reads "private" and "doc(...)", and leaves any
+// other attribute alone. A leading "#!" is a shebang, not a doc comment.
+// Lines inside recipe bodies are ignored.
 //
-// Settings, variable assignments, aliases, exports, imports and modules are
-// skipped. Imports and modules are not followed, so a justfile whose recipes
-// live in another file shows none of them; aliases are not listed as extra
-// rows. Groups are ignored: the picker shows one flat alphabetical list,
-// which orders grouped recipes differently from "just --list". Triple-quoted
-// strings can contain a column-0 line that looks like a recipe header, which
-// the line-based parser cannot tell from a real one.
+// Settings, aliases, exports, imports and modules are skipped, as are
+// top-level variable assignments: the assignment rule is anchored on the name
+// and the ":=", so a recipe header with a trailing comment or a parameter
+// default containing ":=" is still listed. Imports and modules are not
+// followed, so a justfile whose recipes live in another file shows none of
+// them; aliases are not listed as extra rows. Groups are ignored: the picker
+// shows one flat alphabetical list, which orders grouped recipes differently
+// from "just --list". Triple-quoted strings can contain a column-0 line that
+// looks like a recipe header, which the line-based parser cannot tell from a
+// real one.
 func parseJustfile(_ string, data []byte) ([]Task, error) {
 	var (
 		tasks   []Task
@@ -74,11 +88,11 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 			continue
 		}
 		if strings.HasPrefix(line, "[") {
-			if doc, ok := justDocAttribute(line); ok {
+			doc, hasDoc, isPrivate := justAttributes(line)
+			if hasDoc {
 				docAttr = doc
-			} else if strings.TrimSpace(line) == "[private]" {
-				private = true
 			}
+			private = private || isPrivate
 			// Other attributes, like [group("...")], leave the pending
 			// description and privacy alone.
 			continue
@@ -135,23 +149,117 @@ func isJustSetting(line string) bool {
 			return true
 		}
 	}
-	return justModuleRe.MatchString(line) || strings.Contains(line, ":=")
+	return justModuleRe.MatchString(line) || justAssignmentRe.MatchString(line)
 }
 
-// justDocAttribute returns the text of a "[doc(...)]" attribute line.
-func justDocAttribute(line string) (string, bool) {
-	rest, ok := strings.CutPrefix(strings.TrimSpace(line), "[doc(")
+// justAttributes parses a "[...]" attribute line and returns the doc text, if
+// the list carries a "doc(...)", and whether it marks the recipe private. The
+// line may have a trailing "#" comment and several comma-separated attributes,
+// as in [private, group("g")] # why; commas and "#" inside a quoted doc string
+// are not separators.
+func justAttributes(line string) (doc string, hasDoc, private bool) {
+	attrs, ok := strings.CutPrefix(strings.TrimSpace(stripJustComment(line)), "[")
 	if !ok {
-		return "", false
+		return "", false, false
 	}
-	rest, ok = strings.CutSuffix(rest, ")]")
+	attrs, ok = strings.CutSuffix(attrs, "]")
 	if !ok {
-		return "", false
+		return "", false, false
 	}
 
-	doc := strings.TrimSpace(rest)
-	if len(doc) < 2 || (doc[0] != '"' && doc[0] != '\'') || doc[len(doc)-1] != doc[0] {
+	for _, attr := range splitJustAttributes(attrs) {
+		attr = strings.TrimSpace(attr)
+		switch {
+		case attr == "private":
+			private = true
+		case strings.HasPrefix(attr, "doc("):
+			if text, ok := justDocText(attr); ok {
+				doc, hasDoc = text, true
+			}
+		}
+	}
+	return doc, hasDoc, private
+}
+
+// stripJustComment drops a trailing "#" comment from an attribute line,
+// ignoring a "#" inside a quoted string.
+func stripJustComment(line string) string {
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case quote != 0:
+			if c == '\\' {
+				i++ // skip the escaped byte
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '#':
+			return line[:i]
+		}
+	}
+	return line
+}
+
+// splitJustAttributes splits an attribute list on the commas that sit outside
+// a quoted string, so the commas of a doc string do not split it.
+func splitJustAttributes(attrs string) []string {
+	var (
+		parts []string
+		start int
+		quote byte
+	)
+	for i := 0; i < len(attrs); i++ {
+		c := attrs[i]
+		switch {
+		case quote != 0:
+			if c == '\\' {
+				i++ // skip the escaped byte
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == ',':
+			parts = append(parts, attrs[start:i])
+			start = i + 1
+		}
+	}
+	return append(parts, attrs[start:])
+}
+
+// justDocText returns the text of one "doc(...)" attribute, unquoting the
+// string: escaped quotes are unescaped, as just reads them.
+func justDocText(attr string) (string, bool) {
+	rest, ok := strings.CutPrefix(attr, "doc(")
+	if !ok {
 		return "", false
 	}
-	return doc[1 : len(doc)-1], true
+	rest, ok = strings.CutSuffix(rest, ")")
+	if !ok {
+		return "", false
+	}
+	return unquoteJustString(strings.TrimSpace(rest))
+}
+
+// unquoteJustString unquotes a just string literal: double-quoted strings use
+// backslash escapes, single-quoted strings are raw except for the escaped
+// quote.
+func unquoteJustString(s string) (string, bool) {
+	if len(s) < 2 || s[0] != s[len(s)-1] || (s[0] != '"' && s[0] != '\'') {
+		return "", false
+	}
+	if s[0] == '"' {
+		if text, err := strconv.Unquote(s); err == nil {
+			return text, true
+		}
+		return s[1 : len(s)-1], true
+	}
+	return strings.ReplaceAll(s[1:len(s)-1], `\'`, `'`), true
 }

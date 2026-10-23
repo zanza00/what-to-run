@@ -77,6 +77,31 @@ test:
 			},
 		},
 		{
+			name: "a doc attribute with a trailing comment keeps its doc",
+			in: `[doc("the doc")] # note
+r:
+    echo r
+`,
+			want: []Task{
+				{Name: "r", Desc: "the doc", Args: []string{"just", "r"}},
+			},
+		},
+		{
+			name: "escaped quotes in a doc attribute are unquoted",
+			in: `[doc("say \"hi\"")]
+say:
+    echo say
+
+[doc('it\'s fine')]
+apostrophe:
+    echo apostrophe
+`,
+			want: []Task{
+				{Name: "apostrophe", Desc: "it's fine", Args: []string{"just", "apostrophe"}},
+				{Name: "say", Desc: `say "hi"`, Args: []string{"just", "say"}},
+			},
+		},
+		{
 			name: "an attribute between the comment and the recipe keeps the comment",
 			in: `# Build the app
 [group("build")]
@@ -94,6 +119,32 @@ secret:
     echo secret
 `,
 			want: nil,
+		},
+		{
+			name: "a private attribute with a trailing comment hides the recipe",
+			in: `[private] # why
+secret:
+    echo secret
+
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "a private attribute in a comma list hides the recipe",
+			in: `[private, group("g")]
+secret:
+    echo secret
+
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
 		},
 		{
 			name: "a recipe with an underscore prefix is hidden",
@@ -137,6 +188,35 @@ other:
 			want: []Task{
 				{Name: "build", Desc: "", Args: []string{"just", "build"}},
 				{Name: "other", Desc: "", Args: []string{"just", "other"}},
+			},
+		},
+		{
+			name: "a recipe header with a trailing comment containing a colon-equals is a recipe",
+			in: `build: # see FOO:=1
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a recipe parameter default containing a colon-equals is a recipe",
+			in: `build args="a:=b":
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a top-level assignment is still skipped",
+			in: `version := "1.0"
+
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
 			},
 		},
 		{

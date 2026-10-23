@@ -22,9 +22,16 @@ func justfileSource() source {
 // colon (parameters and dependencies) up to the colon that opens the recipe.
 var justRecipeRe = regexp.MustCompile(`^@?([A-Za-z_][A-Za-z0-9_-]*)[^:]*:`)
 
+// justKeywordRe matches the set, alias and export keywords. just takes any
+// whitespace after a keyword, a TAB included, and then either a statement or a
+// recipe header that carries the keyword as its name ("set:"); justHeaderColon
+// tells the two apart.
+var justKeywordRe = regexp.MustCompile(`^(set|alias|export)\s`)
+
 // justModuleRe matches the import and mod keywords, including their optional
-// "?" forms, which take a path up to a space.
-var justModuleRe = regexp.MustCompile(`^(import|mod)\?? `)
+// "?" forms, which take a path up to whitespace. The whitespace is required,
+// for the same reason as in justKeywordRe.
+var justModuleRe = regexp.MustCompile(`^(import|mod)\??\s`)
 
 // justAssignmentRe matches a top-level variable assignment. It is anchored and
 // requires the ":=" right after the name, so a recipe header carrying a
@@ -38,39 +45,69 @@ var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 // The parser is line-based and forgiving. It recognizes a recipe header at
 // column 0, keeps the last contiguous "#" comment line above it or its
 // "[doc(...)]" attribute as the description, and hides private recipes: the
-// "_" prefix and the "[private]" attribute. An attribute line may carry a
+// "_" prefix and the "[private]" attribute. A doc attribute always decides,
+// even when its text is empty or blank: just then shows no description, so the
+// "#" comment above it does not apply. An attribute list may carry a
 // trailing "#" comment and may list several attributes separated by commas,
 // as in [private, group("g")] # why: the scanner ignores commas and "#"
 // inside a quoted doc string, reads "private" and "doc(...)", and leaves any
-// other attribute alone. A leading "#!" is a shebang, not a doc comment.
-// Lines inside recipe bodies are ignored.
+// other attribute alone. The list may also span several lines, as just allows
+// ([private, on one line and group("g")] on the next, indented): its lines,
+// blank ones included, are buffered until the "]" outside a quoted string, so
+// an indented continuation is not mistaken for a recipe body. A leading "#!"
+// is a shebang, not a doc comment. Lines inside recipe bodies are ignored.
+//
+// A recipe header may continue on the next line: a column-0 line that ends
+// with a backslash, after any trailing spaces or tabs, joins the following
+// line — indented or not — with a single space, and several continuations
+// join in turn, so "foo \" and "  bar:" declare the recipe "foo bar". An
+// indented line never continues, so a shell line ending with a backslash
+// inside a recipe body stays a body line and does not swallow the recipe
+// below it. A "#" comment is never continued either, whether it opens the line
+// or follows a header ("build: # note \"): just keeps that backslash as
+// comment text, so the recipe below it stays a recipe. The same goes for a
+// backslash left inside an unterminated quoted string. A continued setting or
+// assignment line is skipped like the one-line form, and a continuation the
+// file never closes is dropped.
 //
 // Settings, aliases, exports, imports and modules are skipped, as are
 // top-level variable assignments: the assignment rule is anchored on the name
 // and the ":=", so a recipe header with a trailing comment or a parameter
-// default containing ":=" is still listed. Imports and modules are not
-// followed, so a justfile whose recipes live in another file shows none of
-// them; aliases are not listed as extra rows. Groups are ignored: the picker
-// shows one flat alphabetical list, which orders grouped recipes differently
-// from "just --list". Triple-quoted strings can contain a column-0 line that
-// looks like a recipe header, which the line-based parser cannot tell from a
-// real one.
+// default containing ":=" is still listed. A keyword statement is skipped only
+// while no recipe-header colon follows, so a recipe named "set", "alias",
+// "export" or "import" is still listed however its parameters look. Imports
+// and modules are not followed, so a justfile whose recipes live in another
+// file shows none of them; aliases are not listed as extra rows. Groups are
+// ignored: the picker shows one flat alphabetical list, which orders grouped
+// recipes differently from "just --list". Triple-quoted strings can contain a
+// column-0 line that looks like a recipe header, which the line-based parser
+// cannot tell from a real one.
 func parseJustfile(_ string, data []byte) ([]Task, error) {
 	var (
-		tasks   []Task
-		seen    = map[string]bool{}
-		comment string // last contiguous "#" line
-		docAttr string // "[doc(...)]" attribute
-		private bool   // "[private]" attribute
+		tasks      []Task
+		seen       = map[string]bool{}
+		comment    string   // last contiguous "#" line
+		docAttr    string   // "[doc(...)]" attribute
+		hasDocAttr bool     // whether a "[doc(...)]" attribute was seen
+		private    bool     // "[private]" attribute
+		attrParts  []string // lines of an attribute list not closed yet
 	)
 
 	reset := func() {
-		comment, docAttr, private = "", "", false
+		comment, docAttr, hasDocAttr, private, attrParts = "", "", false, false, nil
 	}
 
 	first := true
-	for line := range strings.Lines(string(data)) {
-		line = strings.TrimRight(line, "\r\n")
+	lines := slices.Collect(strings.Lines(string(data)))
+	for i := 0; i < len(lines); i++ {
+		line, next, ok := justLogicalLine(lines, i)
+		if !ok {
+			// A continuation the file never closes cannot be read: ignore it,
+			// with the attributes buffered above it.
+			reset()
+			break
+		}
+		i = next - 1
 
 		// A shebang describes the interpreter, not the recipe below it.
 		if first {
@@ -80,6 +117,11 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 			}
 		}
 		if strings.TrimSpace(line) == "" {
+			// A blank line inside an attribute list belongs to the list: just
+			// keeps the list, and the comment block above it, across it.
+			if len(attrParts) > 0 {
+				continue
+			}
 			reset()
 			continue
 		}
@@ -87,10 +129,23 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 			comment = strings.TrimSpace(rest)
 			continue
 		}
-		if strings.HasPrefix(line, "[") {
-			doc, hasDoc, isPrivate := justAttributes(line)
+		// An attribute list opens at column 0 and may span several lines: just
+		// closes it at the "]" outside a quoted string, and the continuation
+		// lines may be indented, so they must not be read as a recipe body. A
+		// list the file never closes is dropped.
+		if line[0] == '[' || len(attrParts) > 0 {
+			attrParts = append(attrParts, stripJustComment(line))
+			attrs := strings.Join(attrParts, " ")
+			end := justAttributeEnd(attrs)
+			if end < 0 {
+				continue
+			}
+			attrParts = nil
+			doc, hasDoc, isPrivate := justAttributes(attrs[:end+1])
 			if hasDoc {
-				docAttr = doc
+				// The flag is set even for an empty text: just then shows no
+				// description, rather than the comment above it.
+				docAttr, hasDocAttr = doc, true
 			}
 			private = private || isPrivate
 			// Other attributes, like [group("...")], leave the pending
@@ -114,8 +169,16 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 			continue
 		}
 		name := m[1]
-		desc := docAttr
-		if desc == "" {
+		// A doc attribute decides the description whenever one was seen, even
+		// with an empty or blank text: just shows no description there, so the
+		// "#" comment above it does not come back. Only without a doc
+		// attribute does the comment apply.
+		var desc string
+		if hasDocAttr {
+			if strings.TrimSpace(docAttr) != "" {
+				desc = docAttr
+			}
+		} else {
 			desc = comment
 		}
 		skip := private || strings.HasPrefix(name, "_") || seen[name]
@@ -141,28 +204,144 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 	return tasks, nil
 }
 
+// justLogicalLine returns the logical line that starts at lines[i] and the
+// index of the first line after it. A line that starts at column 0 and ends
+// with a backslash, after any trailing spaces or tabs, continues on the next
+// line, which may be indented: just joins the two with a space, and several
+// continuations join in turn.
+//
+// Only a column-0 line continues: an indented line is a recipe body line, and
+// a shell line ending with a backslash there must stay one instead of
+// swallowing the recipe below it. A "#" comment does not continue either,
+// since just keeps the backslash in the comment text — whether the "#" opens
+// the line or follows a header, as in "build: # note \". So does a backslash
+// left inside an unterminated quoted string, which is text rather than a
+// continuation. ok is false when the continuation runs off the end of the
+// file.
+func justLogicalLine(lines []string, i int) (line string, next int, ok bool) {
+	line = strings.TrimRight(lines[i], "\r\n")
+	next = i + 1
+	if line == "" || line[0] == ' ' || line[0] == '\t' || line[0] == '#' {
+		return line, next, true
+	}
+	for {
+		text := strings.TrimRight(line, " \t")
+		if !justContinues(text) {
+			return line, next, true
+		}
+		if next >= len(lines) {
+			return "", next, false
+		}
+		left := strings.TrimRight(text[:len(text)-1], " \t")
+		cont := strings.TrimSpace(strings.TrimRight(lines[next], "\r\n"))
+		next++
+		// A line carrying nothing but the backslash leaves the continuation
+		// at column 0, as just reads it.
+		if left == "" {
+			line = cont
+		} else {
+			line = left + " " + cont
+		}
+		// The joined line may itself continue; a "#" or an empty continuation
+		// ends the join.
+		if line == "" || line[0] == '#' {
+			return line, next, true
+		}
+	}
+}
+
+// justContinues reports whether the right-trimmed line ends with a backslash
+// that continues it on the next line. The backslash counts only outside a
+// quoted string and outside a "#" comment: just keeps the trailing backslash
+// of "build: # note \" as comment text, and the scanner cannot tell an
+// unterminated string from a continuation either, so it leaves both alone.
+// Quoted strings and escapes are read like justHeaderColon reads them.
+func justContinues(text string) bool {
+	if !strings.HasSuffix(text, `\`) {
+		return false
+	}
+	var quote byte
+	for i := 0; i < len(text)-1; i++ {
+		c := text[i]
+		switch {
+		case quote != 0:
+			if c == '\\' {
+				i++ // skip the escaped byte
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '#':
+			return false
+		}
+	}
+	return quote == 0
+}
+
 // isJustSetting reports whether the line declares a setting, an assignment, an
-// alias, an export, an import or a module rather than a recipe.
+// alias, an export, an import or a module rather than a recipe. A keyword
+// statement must be followed by whitespace — just reads a TAB as well as a
+// space — and must carry no colon that opens a recipe header: just lets a
+// recipe take a keyword as its name ("set x="1":"), which the header colon
+// tells apart from a setting.
 func isJustSetting(line string) bool {
-	for _, prefix := range []string{"set ", "alias ", "export "} {
-		if strings.HasPrefix(line, prefix) {
+	if justAssignmentRe.MatchString(line) {
+		return true
+	}
+	if justKeywordRe.MatchString(line) || justModuleRe.MatchString(line) {
+		return !justHeaderColon(line)
+	}
+	return false
+}
+
+// justHeaderColon reports whether the line carries the colon that opens a
+// recipe header: a ":" outside a quoted string and not part of a ":="
+// assignment. A "#" starts a comment, which may contain any text, so the scan
+// stops there. Quoted strings are read like stripJustComment reads them, so
+// the ":" of an import path or of a parameter default does not count.
+func justHeaderColon(line string) bool {
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case quote != 0:
+			if c == '\\' {
+				i++ // skip the escaped byte
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '#':
+			return false
+		case c == ':':
+			if i+1 < len(line) && line[i+1] == '=' {
+				i++ // skip the "=" of ":="
+				continue
+			}
 			return true
 		}
 	}
-	return justModuleRe.MatchString(line) || justAssignmentRe.MatchString(line)
+	return false
 }
 
-// justAttributes parses a "[...]" attribute line and returns the doc text, if
+// justAttributes parses a "[...]" attribute list and returns the doc text, if
 // the list carries a "doc(...)", and whether it marks the recipe private. The
-// line may have a trailing "#" comment and several comma-separated attributes,
-// as in [private, group("g")] # why; commas and "#" inside a quoted doc string
-// are not separators.
-func justAttributes(line string) (doc string, hasDoc, private bool) {
-	attrs, ok := strings.CutPrefix(strings.TrimSpace(stripJustComment(line)), "[")
+// text may be a single line or the lines of a multi-line list that
+// parseJustfile joined with spaces; it may carry a trailing "#" comment and
+// several comma-separated attributes, as in [private, group("g")] # why;
+// commas and "#" inside a quoted doc string are not separators.
+func justAttributes(list string) (doc string, hasDoc, private bool) {
+	attrs, ok := strings.CutPrefix(strings.TrimSpace(stripJustComment(list)), "[")
 	if !ok {
 		return "", false, false
 	}
-	attrs, ok = strings.CutSuffix(attrs, "]")
+	attrs, ok = strings.CutSuffix(strings.TrimSpace(attrs), "]")
 	if !ok {
 		return "", false, false
 	}
@@ -179,6 +358,31 @@ func justAttributes(line string) (doc string, hasDoc, private bool) {
 		}
 	}
 	return doc, hasDoc, private
+}
+
+// justAttributeEnd returns the index of the "]" that closes an attribute list,
+// or -1 while the list is still open. A "]" inside a quoted string does not
+// close it, so a bracket in a doc string is read like any other character.
+func justAttributeEnd(text string) int {
+	var quote byte
+	for i := 0; i < len(text); i++ {
+		c := text[i]
+		switch {
+		case quote != 0:
+			if c == '\\' {
+				i++ // skip the escaped byte
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == ']':
+			return i
+		}
+	}
+	return -1
 }
 
 // stripJustComment drops a trailing "#" comment from an attribute line,

@@ -34,6 +34,67 @@ build:
 			},
 		},
 		{
+			name: "a tab after a keyword is still a setting",
+			in: "set\tshell := [\"bash\", \"-c\"]\n" +
+				"alias\tb := build\n" +
+				"export\tFOO := \"bar\"\n" +
+				"import\t\"x:y.just\"\n" +
+				"import?\t\"opt:y.just\"\n" +
+				"mod\tsub\n" +
+				"mod?\t\"sub:dir\"\n" +
+				"\nbuild:\n    echo build\n",
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a recipe named after a keyword is still a recipe",
+			in: `set:
+    echo set
+
+import: build
+    echo import
+`,
+			want: []Task{
+				{Name: "import", Desc: "", Args: []string{"just", "import"}},
+				{Name: "set", Desc: "", Args: []string{"just", "set"}},
+			},
+		},
+		{
+			name: "a recipe named after a keyword may take parameters",
+			in: `set x="1":
+    echo set
+
+alias y="2":
+    echo alias
+
+export z="3":
+    echo export
+
+import q="4":
+    echo import
+`,
+			want: []Task{
+				{Name: "alias", Desc: "", Args: []string{"just", "alias"}},
+				{Name: "export", Desc: "", Args: []string{"just", "export"}},
+				{Name: "import", Desc: "", Args: []string{"just", "import"}},
+				{Name: "set", Desc: "", Args: []string{"just", "set"}},
+			},
+		},
+		{
+			name: "a quoted colon and a trailing comment keep a keyword line a statement",
+			in: `set shell := ["bash", "-c"] # see a:b
+export PATH := "/a:b/bin"
+import "x:y.just" # : not a header
+mod? sub
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
 			name: "a doc comment uses only its last contiguous line",
 			in: `# First line
 # Second line
@@ -64,6 +125,43 @@ test:
 `,
 			want: []Task{
 				{Name: "test", Desc: "Run the tests", Args: []string{"just", "test"}},
+			},
+		},
+		{
+			name: "an empty doc attribute means no description, not the comment",
+			in: `# A comment
+[doc("")]
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a whitespace-only doc attribute means no description",
+			in: `# A comment
+[doc("   ")]
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "an empty doc attribute does not leak onto the next recipe",
+			in: `# A comment
+[doc("")]
+build:
+    echo build
+# Test the build
+test:
+    echo test
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				{Name: "test", Desc: "Test the build", Args: []string{"just", "test"}},
 			},
 		},
 		{
@@ -144,6 +242,98 @@ visible:
 `,
 			want: []Task{
 				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "a private attribute split across two lines hides the recipe",
+			in: `[private,
+ group("g")]
+secret:
+    echo secret
+
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "a multi-line doc attribute hides its recipe and does not leak the doc",
+			in: `[doc("multi-line doc"),
+ private]
+secret:
+    echo secret
+
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "an attribute list split across three lines lists the recipe with its doc",
+			in: `[doc("x"),
+ group("g"),
+ no-cd]
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "x", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a blank line inside an attribute list keeps the list and the comment above it",
+			in: `# doc
+[group("a"),
+
+ group("b")]
+build:
+    echo b
+`,
+			want: []Task{
+				{Name: "build", Desc: "doc", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a closing bracket inside a doc string does not close the attribute list",
+			in: `[doc("a ] b"),
+ private]
+secret:
+    echo secret
+
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "a multi-line private recipe does not hide the next recipe without a blank line",
+			in: `[private,
+ group("g")]
+secret:
+    echo secret
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "an unclosed attribute at the end of the file is ignored",
+			in: `build:
+    echo build
+
+[private,
+ group("g")
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
 			},
 		},
 		{
@@ -237,6 +427,131 @@ build:
 `,
 			want: []Task{
 				{Name: "hyphen-name", Desc: "", Args: []string{"just", "hyphen-name"}},
+			},
+		},
+		{
+			name: "a continued recipe header is listed under its first word",
+			in: `foo \
+  bar:
+    echo foo
+`,
+			want: []Task{
+				{Name: "foo", Desc: "", Args: []string{"just", "foo"}},
+			},
+		},
+		{
+			name: "two continuations join into one recipe header",
+			in: `foo \
+  bar \
+  baz:
+    echo foo
+`,
+			want: []Task{
+				{Name: "foo", Desc: "", Args: []string{"just", "foo"}},
+			},
+		},
+		{
+			name: "a continued header keeps its parameters and dependencies",
+			in: `foo \
+  bar="1": dep \
+  other
+    echo foo
+
+dep:
+    echo dep
+
+other:
+    echo other
+`,
+			want: []Task{
+				{Name: "dep", Desc: "", Args: []string{"just", "dep"}},
+				{Name: "foo", Desc: "", Args: []string{"just", "foo"}},
+				{Name: "other", Desc: "", Args: []string{"just", "other"}},
+			},
+		},
+		{
+			name: "a continued header keeps the doc comment and the attributes above it",
+			in: `# Build the app
+foo \
+  bar:
+    echo foo
+
+[private]
+secret \
+  name:
+    echo secret
+
+visible:
+    echo visible
+`,
+			want: []Task{
+				{Name: "foo", Desc: "Build the app", Args: []string{"just", "foo"}},
+				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+			},
+		},
+		{
+			name: "a continued comment is not continued and keeps its recipe",
+			in: `# Build the app \
+foo \
+  bar:
+    echo foo
+`,
+			want: []Task{
+				{Name: "foo", Desc: `Build the app \`, Args: []string{"just", "foo"}},
+			},
+		},
+		{
+			name: "a header inline comment ending with a backslash keeps the next recipe",
+			in: `build: # note \
+test:
+    echo test
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				{Name: "test", Desc: "", Args: []string{"just", "test"}},
+			},
+		},
+		{
+			name: "a trailing backslash inside a quoted parameter default does not continue",
+			in: `build args="a \
+other:
+    echo other
+`,
+			want: []Task{
+				{Name: "other", Desc: "", Args: []string{"just", "other"}},
+			},
+		},
+		{
+			name: "a continued setting or assignment is still skipped",
+			in: `version := "1.0" + \
+  "-dev"
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a body line ending with a backslash does not consume the next recipe",
+			in: `build:
+    echo one \
+test:
+    echo test
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				{Name: "test", Desc: "", Args: []string{"just", "test"}},
+			},
+		},
+		{
+			name: "an unclosed continuation at the end of the file is ignored",
+			in: `build:
+    echo build
+
+foo \`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
 			},
 		},
 		{

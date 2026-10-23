@@ -1196,6 +1196,31 @@ func (m model) listLines(w int) []string {
 	return rows
 }
 
+// flattenDesc puts a description on the single row the picker gives a task:
+// task files allow multi-line descriptions (a Taskfile `desc: |` block, a
+// just `[doc("a\nb")]`), and a run of CR and LF becomes one space, as
+// `task --list` does.
+func flattenDesc(s string) string {
+	if !strings.ContainsAny(s, "\r\n") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	pendingSpace := false
+	for _, r := range s {
+		if r == '\r' || r == '\n' {
+			pendingSpace = true
+			continue
+		}
+		if pendingSpace {
+			b.WriteByte(' ')
+			pendingSpace = false
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 // taskRow renders one list row: the cursor marker, the command line that will
 // run, the description and the source file, right-aligned. The command comes
 // first and keeps its whole text — it already contains the task name for
@@ -1226,6 +1251,7 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 		// description default to their own command (sh -c <cmd>).
 		desc = ""
 	}
+	desc = flattenDesc(desc)
 	var (
 		descLine  string
 		descMatch []bool

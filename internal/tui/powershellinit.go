@@ -52,11 +52,7 @@ func PowerShellInit(prog, bin, key string) (string, error) {
 # WTR_BIN overrides the binary the widget launches, WTR_FLAGS passes it extra
 # flags (split on whitespace), e.g. $env:WTR_FLAGS = '--debug-area'.
 
-$script:WtrBin = if ($env:WTR_BIN) { $env:WTR_BIN } else { '%s' }
-$script:WtrFlags = @()
-if ($env:WTR_FLAGS -and $env:WTR_FLAGS.Trim()) {
-    $script:WtrFlags = $env:WTR_FLAGS.Trim() -split '\s+'
-}
+$script:WtrBin = '%s'
 
 # The widget bound to the key: the picker reads the console itself (stdout is
 # captured to receive its result here) and reports a mode line ("run" or
@@ -66,10 +62,17 @@ function global:Invoke-WtrWidget {
     $cursor = 0
     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
 
-    $flags = $script:WtrFlags
+    # Read the overrides when the key is pressed, like the zsh and bash
+    # widgets: WTR_BIN picks the binary, WTR_FLAGS adds flags (split on
+    # whitespace), e.g. $env:WTR_FLAGS = '--debug-area'.
+    $bin = if ($env:WTR_BIN) { $env:WTR_BIN } else { $script:WtrBin }
+    $flags = @()
+    if ($env:WTR_FLAGS -and $env:WTR_FLAGS.Trim()) {
+        $flags = $env:WTR_FLAGS.Trim() -split '\s+'
+    }
     # --shell powershell: the line comes back quoted for the prompt it lands
     # in. Our own flags come first so WTR_FLAGS can override them.
-    $result = @(& $script:WtrBin --inline --shell powershell @flags)
+    $result = @(& $bin --inline --shell powershell @flags)
     # The picker started on the prompt line and cleared its area on exit:
     # redraw the prompt and the line being edited before using the result, or
     # PSReadLine paints the command at a stale position and the prompt stays

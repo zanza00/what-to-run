@@ -109,4 +109,4 @@ This requires Go 1.27.2 or later.
 ## Next steps
 
 To bind the picker to a key in zsh, bash or PowerShell, see
-[Set up the widget](../README.md#set-up-the-widget) in the README.
+[Widget setup](widget.md).

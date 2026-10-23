@@ -100,8 +100,13 @@ func parseJustfile(dir string, data []byte) ([]Task, error) {
 // column-0 line that looks like a recipe header, which the line-based parser
 // cannot tell from a real one.
 func parseJustfileFor(goos, _ string, data []byte) ([]Task, error) {
+	return selectJustTasks(goos, justDefinitions(data)), nil
+}
+
+// justDefinitions parses one justfile document into the recipes it defines, in
+// source order, keeping every duplicate and platform variant.
+func justDefinitions(data []byte) []justRecipe {
 	var (
-		tasks      []Task
 		defs       []justRecipe
 		comment    string   // last contiguous "#" line
 		docAttr    string   // "[doc(...)]" attribute
@@ -215,6 +220,14 @@ func parseJustfileFor(goos, _ string, data []byte) ([]Task, error) {
 		reset()
 	}
 
+	return defs
+}
+
+// selectJustTasks picks one definition per recipe name and turns it into a
+// task: the first definition enabled on goos decides, and its privacy hides
+// the row. Definitions of other platforms and later duplicates are dropped.
+func selectJustTasks(goos string, defs []justRecipe) []Task {
+	var tasks []Task
 	selected := make(map[string]bool, len(defs))
 	for _, def := range defs {
 		if selected[def.name] || !justPlatformEnabled(def.platforms, goos) {
@@ -234,10 +247,10 @@ func parseJustfileFor(goos, _ string, data []byte) ([]Task, error) {
 	}
 
 	if len(tasks) == 0 {
-		return nil, nil
+		return nil
 	}
 	slices.SortFunc(tasks, func(a, b Task) int { return strings.Compare(a.Name, b.Name) })
-	return tasks, nil
+	return tasks
 }
 
 // justRecipe is one definition of a recipe in a justfile. The same name may
@@ -419,7 +432,7 @@ type justAttrs struct {
 // the list carries a "doc(...)", whether it marks the recipe private, and its
 // platform attributes. Only [windows], [linux], [macos] and [unix] are
 // platform attributes; other attributes are ignored. The text may be a single
-// line or the lines of a multi-line list that parseJustfileFor joined with
+// line or the lines of a multi-line list that justDefinitions joined with
 // spaces; it may carry a trailing "#" comment and several comma-separated
 // attributes, as in [private, group("g")] # why; commas and "#" inside a
 // quoted doc string are not separators.

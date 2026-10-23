@@ -43,7 +43,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   shapes etc. belong in the matching `source_*.go`.
 - `make build` compiles `cmd/wtr` twice: `bin/wtr` is the CLI name and
   `bin/what-to-run` the explicit one for shell rc files. The invoked
-  name is the one shown in usage, messages and the picker title, and
+  name is the one shown in usage, messages and the picker title (on Windows
+  without the `.exe` suffix), and
   `init zsh` and `init bash` embed the invoked command — the bare name via
   PATH, or the absolute path — in `WTR_BIN`; with the explicit name, `--help`
   and the generated script also point at `wtr` when it is on PATH.

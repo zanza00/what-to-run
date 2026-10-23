@@ -12,7 +12,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/zanza00/what-to-run/internal/tui"
@@ -164,10 +166,28 @@ func runInit(args []string, w io.Writer) error {
 // progName is the name the program shows as its own: the basename of the
 // command it was invoked as, with a fallback for the odd exec without argv[0].
 func progName(arg0 string) string {
+	return progNameFor(runtime.GOOS, arg0)
+}
+
+// progNameFor is progName for the given platform. On Windows argv[0] may use
+// either separator, and the launcher usually appends the .exe suffix: neither
+// belongs in the name the program shows, so both are dropped there. Elsewhere
+// a file literally named wtr.exe keeps its suffix.
+func progNameFor(goos, arg0 string) string {
 	if arg0 == "" {
 		return "wtr"
 	}
-	return filepath.Base(arg0)
+	if goos != "windows" {
+		return filepath.Base(arg0)
+	}
+	name := path.Base(strings.ReplaceAll(arg0, `\`, "/"))
+	if ext := path.Ext(name); strings.EqualFold(ext, ".exe") {
+		name = strings.TrimSuffix(name, ext)
+	}
+	if name == "" {
+		return "wtr"
+	}
+	return name
 }
 
 // versionLine is what --version prints: the invoked name and the release
@@ -204,7 +224,7 @@ func widgetBin(arg0 string) string {
 			return exe
 		}
 		return "wtr"
-	case !strings.ContainsRune(arg0, os.PathSeparator):
+	case !hasPathSeparator(runtime.GOOS, arg0):
 		return arg0
 	default:
 		if abs, err := filepath.Abs(arg0); err == nil {
@@ -212,4 +232,14 @@ func widgetBin(arg0 string) string {
 		}
 		return arg0
 	}
+}
+
+// hasPathSeparator reports whether arg0 names a path rather than a bare
+// command: '/' separates everywhere, '\' only on Windows, where it cannot be
+// part of a file name.
+func hasPathSeparator(goos, arg0 string) bool {
+	if strings.ContainsRune(arg0, '/') {
+		return true
+	}
+	return goos == "windows" && strings.ContainsRune(arg0, '\\')
 }

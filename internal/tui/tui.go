@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"io"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -118,12 +119,27 @@ func Run(opts Options) error {
 	out := io.Writer(os.Stdout)
 	widget := false
 	if opts.Inline && !term.IsTerminal(os.Stdout.Fd()) {
-		in, ttyOut, err := tea.OpenTTY()
+		ttyIn, ttyOut, err := tea.OpenTTY()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s: cannot open the terminal, running fullscreen\n", opts.prog())
 			opts.Inline = false
 		} else {
-			defer func() { _ = in.Close(); _ = ttyOut.Close() }()
+			// Read from the process's own stdin when it is the terminal
+			// (the PowerShell widget runs that way; zsh and bash redirect
+			// stdin to /dev/tty): Bubble Tea's Windows cancel reader only
+			// recognizes os.Stdin, and the generic fallback cannot cancel a
+			// pending console read, which also makes closing that handle
+			// wait forever.
+			in := io.Reader(os.Stdin)
+			if !term.IsTerminal(os.Stdin.Fd()) {
+				in = ttyIn
+			}
+			// Closing a console input handle with a pending read blocks on
+			// Windows; the process exits right after Run, so let the OS
+			// close both handles there.
+			if runtime.GOOS != "windows" {
+				defer func() { _ = ttyIn.Close(); _ = ttyOut.Close() }()
+			}
 			progOpts = []tea.ProgramOption{tea.WithInput(in), tea.WithOutput(ttyOut)}
 			out = ttyOut
 			widget = true

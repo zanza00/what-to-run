@@ -36,10 +36,11 @@ archives:
       - goos: windows
         formats: [zip]
 
-# Debian packages for Ubuntu/Debian: `apt install ./what-to-run_*.deb` installs
-# both binaries.
+# Linux packages: .deb for Debian/Ubuntu and .rpm for Fedora/RHEL.
+# `apt install ./what-to-run_*.deb` or `dnf install ./what-to-run_*.rpm`
+# installs both binaries.
 nfpms:
-  - id: deb
+  - id: linux
     package_name: what-to-run
     vendor: zanza00
     homepage: https://github.com/zanza00/what-to-run
@@ -48,11 +49,19 @@ nfpms:
     license: MIT
     section: utils
     priority: optional
-    formats: [deb]
+    formats: [deb, rpm]
     bindir: /usr/bin
     # Same shape as the archives, so every asset name follows one pattern.
     file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     ids: [wtr, what-to-run]
+    rpm:
+      # The key that signs the apt repository also signs the RPM packages, so
+      # dnf verifies them with gpgcheck=1. Local snapshot builds without the
+      # key produce unsigned packages.
+      signature:
+        # index keeps local snapshot builds working when the variable is
+        # unset: nfpm only signs when the path is not empty.
+        key_file: '{{ index .Env "APT_GPG_KEY_FILE" }}'
 
 checksum:
   name_template: checksums.txt

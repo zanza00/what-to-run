@@ -50,6 +50,17 @@ directly:
 sudo apt install ./what-to-run_<version>_linux_amd64.deb
 ```
 
+## Fedora, RHEL and derivatives (.rpm package)
+
+The `.rpm` packages for each version are attached to the
+[releases](https://github.com/zanza00/what-to-run/releases). Download the file
+for your architecture (`amd64`, or `arm64` on ARM machines) and install it
+directly:
+
+```sh
+sudo dnf install ./what-to-run_<version>_linux_amd64.rpm
+```
+
 ## Arch Linux
 
 An AUR package (`what-to-run-bin`) is pending. Until it is published, use a

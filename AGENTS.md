@@ -84,8 +84,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `cmd/wtr/main_test.go` pins the helpers.
 - Releases are tag-driven: `.github/workflows/release.yml` runs on `vX.Y.Z`
   tags whose commit is in `main`, builds the linux+darwin archives, the
-  Windows zips (both holding both binaries) and the linux `.deb` packages
-  through `.goreleaser.yaml`, and
+  Windows zips (both holding both binaries) and the linux `.deb` and `.rpm`
+  packages through `.goreleaser.yaml`, and
   `scripts/publish-homebrew.py` writes `Formula/what-to-run.rb` in
   `zanza00/homebrew-tap` using the `HOMEBREW_TAP_TOKEN` secret while
   `scripts/publish-aur.py` pushes the `what-to-run-bin` PKGBUILD to the AUR

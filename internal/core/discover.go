@@ -194,8 +194,8 @@ func enabledSources(sources []source, disable []string) ([]source, []error) {
 }
 
 // rcTasks converts the rc file's custom tasks into picker tasks: they show
-// the "rc" badge, run through the shell, and a relative cwd is resolved
-// against the project directory.
+// the "rc" badge, run through the platform's shell (sh on Unix, cmd on
+// Windows), and a relative cwd is resolved against the project directory.
 func rcTasks(settings Settings, dir string) []Task {
 	var tasks []Task
 	for _, t := range settings.Tasks {
@@ -207,7 +207,7 @@ func rcTasks(settings Settings, dir string) []Task {
 			Source: "rc",
 			Name:   t.Name,
 			Desc:   desc,
-			Args:   []string{"sh", "-c", t.Command},
+			Args:   shellCommand(t.Command),
 		}
 		if t.Cwd != "" {
 			task.Dir = filepath.Join(dir, t.Cwd)

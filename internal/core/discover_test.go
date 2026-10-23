@@ -320,8 +320,8 @@ func TestDiscoverTasksRCTasksFirst(t *testing.T) {
 		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
 	want := []Task{
-		{Source: "rc", Name: "deploy", Desc: "Deploy to production", Args: []string{"sh", "-c", "scripts/deploy.sh --prod"}, Dir: filepath.Join(dir, "ops")},
-		{Source: "rc", Name: "status", Desc: "git status", Args: []string{"sh", "-c", "git status"}},
+		{Source: "rc", Name: "deploy", Desc: "Deploy to production", Args: shellCommand("scripts/deploy.sh --prod"), Dir: filepath.Join(dir, "ops")},
+		{Source: "rc", Name: "status", Desc: "git status", Args: shellCommand("git status")},
 		{Source: "package.json", Name: "build", Desc: "go build ./...", Args: []string{"npm", "run", "build"}},
 	}
 	if !reflect.DeepEqual(tasks, want) {

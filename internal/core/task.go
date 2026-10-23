@@ -5,7 +5,6 @@ package core
 import (
 	"os/exec"
 	"strings"
-	"unicode"
 )
 
 // Task is a script discovered in the project: it can be run and shown in
@@ -21,32 +20,22 @@ type Task struct {
 // Command returns the process that runs the task.
 func (t Task) Command() *exec.Cmd {
 	cmd := exec.Command(t.Args[0], t.Args[1:]...)
+	applyPlatformCommand(cmd, t.Args)
 	cmd.Dir = t.Dir
 	return cmd
 }
 
-// CommandLine returns the task's command as a shell line, ready to be placed
-// in the shell prompt by the inline widget (see internal/shell).
-func (t Task) CommandLine() string {
+// CommandLineFor returns the task's command as a shell line quoted for the
+// given dialect, ready to be placed in a prompt by an inline widget. In
+// PowerShell a quoted command word is a string expression, so it takes the
+// call operator (&) to be executed.
+func (t Task) CommandLineFor(shell ShellDialect) string {
 	parts := make([]string, len(t.Args))
 	for i, arg := range t.Args {
-		parts[i] = quoteArg(arg)
+		parts[i] = quoteArgFor(shell, arg)
+	}
+	if shell == ShellPowerShell && len(parts) > 0 && parts[0] != t.Args[0] {
+		parts[0] = "& " + parts[0]
 	}
 	return strings.Join(parts, " ")
-}
-
-// quoteArg quotes arg the way a shell reads it back unchanged: plain words
-// pass through, anything else is single-quoted.
-func quoteArg(arg string) string {
-	if arg == "" {
-		return "''"
-	}
-	for _, r := range arg {
-		if r == '_' || r == '.' || r == '/' || r == '-' || r == '@' || r == '%' ||
-			r == ':' || r == '=' || r == '+' || r == ',' || unicode.IsLetter(r) || unicode.IsDigit(r) {
-			continue
-		}
-		return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
-	}
-	return arg
 }

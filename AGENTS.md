@@ -19,9 +19,9 @@ project. Supported task files:
 
 Discovery and execution are implemented: a filterable list runs the selected
 task, in place in fullscreen (tea.ExecProcess) or at the prompt after quitting
-with `--inline` (the widget flow from `init zsh` and `init bash`), propagating
-the task's exit code. In inline mode `tab` instead places the command line in
-the shell prompt without running it.
+with `--inline` (the widget flow from `init zsh`, `init bash` and
+`init powershell`), propagating the task's exit code. In inline mode `tab`
+instead places the command line in the shell prompt without running it.
 
 ## Pull requests
 
@@ -39,44 +39,53 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 
 - `task all` is the full check (fmt + vet, race tests, build); CI
   (`.github/workflows/checks.yml`, also called by the release workflow) runs
-  the same Go commands plus a gofmt gate on linux and macOS, so run `task all`
-  before committing. `task` is a contributor prerequisite, not a runtime
-  dependency of `wtr`: install it with
+  the same Go commands plus a gofmt gate on linux and macOS, and its `cross`
+  job builds and vets for Windows, so run `task all` before committing.
+  `task` is a contributor prerequisite, not a runtime dependency of `wtr`:
+  install it with
   `go install github.com/go-task/task/v3/cmd/task@v3.54.0`, which writes the
   binary to `$(go env GOPATH)/bin` (or `$GOBIN`), so that directory must be on
   `PATH`; when `task` is missing, run the Go commands in `checks.yml` by hand.
   A single test:
   `go test -race ./internal/tui -run TestViewInlineHeight`.
 - Runtime code is split in three internal packages. `internal/core` is the task
-  domain: `task.go` = the Task model, `discover.go` = the discovery framework
-  and the source registry, `source_*.go` = one parser per source, `jsonc.go` =
-  the JSON-with-comments decoder, `files.go` = the `Files` port (`ReadFile` and
-  `Exists`) that discovery and the rc loader read through. `internal/tui` is
-  the Bubble Tea picker: `tui.go` = model and layout, `config.go` = the rc file,
-  `files.go` = the `Files` OS adapter, `theme.go` = the
-  named looks and the styles derived from them, `theme_modal.go` = the ctrl+t
-  theme picker overlay, `warning_modal.go` = the ctrl+w warning modal and
+  domain: `task.go` = the Task model and command lines, `shell.go` = the shell
+  dialects, their quoting and the platform shell for rc tasks, `discover.go` =
+  the discovery framework and the source registry, `source_*.go` = one parser
+  per source, `jsonc.go` = the JSON-with-comments decoder, `files.go` = the
+  `Files` port (`ReadFile` and `Exists`) that discovery and the rc loader read
+  through. `internal/tui` is the Bubble Tea picker: `tui.go` = model and layout,
+  `config.go` = the rc file, `files.go` = the `Files` OS adapter, `theme.go` =
+  the named looks and the styles derived from them, `theme_modal.go` = the
+  ctrl+t theme picker overlay, `warning_modal.go` = the ctrl+w warning modal and
   dismissed-warnings cache, `notice.go` = the transient toast. `internal/shell`
-  holds the shell integrations (`zshinit.go` and `bashinit.go` = the shell
-  widgets printed by `init zsh` and `init bash`). `cmd/wtr` only parses
-  flags/subcommands and calls `tui.Run` / `tui.Preview` / `shell.ZshInit` /
-  `shell.BashInit`. Adding a source: a `source` literal and its parser in a new
-  `internal/core/source_<name>.go`, one line in the `defaultSources` registry in
-  `internal/core`, and table-driven tests next to the parser. Unknown
-  `package.json` shapes etc. belong in the matching `source_*.go`.
-  `internal/core` itself has no direct filesystem access — only `os/exec`, for
-  `Task.Command` — so discovery and config parsing can run against an in-memory
-  port in tests.
+  holds the shell integrations (`zshinit.go`, `bashinit.go` and
+  `powershellinit.go` = the shell widgets printed by `init zsh`, `init bash`
+  and `init powershell`). `cmd/wtr` only parses flags/subcommands and calls
+  `tui.Run` / `tui.Preview` / `shell.ZshInit` / `shell.BashInit` /
+  `shell.PowerShellInit`. Adding a source: a `source` literal and its parser in
+  a new `internal/core/source_<name>.go`, one line in the `defaultSources`
+  registry in `internal/core`, and table-driven tests next to the parser.
+  Unknown `package.json` shapes etc. belong in the matching `source_*.go`.
+  `internal/core` itself has no direct filesystem access — its only OS access
+  is `os/exec`, for `Task.Command`, plus the Windows-only
+  `syscall.SysProcAttr` that hands cmd.exe a raw command line
+  (`command_windows.go`) — so discovery and config parsing can run against an
+  in-memory port in tests. The platform shell choice stays testable off Windows
+  through `shellCommandFor(goos, ...)`.
 - `task build` compiles `cmd/wtr` twice: `bin/wtr` is the CLI name and
   `bin/what-to-run` the explicit one for shell rc files. The invoked
-  name is the one shown in usage, messages and the picker title, and
-  `init zsh` and `init bash` embed the invoked command — the bare name via
-  PATH, or the absolute path — in `WTR_BIN`; with the explicit name, `--help`
-  and the generated script also point at `wtr` when it is on PATH.
+  name is the one shown in usage, messages and the picker title (on Windows
+  without the `.exe` suffix), and
+  `init zsh`, `init bash` and `init powershell` embed the invoked command — the
+  bare name via PATH, or the absolute path — in `WTR_BIN`; with the explicit
+  name, `--help` and the generated script also point at `wtr` when it is on
+  PATH.
   `cmd/wtr/main_test.go` pins the helpers.
 - Releases are tag-driven: `.github/workflows/release.yml` runs on `vX.Y.Z`
-  tags whose commit is in `main`, builds the linux+darwin archives holding both
-  binaries plus the linux `.deb` packages through `.goreleaser.yaml`, and
+  tags whose commit is in `main`, builds the linux+darwin archives, the
+  Windows zips (both holding both binaries) and the linux `.deb` packages
+  through `.goreleaser.yaml`, and
   `scripts/publish-homebrew.py` writes `Formula/what-to-run.rb` in
   `zanza00/homebrew-tap` using the `HOMEBREW_TAP_TOKEN` secret while
   `scripts/publish-aur.py` pushes the `what-to-run-bin` PKGBUILD to the AUR
@@ -90,7 +99,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `python3 -m unittest discover -s scripts -p '*_test.py'` when touching them.
 - The optional rc file (`config.go`, documented in `docs/config.md`;
   `.what-to-run.toml` in the project,
-  `$XDG_CONFIG_HOME/what-to-run/config.toml` globally) adds `[[tasks]]`,
+  `$XDG_CONFIG_HOME/what-to-run/config.toml` globally,
+  `%AppData%\what-to-run\config.toml` on Windows) adds `[[tasks]]`,
   overrides `package_manager`, disables sources, and supports per-project
   overrides (`[projects."<path>"]`) in the user file. It is parsed in
   best-effort mode so unknown keys, wrong types, or invalid entries warn and
@@ -118,13 +128,15 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   active when it opened. The notice and the box are composited cell by cell
   over the rendered rows (the lipgloss canvas, `overlay`), so a tinted
   background crossing their edges is not broken.
-- Rows show the command line (`Task.CommandLine`), the description and the
+- Rows show the command line (`Task.CommandLineFor`, quoted for the
+  `--shell` dialect: the platform default unless set), the description and the
   source badge: no name column, the command already contains the name. The
   command column is the widest visible command line, so descriptions start
   together; it is capped to the room the row has, and the description takes
   what is left — dropped before the command shrinks. An rc task without a
-  custom description defaults to its own command, which `sh -c` already shows
-  in the command column, so the duplicate description is hidden there. The
+  custom description defaults to its own command, which the platform shell
+  (`sh -c`, `cmd /c` on Windows) already shows in the command column, so the
+  duplicate description is hidden there. The
   filter matches tokens against
   the task name, the command line or the description, highlighting the matched
   characters in the row.
@@ -143,9 +155,9 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   (verified in tmux: the child output gets erased and dead frame rows remain).
   That is why the inline picker quits and the task runs afterwards.
 - The inline widget protocol (fzf-style): the generated widgets (`init zsh`,
-  `init bash`) capture stdout, the picker renders on the terminal via
-  `tea.OpenTTY`/`tea.WithOutput` and reports its result on stdout
-  (`run`/`insert` line + the command line from `Task.CommandLine`). A
+  `init bash`, `init powershell`) capture stdout, the picker renders on the
+  terminal via `tea.OpenTTY`/`tea.WithOutput` and reports its result on stdout
+  (`run`/`insert` line + the command line from `Task.CommandLineFor`). A
   directory with no tasks keeps the inline picker open on a persistent
   "no tasks found here" screen (enter/esc close), instead of printing an
   error the prompt redraw would erase; a direct fullscreen run still fails
@@ -157,9 +169,13 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   rebinds the tail of the chain at press time. The chain needs bash 4.3 or
   later (`bind -x` takes only two-byte sequences before), and the binds sit
   inside an `[[ $- == *i* ]]` guard, so a non-interactive shell sourcing the
-  rc file stays quiet. With stdout on the terminal (no widget) `Run` executes
-  the task itself after `restoreCursor`, and `tab` just prints the command
-  line.
+  rc file stays quiet. The PowerShell widget (`internal/shell/powershellinit.go`)
+  captures stdout natively and hands the result to PSReadLine — `Insert` for
+  tab, `Replace` + `AcceptLine` for enter — with the line quoted for
+  `--shell powershell`; on legacy conhost the cursor-query timeout makes the
+  first inline frame fall back to fullscreen. With stdout on the terminal (no
+  widget) `Run` executes the task itself after `restoreCursor`, and `tab` just
+  prints the command line.
 - `.agents/skills/` is committed on purpose (see `skills-lock.json`);
   `release/` is this repository's own skill (not vendored, so it has no lock
   entry) and walks the tag-to-verification release flow; `bubbletea-tfe` is a

@@ -52,7 +52,7 @@ func TestZshInitScript(t *testing.T) {
 		"zle -N wtr-widget _wtr_widget",
 		"bindkey '^G' wtr-widget",
 		`typeset -g WTR_BIN="${WTR_BIN:-/opt/wtr/wtr}"`,
-		"out=$(\"$WTR_BIN\" --inline ${=WTR_FLAGS} < /dev/tty)",
+		"out=$(\"$WTR_BIN\" --inline --shell posix ${=WTR_FLAGS} < /dev/tty)",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("ZshInit() script does not contain %q:\n%s", want, got)

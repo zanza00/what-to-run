@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"io"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -46,9 +47,10 @@ type Options struct {
 
 	// Inline renders the UI between the current cursor line and the bottom of
 	// the screen instead of taking over the whole screen. It is meant for
-	// shell widgets that launch the binary right below the prompt (the zsh
-	// and bash integrations from 'wtr init zsh' and 'wtr init bash', see
-	// shell.ZshInit and shell.BashInit) so that the shell history above
+	// shell widgets that launch the binary right below the prompt (the zsh,
+	// bash and PowerShell integrations from 'wtr init zsh', 'wtr init bash'
+	// and 'wtr init powershell', see shell.ZshInit, shell.BashInit and
+	// shell.PowerShellInit) so that the shell history above
 	// stays visible.
 	// ctrl+f expands the picker to the whole screen and toggles back.
 	Inline bool
@@ -62,6 +64,14 @@ type Options struct {
 	// the default. An unknown name is a warning, not an error: the picker
 	// opens with the default and reports it in the help line.
 	Theme string
+
+	// Shell selects the syntax of the command lines the picker shows and
+	// the inline widgets place in the prompt: "auto" (the platform
+	// default: PowerShell on Windows, POSIX elsewhere), "posix",
+	// "powershell" or "cmd". The generated widgets pass their own dialect,
+	// so a pasted line is quoted for the shell reading it. An unknown value
+	// is a warning and falls back to auto.
+	Shell string
 }
 
 // prog is the name the program identifies with: the invoked name, or "wtr"
@@ -81,8 +91,9 @@ func (o Options) prog() string {
 // the terminal is handed over to the task (tea.ExecProcess) and taken back
 // afterwards, with the outcome shown in the status line.
 //
-// In inline mode the picker only chooses. A shell widget (the zsh and bash
-// integrations, see ZshInit and BashInit) runs it with stdout captured, so
+// In inline mode the picker only chooses. A shell widget (the zsh, bash and
+// PowerShell integrations, see shell.ZshInit, shell.BashInit and
+// shell.PowerShellInit) runs it with stdout captured, so
 // Bubble Tea renders on the terminal itself and the result is reported on
 // stdout as two lines: the mode ("run" after enter, "insert" after tab) and
 // the command line. The widget then executes the command or places it in the
@@ -100,15 +111,32 @@ func Run(opts Options) error {
 	// the terminal itself, like fzf does inside shell integrations.
 	var progOpts []tea.ProgramOption
 	out := io.Writer(os.Stdout)
+	widget := false
 	if opts.Inline && !term.IsTerminal(os.Stdout.Fd()) {
-		in, ttyOut, err := tea.OpenTTY()
+		ttyIn, ttyOut, err := tea.OpenTTY()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s: cannot open the terminal, running fullscreen\n", opts.prog())
 			opts.Inline = false
 		} else {
-			defer func() { _ = in.Close(); _ = ttyOut.Close() }()
+			// Read from the process's own stdin when it is the terminal
+			// (the PowerShell widget runs that way; zsh and bash redirect
+			// stdin to /dev/tty): Bubble Tea's Windows cancel reader only
+			// recognizes os.Stdin, and the generic fallback cannot cancel a
+			// pending console read, which also makes closing that handle
+			// wait forever.
+			in := io.Reader(os.Stdin)
+			if !term.IsTerminal(os.Stdin.Fd()) {
+				in = ttyIn
+			}
+			// Closing a console input handle with a pending read blocks on
+			// Windows; the process exits right after Run, so let the OS
+			// close both handles there.
+			if runtime.GOOS != "windows" {
+				defer func() { _ = ttyIn.Close(); _ = ttyOut.Close() }()
+			}
 			progOpts = []tea.ProgramOption{tea.WithInput(in), tea.WithOutput(ttyOut)}
 			out = ttyOut
+			widget = true
 		}
 	}
 
@@ -123,7 +151,10 @@ func Run(opts Options) error {
 
 	final, err := tea.NewProgram(newModel(opts, tasks, warnings), progOpts...).Run()
 	if opts.Inline {
-		if m, ok := final.(model); ok {
+		// A fullscreen frame (ctrl+f, or the fallback when the terminal
+		// cannot report the cursor row) lives on the alternate screen, which
+		// the terminal restores by itself.
+		if m, ok := final.(model); ok && !m.fullscreen {
 			restoreCursor(out, m)
 		}
 	}
@@ -136,16 +167,16 @@ func Run(opts Options) error {
 		return nil
 	}
 
-	if opts.Inline && out != io.Writer(os.Stdout) {
+	if widget {
 		// Widget mode: the shell runs the command (enter) or inserts it in
 		// the prompt (tab).
-		reportChoice(os.Stdout, *m.chosen, m.chosenInsert)
+		reportChoice(os.Stdout, *m.chosen, m.chosenInsert, m.shell)
 		return nil
 	}
 
 	if m.chosenInsert {
 		// No widget to insert into: print the command line.
-		fmt.Println(m.chosen.CommandLine())
+		fmt.Println(m.chosen.CommandLineFor(m.shell))
 		return nil
 	}
 
@@ -158,13 +189,14 @@ func Run(opts Options) error {
 }
 
 // reportChoice writes the picker result for the calling shell widget: the
-// mode line ("run" or "insert") followed by the command line.
-func reportChoice(w io.Writer, t core.Task, insert bool) {
+// mode line ("run" or "insert") followed by the command line, quoted for the
+// shell that will read it.
+func reportChoice(w io.Writer, t core.Task, insert bool, shell core.ShellDialect) {
 	mode := "run"
 	if insert {
 		mode = "insert"
 	}
-	fmt.Fprintf(w, "%s\n%s\n", mode, t.CommandLine())
+	fmt.Fprintf(w, "%s\n%s\n", mode, t.CommandLineFor(shell))
 }
 
 // discover gathers the tasks of the current directory and the rc settings:
@@ -263,6 +295,15 @@ func restoreCursor(w io.Writer, m model) {
 	fmt.Fprintf(w, "\x1b[%dA\x1b[J", h-1)
 }
 
+// cursorPosTimeout is how long the inline layout waits for the terminal to
+// report the cursor row before falling back to fullscreen. Terminal emulators
+// answer the query immediately; a console without support (Windows conhost,
+// for example) never does, and the inline frame would stay blank forever.
+const cursorPosTimeout = 250 * time.Millisecond
+
+// cursorPosTimeoutMsg reports that the cursor position query went unanswered.
+type cursorPosTimeoutMsg struct{}
+
 // taskDoneMsg reports that a task run in place inside the fullscreen picker
 // has finished.
 type taskDoneMsg struct {
@@ -273,7 +314,10 @@ type taskDoneMsg struct {
 // model is the root Bubble Tea model: a filterable list of the project's
 // tasks.
 type model struct {
-	opts     Options
+	opts Options
+	// shell is the command-line dialect, parsed once from opts.Shell: an
+	// unknown value warns and falls back to the platform default.
+	shell    core.ShellDialect
 	tasks    []core.Task
 	warnings []error
 
@@ -290,6 +334,12 @@ type model struct {
 	// screen with ctrl+f. It only applies to inline mode: the alternate
 	// screen hides the shell prompt and restores it when toggled back.
 	fullscreen bool
+
+	// inlineUnavailable reports that the terminal never answered the cursor
+	// position query (a console without that support): the picker fell back
+	// to the fullscreen view and ctrl+f must not go back to a blank inline
+	// frame.
+	inlineUnavailable bool
 
 	// mainWidth remembers the main screen's width while the picker is
 	// expanded. Terminals can report a wider alternate screen (a scrollbar
@@ -344,9 +394,15 @@ func newModel(opts Options, tasks []core.Task, warnings []error) model {
 			"unknown theme %q, using %q (--list-themes shows the available ones)",
 			opts.Theme, defaultTheme)}, warnings...)
 	}
+	shell, err := core.ParseShellDialect(opts.Shell)
+	if err != nil {
+		warnings = append([]error{err}, warnings...)
+		shell = core.DefaultShellDialect()
+	}
 	warnOpen, warnIdx := openWarningsAtStart(warnings)
 	return model{
 		opts:         opts,
+		shell:        shell,
 		tasks:        tasks,
 		warnings:     warnings,
 		themeIdx:     idx,
@@ -358,12 +414,16 @@ func newModel(opts Options, tasks []core.Task, warnings []error) model {
 
 // Init implements tea.Model.
 func (m model) Init() tea.Cmd {
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, tea.RequestForegroundColor}
 	if m.opts.Inline {
 		// Find out which row the UI starts on, i.e. which line to anchor the
-		// bottom part of the screen to.
-		return tea.Batch(tea.RequestCursorPosition, tea.RequestBackgroundColor, tea.RequestForegroundColor)
+		// bottom part of the screen to. A terminal that never answers (a
+		// console without cursor position reports) must not leave the frame
+		// blank: the timeout falls back to fullscreen.
+		cmds = append(cmds, tea.RequestCursorPosition,
+			tea.Tick(cursorPosTimeout, func(time.Time) tea.Msg { return cursorPosTimeoutMsg{} }))
 	}
-	return tea.Batch(tea.RequestBackgroundColor, tea.RequestForegroundColor)
+	return tea.Batch(cmds...)
 }
 
 // Update implements tea.Model.
@@ -383,7 +443,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.CursorPositionMsg:
 		m.startRow = msg.Y
 		m.startRowKnown = true
+		// A late reply proves the terminal does support the query: the
+		// inline area can be used again with ctrl+f.
+		m.inlineUnavailable = false
 		m.keepCursorVisible()
+
+	case cursorPosTimeoutMsg:
+		if m.opts.Inline && !m.startRowKnown {
+			m.inlineUnavailable = true
+			if !m.fullscreen {
+				m.mainWidth = m.width
+				m.fullscreen = true
+			}
+			m.keepCursorVisible()
+		}
 
 	case tea.BackgroundColorMsg:
 		m.termBg = msg.Color
@@ -478,8 +551,9 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// Inline only: expand the picker to the whole terminal (the
 		// alternate screen keeps the prompt and history safe), or go back
 		// to the inline area. There is no inline area to return to when
-		// the program was started fullscreen.
-		if m.opts.Inline {
+		// the program was started fullscreen, or when the terminal cannot
+		// report the cursor row (see cursorPosTimeoutMsg).
+		if m.opts.Inline && !m.inlineUnavailable {
 			if !m.fullscreen {
 				// Remember the main screen's width before the alternate
 				// screen starts reporting its own.
@@ -707,8 +781,9 @@ func (m model) visible() []core.Task {
 		score int
 	}
 	matches := make([]scoredTask, 0, len(m.tasks))
+	shell := m.shell
 	for _, t := range m.tasks {
-		if score, ok := taskMatchScore(t, tokens); ok {
+		if score, ok := taskMatchScore(t, tokens, shell); ok {
 			matches = append(matches, scoredTask{task: t, score: score})
 		}
 	}
@@ -727,15 +802,16 @@ func (m model) visible() []core.Task {
 // subsequences of its name, command line or description: the rows show the
 // command and the description (e.g. a package.json script body), so typing
 // "npm", "tsc" or "vite" must find it.
-func taskMatches(t core.Task, tokens []string) bool {
-	_, ok := taskMatchScore(t, tokens)
+func taskMatches(t core.Task, tokens []string, shell core.ShellDialect) bool {
+	_, ok := taskMatchScore(t, tokens, shell)
 	return ok
 }
 
 // taskMatchScore scores how well t matches all tokens. Contiguous matches always
 // outrank non-contiguous subsequence matches, and within the same tier a
-// match in the task name or command line outranks one in the description.
-func taskMatchScore(t core.Task, tokens []string) (int, bool) {
+// match in the task name or command line outranks one in the description. The
+// command line is quoted for shell, so the score is the same as the row shown.
+func taskMatchScore(t core.Task, tokens []string, shell core.ShellDialect) (int, bool) {
 	const (
 		contigCmdTier  = 2000
 		contigDescTier = 1000
@@ -745,7 +821,7 @@ func taskMatchScore(t core.Task, tokens []string) (int, bool) {
 		prefixBonus    = 200
 	)
 
-	cmdLine := t.CommandLine()
+	cmdLine := t.CommandLineFor(shell)
 	nameLower := strings.ToLower(t.Name)
 	total := 0
 
@@ -1263,7 +1339,7 @@ func (m model) taskRow(t core.Task, selected bool, w int) string {
 	tokens := m.filterTokens()
 
 	cmdW := min(m.commandWidth(), avail)
-	cmdRaw := t.CommandLine()
+	cmdRaw := t.CommandLineFor(m.shell)
 	cmd, cmdMatch := truncateMatched(cmdRaw, matchPositions(cmdRaw, tokens), cmdW)
 	cmd += strings.Repeat(" ", max(cmdW-lipgloss.Width(cmd), 0))
 
@@ -1433,9 +1509,10 @@ func renderMatched(s string, matched []bool, base, highlight lipgloss.Style) str
 // command line, so the descriptions of all rows start together. taskRow caps
 // it to the room the row has; only a command longer than that is truncated.
 func (m model) commandWidth() int {
+	shell := m.shell
 	cmdW := 0
 	for _, t := range m.visible() {
-		cmdW = max(cmdW, lipgloss.Width(t.CommandLine()))
+		cmdW = max(cmdW, lipgloss.Width(t.CommandLineFor(shell)))
 	}
 	return cmdW
 }

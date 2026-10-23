@@ -8,7 +8,7 @@ import (
 )
 
 // DefaultKey is the key combo bound by the shell integrations (ZshInit,
-// BashInit) when --key is not given.
+// BashInit, PowerShellInit) when --key is not given.
 const DefaultKey = "ctrl-s"
 
 // ZshInit returns the zsh integration script, the output of `<prog> init
@@ -71,8 +71,10 @@ _wtr_widget() {
   # explicitly (same as television's shell integration). stdout is captured:
   # the picker renders on the terminal and prints its result here — a mode
   # line ("run" or "insert") followed by the command line.
+  # The line is quoted for posix because zsh is the shell that will read it
+  # back; it comes before WTR_FLAGS so a user can override it.
   local out
-  out=$("$WTR_BIN" --inline ${=WTR_FLAGS} < /dev/tty)
+  out=$("$WTR_BIN" --inline --shell posix ${=WTR_FLAGS} < /dev/tty)
 
   local -a lines
   lines=("${(@f)out}")

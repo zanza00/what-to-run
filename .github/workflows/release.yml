@@ -107,7 +107,9 @@ jobs:
             "what-to-run_${version}_linux_amd64.deb" \
             "what-to-run_${version}_linux_amd64.tar.gz" \
             "what-to-run_${version}_linux_arm64.deb" \
-            "what-to-run_${version}_linux_arm64.tar.gz" | sort)"
+            "what-to-run_${version}_linux_arm64.tar.gz" \
+            "what-to-run_${version}_windows_amd64.zip" \
+            "what-to-run_${version}_windows_arm64.zip" | sort)"
 
           gh release view "$RELEASE_TAG" --json isDraft,isPrerelease \
             --jq '(.isDraft == false) and (.isPrerelease == false)' \

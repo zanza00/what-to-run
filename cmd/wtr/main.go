@@ -13,7 +13,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/zanza00/what-to-run/internal/shell"
@@ -42,13 +44,17 @@ func main() {
 	inline := flag.Bool("inline", false,
 		"render between the current line and the bottom of the screen instead\n"+
 			"of taking over the whole screen (for shell widgets that launch the\n"+
-			"binary right below the prompt, see '"+prog+" init zsh' and\n"+
-			"'"+prog+" init bash')")
+			"binary right below the prompt, see '"+prog+" init zsh',\n"+
+			"'"+prog+" init bash' and '"+prog+" init powershell')")
 	debugArea := flag.Bool("debug-area", false,
 		"draw a border around the area managed in inline mode (development aid)")
 	theme := flag.String("theme", "",
 		"theme to render the picker with (\"classic\", \"nord\", \"dracula\", …);\n"+
 			"ctrl+t opens the theme picker")
+	shell := flag.String("shell", "",
+		"shell dialect the command lines are quoted for: \"posix\", \"powershell\"\n"+
+			"or \"cmd\"; empty or \"auto\" means the platform default (PowerShell on\n"+
+			"Windows, POSIX elsewhere); cmd expands %VAR% and !VAR! inside quotes")
 	listThemes := flag.Bool("list-themes", false,
 		"list the available themes and exit")
 	showVersion := flag.Bool("version", false,
@@ -59,7 +65,7 @@ func main() {
 	flag.Usage = func() {
 		out := flag.CommandLine.Output()
 		fmt.Fprintf(out, "usage: %s [flags]\n"+
-			"       %s init zsh|bash [--key combo]\n\nFlags:\n", prog, prog)
+			"       %s init zsh|bash|powershell [--key combo]\n\nFlags:\n", prog, prog)
 		flag.PrintDefaults()
 		if hint := helpHint(prog, shortNameAvailable()); hint != "" {
 			fmt.Fprintf(out, "\n%s\n", hint)
@@ -78,14 +84,14 @@ func main() {
 	}
 
 	if *preview {
-		if err := tui.Preview(os.Stdout, tui.Options{Prog: prog, Theme: *theme}, 80, 24); err != nil {
+		if err := tui.Preview(os.Stdout, tui.Options{Prog: prog, Theme: *theme, Shell: *shell}, 80, 24); err != nil {
 			fmt.Fprintf(os.Stderr, "%s: %v\n", prog, err)
 			os.Exit(1)
 		}
 		return
 	}
 
-	err := tui.Run(tui.Options{Prog: prog, Inline: *inline, DebugArea: *debugArea, Theme: *theme})
+	err := tui.Run(tui.Options{Prog: prog, Inline: *inline, DebugArea: *debugArea, Theme: *theme, Shell: *shell})
 	if err == nil {
 		return
 	}
@@ -105,22 +111,25 @@ func main() {
 	os.Exit(1)
 }
 
-// runInit implements the init subcommand, `<prog> init zsh|bash [--key
-// combo]`: it prints to w the shell integration for the running binary, ready
-// to be evaluated by an interactive shell:
+// runInit implements the init subcommand, `<prog> init zsh|bash|powershell
+// [--key combo]`: it prints to w the shell integration for the running binary,
+// ready to be evaluated by an interactive shell:
 //
 //	eval "$(what-to-run init zsh --key ctrl-s)"
 //	eval "$(what-to-run init bash)"
+//	what-to-run init powershell | Out-String | Invoke-Expression
 func runInit(args []string, w io.Writer) error {
 	fs := flag.NewFlagSet(prog+" init", flag.ExitOnError)
 	key := fs.String("key", shell.DefaultKey,
-		"combo that opens the picker: a name like ctrl-s or alt-x, or a raw\n"+
-			"sequence as the shell binds keys (^[x for zsh, \\e[15~ for bash)")
+		"combo that opens the picker: a name like ctrl-s or alt-x, or, for zsh\n"+
+			"and bash, a raw sequence as they bind keys (^[x for zsh, \\e[15~\n"+
+			"for bash); PowerShell takes key names only")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "usage: %s init zsh|bash [--key combo]\n\n"+
+		fmt.Fprintf(fs.Output(), "usage: %s init zsh|bash|powershell [--key combo]\n\n"+
 			"Print the shell integration to stdout, for eval:\n\n"+
 			"  eval \"$(%s init zsh --key ctrl-s)\"\n"+
-			"  eval \"$(%s init bash --key ctrl-s)\"\n\nFlags:\n", prog, prog, prog)
+			"  eval \"$(%s init bash --key ctrl-s)\"\n"+
+			"  %s init powershell | Out-String | Invoke-Expression\n\nFlags:\n", prog, prog, prog, prog)
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -129,7 +138,7 @@ func runInit(args []string, w io.Writer) error {
 
 	rest := fs.Args()
 	if len(rest) == 0 {
-		return fmt.Errorf("missing shell argument: use '%s init zsh|bash [--key combo]'", prog)
+		return fmt.Errorf("missing shell argument: use '%s init zsh|bash|powershell [--key combo]'", prog)
 	}
 	sh, tail := rest[0], rest[1:]
 	init := shell.ZshInit
@@ -137,8 +146,10 @@ func runInit(args []string, w io.Writer) error {
 	case "zsh":
 	case "bash":
 		init = shell.BashInit
+	case "powershell", "pwsh":
+		init = shell.PowerShellInit
 	default:
-		return fmt.Errorf("unsupported shell %q: only zsh and bash are supported", sh)
+		return fmt.Errorf("unsupported shell %q: only zsh, bash and powershell are supported", sh)
 	}
 	// flag stops at the first positional argument, so a flag written after
 	// the shell name ("init zsh --key ctrl-g") needs a second pass.
@@ -162,10 +173,28 @@ func runInit(args []string, w io.Writer) error {
 // progName is the name the program shows as its own: the basename of the
 // command it was invoked as, with a fallback for the odd exec without argv[0].
 func progName(arg0 string) string {
+	return progNameFor(runtime.GOOS, arg0)
+}
+
+// progNameFor is progName for the given platform. On Windows argv[0] may use
+// either separator, and the launcher usually appends the .exe suffix: neither
+// belongs in the name the program shows, so both are dropped there. Elsewhere
+// a file literally named wtr.exe keeps its suffix.
+func progNameFor(goos, arg0 string) string {
 	if arg0 == "" {
 		return "wtr"
 	}
-	return filepath.Base(arg0)
+	if goos != "windows" {
+		return filepath.Base(arg0)
+	}
+	name := path.Base(strings.ReplaceAll(arg0, `\`, "/"))
+	if ext := path.Ext(name); strings.EqualFold(ext, ".exe") {
+		name = strings.TrimSuffix(name, ext)
+	}
+	if name == "" {
+		return "wtr"
+	}
+	return name
 }
 
 // versionLine is what --version prints: the invoked name and the release
@@ -202,7 +231,7 @@ func widgetBin(arg0 string) string {
 			return exe
 		}
 		return "wtr"
-	case !strings.ContainsRune(arg0, os.PathSeparator):
+	case !hasPathSeparator(runtime.GOOS, arg0):
 		return arg0
 	default:
 		if abs, err := filepath.Abs(arg0); err == nil {
@@ -210,4 +239,14 @@ func widgetBin(arg0 string) string {
 		}
 		return arg0
 	}
+}
+
+// hasPathSeparator reports whether arg0 names a path rather than a bare
+// command: '/' separates everywhere, '\' only on Windows, where it cannot be
+// part of a file name.
+func hasPathSeparator(goos, arg0 string) bool {
+	if strings.ContainsRune(arg0, '/') {
+		return true
+	}
+	return goos == "windows" && strings.ContainsRune(arg0, '\\')
 }

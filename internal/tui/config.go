@@ -73,7 +73,7 @@ type projectConfig struct {
 // configTask is one [[tasks]] entry of an rc file.
 type configTask struct {
 	Name        string `toml:"name"`        // required
-	Command     string `toml:"command"`     // required; run with sh -c
+	Command     string `toml:"command"`     // required; run with the platform shell (sh -c, cmd /c on Windows)
 	Description string `toml:"description"` // defaults to Command
 	Cwd         string `toml:"cwd"`         // optional, relative to the project
 }

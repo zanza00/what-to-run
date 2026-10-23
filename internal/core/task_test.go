@@ -33,8 +33,29 @@ func TestCommandLine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			task := Task{Source: "rc", Name: "t", Args: tt.args}
-			if got := task.CommandLine(); got != tt.want {
-				t.Errorf("CommandLine() = %q, want %q", got, tt.want)
+			if got := task.CommandLineFor(ShellPOSIX); got != tt.want {
+				t.Errorf("CommandLineFor(posix) = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCommandLineForPowerShell(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"plain command word stays bare", []string{"npm", "run", "build"}, "npm run build"},
+		{"quoted path with spaces takes the call operator", []string{`C:\Program Files\tool.exe`, "--flag"}, `& 'C:\Program Files\tool.exe' --flag`},
+		{"single quote in the path is doubled", []string{`C:\Program Files\O'Brien\tool.exe`, "--flag"}, `& 'C:\Program Files\O''Brien\tool.exe' --flag`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := Task{Source: "rc", Name: "t", Args: tt.args}
+			if got := task.CommandLineFor(ShellPowerShell); got != tt.want {
+				t.Errorf("CommandLineFor(powershell) = %q, want %q", got, tt.want)
 			}
 		})
 	}

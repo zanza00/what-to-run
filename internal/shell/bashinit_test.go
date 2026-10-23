@@ -50,7 +50,7 @@ func TestBashInitScript(t *testing.T) {
 	for _, want := range []string{
 		"# wtr: bash integration",
 		`WTR_BIN="${WTR_BIN:-/opt/wtr/wtr}"`,
-		`out=$("$WTR_BIN" --inline ${flags[@]+"${flags[@]}"} < /dev/tty)`,
+		`out=$("$WTR_BIN" --inline --shell posix ${flags[@]+"${flags[@]}"} < /dev/tty)`,
 		`WTR_KEY='\C-g'`,
 		"tail=accept-line",
 		`_wtr_tail "$tail"`,

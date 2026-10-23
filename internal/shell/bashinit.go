@@ -81,7 +81,9 @@ _wtr_widget() {
   # (${flags[@]+...} keeps an empty list safe under set -u on older bash.)
   local -a flags=() lines
   if [[ -n $WTR_FLAGS ]]; then read -r -a flags <<< "$WTR_FLAGS"; fi
-  out=$("$WTR_BIN" --inline ${flags[@]+"${flags[@]}"} < /dev/tty)
+  # --shell posix: bash reads the line the widget inserts, and it comes
+  # before WTR_FLAGS so a user can override it.
+  out=$("$WTR_BIN" --inline --shell posix ${flags[@]+"${flags[@]}"} < /dev/tty)
 
   local mode=""
   mapfile -t lines <<< "$out"

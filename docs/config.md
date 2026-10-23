@@ -4,7 +4,8 @@
 
 1. **User global config:** `$XDG_CONFIG_HOME/what-to-run/config.toml`
    (normally `~/.config/what-to-run/config.toml`; on macOS with
-   `XDG_CONFIG_HOME` unset, `~/Library/Application Support/what-to-run/config.toml`)
+   `XDG_CONFIG_HOME` unset, `~/Library/Application Support/what-to-run/config.toml`;
+   on Windows, `%AppData%\what-to-run\config.toml`)
    — personal preferences, global custom tasks, and per-project overrides
    (`[projects."<path>"]`).
 2. **Project local config:** `.what-to-run.toml` in the current working
@@ -18,7 +19,7 @@ non-fatal **warning** (shown in the warning modal at startup and accessible via
 
 ## 1. Schema
 
-### Global file (`~/.config/what-to-run/config.toml`)
+### Global file (`~/.config/what-to-run/config.toml`, or `%AppData%\what-to-run\config.toml` on Windows)
 
 ```toml
 # User UI theme (only valid in the global file).
@@ -130,6 +131,17 @@ Before matching a project key against the current working directory (`dir`):
    that `~/dev/app` (`/home/user/dev/app`) matches `/var/home/user/dev/app` on
    ostree/Silverblue systems or symlinked workspaces.
 
+On Windows, write the key as a TOML **literal string**:
+
+```toml
+[projects.'C:\Users\me\src\api']
+package_manager = "pnpm"
+```
+
+A basic string (`[projects."C:\Users\me\src\api"]`) fails to parse: `\U` starts
+a Unicode escape in TOML. Paths are compared case-insensitively on Windows, so
+`C:\Users\me\src\api` also matches `c:\users\me\src\api`.
+
 ### Hierarchical Subtree Matching
 
 A `[projects."<path>"]` entry matches the current directory if the canonicalized
@@ -203,6 +215,7 @@ Warnings from config files and task sources never hide the bottom help line:
   least one undismissed warning, wrapping long messages across multiple lines.
   - `enter`, `esc`, or `ctrl+w` closes the modal for the current session.
   - `d` (*don't show again*) records the warning in
-    `$XDG_CACHE_HOME/what-to-run/dismissed-warnings` so future runs do
+    `$XDG_CACHE_HOME/what-to-run/dismissed-warnings`
+    (`%LocalAppData%\what-to-run\dismissed-warnings` on Windows) so future runs do
     not pop the modal open automatically for that same warning, while `ctrl+w`
     can still open it on demand.

@@ -20,6 +20,8 @@ func TestRunInitShells(t *testing.T) {
 		{"zsh", []string{"zsh"}, "zle -N wtr-widget"},
 		{"bash", []string{"bash"}, "for _wtr_keymap in emacs-standard vi-insert vi-command; do"},
 		{"bash, key after the shell", []string{"bash", "--key", "ctrl-g"}, `WTR_KEY='\C-g'`},
+		{"powershell", []string{"powershell"}, "Set-PSReadLineKeyHandler"},
+		{"pwsh alias, key after the shell", []string{"pwsh", "--key", "alt-x"}, "-Chord 'Alt+x'"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -33,7 +35,7 @@ func TestRunInitShells(t *testing.T) {
 		})
 	}
 
-	for _, args := range [][]string{nil, {"fish"}, {"zsh", "bash"}} {
+	for _, args := range [][]string{nil, {"fish"}, {"zsh", "bash"}, {"powershell", "--key", "^[x"}} {
 		if err := runInit(args, io.Discard); err == nil {
 			t.Errorf("runInit(%q) should fail", args)
 		}
@@ -42,18 +44,29 @@ func TestRunInitShells(t *testing.T) {
 
 func TestProgName(t *testing.T) {
 	tests := []struct {
-		in   string
+		name string
+		goos string
+		arg0 string
 		want string
 	}{
-		{"/usr/local/bin/wtr", "wtr"},
-		{"what-to-run", "what-to-run"},
-		{"bin/wtr", "wtr"},
-		{"", "wtr"},
+		{"absolute unix path", "linux", "/usr/local/bin/wtr", "wtr"},
+		{"bare name", "linux", "what-to-run", "what-to-run"},
+		{"relative unix path", "linux", "bin/wtr", "wtr"},
+		{"empty argv0", "linux", "", "wtr"},
+		{"exe suffix survives off windows", "linux", "wtr.exe", "wtr.exe"},
+		{"windows path", "windows", `C:\Tools\WTR.EXE`, "WTR"},
+		{"windows forward slashes", "windows", "C:/Tools/what-to-run.exe", "what-to-run"},
+		{"windows bare name with suffix", "windows", "wtr.exe", "wtr"},
+		{"windows bare name", "windows", "wtr", "wtr"},
+		{"windows suffix only", "windows", ".exe", "wtr"},
+		{"windows empty argv0", "windows", "", "wtr"},
 	}
 	for _, tt := range tests {
-		if got := progName(tt.in); got != tt.want {
-			t.Errorf("progName(%q) = %q; want %q", tt.in, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := progNameFor(tt.goos, tt.arg0); got != tt.want {
+				t.Errorf("progNameFor(%q, %q) = %q; want %q", tt.goos, tt.arg0, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -92,6 +105,29 @@ func TestWidgetBin(t *testing.T) {
 	// An absolute path is kept as is.
 	if got := widgetBin(abs); got != abs {
 		t.Errorf("widgetBin(%q) = %q; want the same path", abs, got)
+	}
+}
+
+func TestHasPathSeparator(t *testing.T) {
+	tests := []struct {
+		name string
+		goos string
+		arg0 string
+		want bool
+	}{
+		{"unix slash", "linux", "bin/wtr", true},
+		{"unix backslash is a file name", "linux", `C:\Tools\wtr.exe`, false},
+		{"unix bare name", "linux", "wtr", false},
+		{"windows slash", "windows", "bin/wtr", true},
+		{"windows backslash", "windows", `C:\Tools\wtr.exe`, true},
+		{"windows bare name with suffix", "windows", "wtr.exe", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := hasPathSeparator(tt.goos, tt.arg0); got != tt.want {
+				t.Errorf("hasPathSeparator(%q, %q) = %v; want %v", tt.goos, tt.arg0, got, tt.want)
+			}
+		})
 	}
 }
 

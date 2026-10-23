@@ -12,7 +12,7 @@ builds:
     binary: wtr
     env:
       - CGO_ENABLED=0
-    goos: [linux, darwin]
+    goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
     ldflags:
       - -s -w
@@ -22,14 +22,19 @@ builds:
     binary: what-to-run
     env:
       - CGO_ENABLED=0
-    goos: [linux, darwin]
+    goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
 
+# Windows gets them as zip, since .tar.gz is unfamiliar there; every other
+# target keeps tar.gz. GoReleaser appends .exe to both binaries on Windows.
 archives:
   - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
 
 # Debian packages for Ubuntu/Debian: `apt install ./what-to-run_*.deb` installs
 # both binaries.

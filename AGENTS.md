@@ -32,8 +32,10 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   the same Go commands plus a gofmt gate on linux and macOS, so run `task all`
   before committing. `task` is a contributor prerequisite, not a runtime
   dependency of `wtr`: install it with
-  `go install github.com/go-task/task/v3/cmd/task@v3.54.0`; when `task` is
-  missing, run the Go commands in `checks.yml` by hand. A single test:
+  `go install github.com/go-task/task/v3/cmd/task@v3.54.0`, which writes the
+  binary to `$(go env GOPATH)/bin` (or `$GOBIN`), so that directory must be on
+  `PATH`; when `task` is missing, run the Go commands in `checks.yml` by hand.
+  A single test:
   `go test -race ./internal/tui -run TestViewInlineHeight`.
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
   `tasks.go` = the Task model, `sources.go` = the discovery framework and the

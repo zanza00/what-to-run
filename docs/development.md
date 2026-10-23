@@ -8,6 +8,10 @@ Go and [`task`](https://taskfile.dev) (go-task 3.x):
 go install github.com/go-task/task/v3/cmd/task@v3.54.0
 ```
 
+`go install` writes the `task` binary to `$(go env GOPATH)/bin`, or to `$GOBIN`
+when that is set. That directory must be on `PATH`: if `task` is not found
+after installing, add it to the `PATH` in your shell rc file.
+
 `task` is a contributor prerequisite, not a runtime dependency of `wtr`. When
 it is not installed, run the Go commands from `.github/workflows/checks.yml`
 directly.

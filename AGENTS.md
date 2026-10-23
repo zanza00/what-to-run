@@ -68,8 +68,11 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   registry in `internal/core`, and table-driven tests next to the parser.
   Unknown `package.json` shapes etc. belong in the matching `source_*.go`.
   `internal/core` itself has no direct filesystem access — its only OS access
-  is `os/exec`, for `Task.Command` — so discovery and config parsing can run
-  against an in-memory port in tests.
+  is `os/exec`, for `Task.Command`, plus the Windows-only
+  `syscall.SysProcAttr` that hands cmd.exe a raw command line
+  (`command_windows.go`) — so discovery and config parsing can run against an
+  in-memory port in tests. The platform shell choice stays testable off Windows
+  through `shellCommandFor(goos, ...)`.
 - `task build` compiles `cmd/wtr` twice: `bin/wtr` is the CLI name and
   `bin/what-to-run` the explicit one for shell rc files. The invoked
   name is the one shown in usage, messages and the picker title (on Windows

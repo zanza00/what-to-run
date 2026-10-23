@@ -82,6 +82,13 @@ func shellCommandFor(goos, command string) []string {
 	return []string{"sh", "-c", command}
 }
 
+// cmdLineFor is the raw command line cmd.exe needs for command: /d skips
+// AutoRun, /s strips only the outermost quotes, so quotes inside command
+// reach the child unchanged.
+func cmdLineFor(command string) string {
+	return `/d /s /c "` + command + `"`
+}
+
 // quoteArgFor quotes arg the way shell reads it back unchanged.
 func quoteArgFor(shell ShellDialect, arg string) string {
 	switch shell {

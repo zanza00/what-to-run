@@ -177,6 +177,28 @@ func TestShellCommandFor(t *testing.T) {
 	}
 }
 
+func TestCmdLineFor(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+		want    string
+	}{
+		{"plain command", "npm run build", `/d /s /c "npm run build"`},
+		{"quoted path with spaces", `"C:\Program Files\tool.exe" --flag`, `/d /s /c ""C:\Program Files\tool.exe" --flag"`},
+		{"quoted argument", `echo "hi"`, `/d /s /c "echo "hi""`},
+		{"trailing backslash", `dir C:\`, `/d /s /c "dir C:\"`},
+		{"empty command", "", `/d /s /c ""`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := cmdLineFor(tt.command); got != tt.want {
+				t.Errorf("cmdLineFor(%q) = %q, want %q", tt.command, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCommandLineFor(t *testing.T) {
 	tests := []struct {
 		name  string

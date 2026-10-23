@@ -20,6 +20,7 @@ type Task struct {
 // Command returns the process that runs the task.
 func (t Task) Command() *exec.Cmd {
 	cmd := exec.Command(t.Args[0], t.Args[1:]...)
+	applyPlatformCommand(cmd, t.Args)
 	cmd.Dir = t.Dir
 	return cmd
 }

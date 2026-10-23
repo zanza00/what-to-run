@@ -52,10 +52,11 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   source registry, `source_*.go` = one parser per source, `theme.go` = the
   named looks and the styles derived from them, `theme_modal.go` = the ctrl+t
   theme picker overlay, `warning_modal.go` = the ctrl+w warning modal and
-  dismissed-warnings cache, `notice.go` = the transient toast, `zshinit.go`
-  and `bashinit.go` = the shell widgets printed by `init zsh` and `init bash`);
+  dismissed-warnings cache, `notice.go` = the transient toast), except the
+  shell integrations, which live in `internal/shell` (`zshinit.go` and
+  `bashinit.go` = the shell widgets printed by `init zsh` and `init bash`);
   `cmd/wtr` only parses flags/subcommands and calls `tui.Run` / `tui.Preview` /
-  `tui.ZshInit` / `tui.BashInit`. Adding a source: a
+  `shell.ZshInit` / `shell.BashInit`. Adding a source: a
   `source` literal and its parser in a new `source_<name>.go`, one line in
   `defaultSources`, and table-driven tests next to them. Unknown `package.json`
   shapes etc. belong in the matching `source_*.go`.

@@ -1,4 +1,4 @@
-package tui
+package shell
 
 import (
 	"os/exec"

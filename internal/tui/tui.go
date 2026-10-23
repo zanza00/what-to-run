@@ -47,7 +47,8 @@ type Options struct {
 	// the screen instead of taking over the whole screen. It is meant for
 	// shell widgets that launch the binary right below the prompt (the zsh
 	// and bash integrations from 'wtr init zsh' and 'wtr init bash', see
-	// ZshInit and BashInit) so that the shell history above stays visible.
+	// shell.ZshInit and shell.BashInit) so that the shell history above
+	// stays visible.
 	// ctrl+f expands the picker to the whole screen and toggles back.
 	Inline bool
 

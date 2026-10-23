@@ -25,7 +25,8 @@ func (t Task) command() *exec.Cmd {
 }
 
 // commandLine returns the task's command as a shell line, ready to be placed
-// in the shell prompt by the inline widget (see ZshInit and BashInit).
+// in the shell prompt by the inline widget (see shell.ZshInit and
+// shell.BashInit).
 func (t Task) commandLine() string {
 	parts := make([]string, len(t.Args))
 	for i, arg := range t.Args {

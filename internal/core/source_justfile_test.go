@@ -1,6 +1,8 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -725,6 +727,184 @@ func TestParseJustfileNeverErrors(t *testing.T) {
 			t.Errorf("parseJustfile(%q) = %+v, want no tasks", in, tasks)
 		}
 	}
+}
+
+// TestParseJustfilePlatforms pins the platform attributes: each one lists its
+// recipe only on a matching GOOS, several attributes are OR-ed whether they
+// share a list or not, and unix covers every GOOS but Windows.
+func TestParseJustfilePlatforms(t *testing.T) {
+	in := `[windows]
+win:
+    echo win
+
+[linux]
+lin:
+    echo lin
+
+[macos]
+mac:
+    echo mac
+
+[unix]
+uni:
+    echo uni
+
+[linux, macos]
+nix:
+    echo nix
+
+[windows, linux]
+both:
+    echo both
+
+[windows]
+[linux]
+split:
+    echo split
+`
+	tests := []struct {
+		goos string
+		want []string
+	}{
+		{goos: "linux", want: []string{"both", "lin", "nix", "split", "uni"}},
+		{goos: "darwin", want: []string{"mac", "nix", "uni"}},
+		{goos: "windows", want: []string{"both", "split", "win"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.goos, func(t *testing.T) {
+			tasks, err := parseJustfileFor(tt.goos, "", []byte(in))
+			if err != nil {
+				t.Fatalf("parseJustfileFor(%q) error = %v", tt.goos, err)
+			}
+			if got := justTaskNames(tasks); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseJustfileFor(%q) names = %v, want %v", tt.goos, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseJustfilePlatformVariants reads the platform fixture from disk: a
+// recipe defined once per platform must produce one row, carrying the doc and
+// description of the definition enabled on the target GOOS.
+func TestParseJustfilePlatformVariants(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "justfile-platforms", "justfile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		goos string
+		want []Task
+	}{
+		{
+			goos: "linux",
+			want: []Task{
+				{Name: "build", Desc: "Build the app", Args: []string{"just", "build"}},
+				{Name: "serve", Desc: "Build the server (Unix)", Args: []string{"just", "serve"}},
+				{Name: "test", Desc: "Run the tests on Linux", Args: []string{"just", "test"}},
+			},
+		},
+		{
+			goos: "darwin",
+			want: []Task{
+				{Name: "build", Desc: "Build the app", Args: []string{"just", "build"}},
+				{Name: "serve", Desc: "Build the server (Unix)", Args: []string{"just", "serve"}},
+				{Name: "test", Desc: "Run the tests on macOS", Args: []string{"just", "test"}},
+			},
+		},
+		{
+			goos: "windows",
+			want: []Task{
+				{Name: "build", Desc: "Build the app", Args: []string{"just", "build"}},
+				{Name: "serve", Desc: "Build the server (Windows)", Args: []string{"just", "serve"}},
+				{Name: "test", Desc: "Run the tests on Windows", Args: []string{"just", "test"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.goos, func(t *testing.T) {
+			tasks, err := parseJustfileFor(tt.goos, "", data)
+			if err != nil {
+				t.Fatalf("parseJustfileFor(%q) error = %v", tt.goos, err)
+			}
+			if !reflect.DeepEqual(tasks, tt.want) {
+				t.Errorf("parseJustfileFor(%q) = %+v, want %+v", tt.goos, tasks, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseJustfilePlatformPrivate: privacy belongs to the selected variant.
+// A private definition hides the name only on its platforms, and a public
+// definition of the same name stays visible elsewhere.
+func TestParseJustfilePlatformPrivate(t *testing.T) {
+	in := `[linux, private]
+[doc("Private Linux build")]
+build:
+    echo private-linux
+
+[windows]
+[doc("Public Windows build")]
+build:
+    echo public-windows
+
+[unix]
+[doc("Public Unix deploy")]
+deploy:
+    echo public-unix
+
+[windows, private]
+[doc("Private Windows deploy")]
+deploy:
+    echo private-windows
+`
+	tests := []struct {
+		goos string
+		want []Task
+	}{
+		{
+			goos: "linux",
+			want: []Task{
+				{Name: "deploy", Desc: "Public Unix deploy", Args: []string{"just", "deploy"}},
+			},
+		},
+		{
+			goos: "darwin",
+			want: []Task{
+				{Name: "deploy", Desc: "Public Unix deploy", Args: []string{"just", "deploy"}},
+			},
+		},
+		{
+			goos: "windows",
+			want: []Task{
+				{Name: "build", Desc: "Public Windows build", Args: []string{"just", "build"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.goos, func(t *testing.T) {
+			tasks, err := parseJustfileFor(tt.goos, "", []byte(in))
+			if err != nil {
+				t.Fatalf("parseJustfileFor(%q) error = %v", tt.goos, err)
+			}
+			if !reflect.DeepEqual(tasks, tt.want) {
+				t.Errorf("parseJustfileFor(%q) = %+v, want %+v", tt.goos, tasks, tt.want)
+			}
+		})
+	}
+}
+
+// justTaskNames returns the names of the parsed tasks in order, for tests that
+// only care about which recipes are visible.
+func justTaskNames(tasks []Task) []string {
+	names := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		names = append(names, task.Name)
+	}
+	return names
 }
 
 // TestJustfileSourceFiles pins the three names just looks for, in preference

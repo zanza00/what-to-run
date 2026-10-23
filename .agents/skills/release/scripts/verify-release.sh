@@ -92,13 +92,15 @@ if [[ $release_found == 1 ]]; then
     "what-to-run_${version}_linux_amd64.deb" \
     "what-to-run_${version}_linux_amd64.tar.gz" \
     "what-to-run_${version}_linux_arm64.deb" \
-    "what-to-run_${version}_linux_arm64.tar.gz" | sort)
+    "what-to-run_${version}_linux_arm64.tar.gz" \
+    "what-to-run_${version}_windows_amd64.zip" \
+    "what-to-run_${version}_windows_arm64.zip" | sort)
   actual=$(gh release view "$tag" --repo "$repo" \
     --json assets --jq '.assets[].name' 2>/dev/null | sort)
   if [[ $actual == "$expected" ]]; then
-    ok "release carries exactly the 7 expected assets"
+    ok "release carries exactly the 9 expected assets"
   else
-    bad "release assets differ from the expected 7"
+    bad "release assets differ from the expected 9"
     while IFS= read -r name; do
       [[ -z $name ]] && continue
       grep -qxF "$name" <<<"$actual" ||

@@ -82,7 +82,7 @@ per-project overrides and the `ctrl+t` theme picker.
 
 ## Inspiration
 
-This project is heavily inspired by Television, fzf and lazygit
+This project is heavily inspired by [television](https://github.com/alexpasmantier/television), [fzf](https://github.com/junegunn/fzf) and [lazygit](https://github.com/jesseduffield/lazygit)
 
 ## License
 

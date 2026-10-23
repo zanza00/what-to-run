@@ -50,8 +50,10 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 - Runtime code is split in three internal packages. `internal/core` is the task
   domain: `task.go` = the Task model, `discover.go` = the discovery framework
   and the source registry, `source_*.go` = one parser per source, `jsonc.go` =
-  the JSON-with-comments decoder. `internal/tui` is the Bubble Tea picker:
-  `tui.go` = model and layout, `config.go` = the rc file, `theme.go` = the
+  the JSON-with-comments decoder, `files.go` = the `Files` port (`ReadFile` and
+  `Exists`) that discovery and the rc loader read through. `internal/tui` is
+  the Bubble Tea picker: `tui.go` = model and layout, `config.go` = the rc file,
+  `files.go` = the `Files` OS adapter, `theme.go` = the
   named looks and the styles derived from them, `theme_modal.go` = the ctrl+t
   theme picker overlay, `warning_modal.go` = the ctrl+w warning modal and
   dismissed-warnings cache, `notice.go` = the transient toast. `internal/shell`
@@ -62,6 +64,9 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `internal/core/source_<name>.go`, one line in the `defaultSources` registry in
   `internal/core`, and table-driven tests next to the parser. Unknown
   `package.json` shapes etc. belong in the matching `source_*.go`.
+  `internal/core` itself has no direct filesystem access — only `os/exec`, for
+  `Task.Command` — so discovery and config parsing can run against an in-memory
+  port in tests.
 - `task build` compiles `cmd/wtr` twice: `bin/wtr` is the CLI name and
   `bin/what-to-run` the explicit one for shell rc files. The invoked
   name is the one shown in usage, messages and the picker title, and

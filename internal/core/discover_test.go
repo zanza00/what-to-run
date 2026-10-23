@@ -78,7 +78,7 @@ func TestDiscoverPackageScripts(t *testing.T) {
 				writeFile(t, dir, lock, "")
 			}
 
-			got, err := discoverSource(packageJSONSource(tt.runner), dir)
+			got, err := discoverSource(osFiles{}, packageJSONSource(tt.runner, osFiles{}), dir)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("discoverSource() succeeded, want error")
@@ -99,7 +99,7 @@ func TestDiscoverPackageScripts(t *testing.T) {
 }
 
 func TestDiscoverPackageScriptsMissingFile(t *testing.T) {
-	got, err := discoverSource(packageJSONSource(""), t.TempDir())
+	got, err := discoverSource(osFiles{}, packageJSONSource("", osFiles{}), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}
@@ -153,7 +153,7 @@ func TestParseMakeTargetsDeduplicates(t *testing.T) {
 // Taskfile, which is the repository's build entry point: every task a
 // contributor types must reach the picker with its description.
 func TestDiscoverTaskfileOfThisRepo(t *testing.T) {
-	tasks, err := discoverSource(taskfileSource(), "../..")
+	tasks, err := discoverSource(osFiles{}, taskfileSource(), "../..")
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -191,7 +191,7 @@ func TestDiscoverSourceFirstFileWins(t *testing.T) {
 	writeFile(t, dir, "GNUmakefile", "from-gnu:\n\ttrue\n")
 	writeFile(t, dir, "Makefile", "from-upper:\n\ttrue\n")
 
-	tasks, err := discoverSource(makeSource(), dir)
+	tasks, err := discoverSource(osFiles{}, makeSource(), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -220,7 +220,7 @@ disabled = true
 command = "echo disabled"
 `)
 
-	got, err := discoverSource(cargoMakeSource(), dir)
+	got, err := discoverSource(osFiles{}, cargoMakeSource(), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -237,7 +237,7 @@ func TestDiscoverCargoMakeTasksBrokenToml(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile.toml", "[tasks\n")
 
-	_, err := discoverSource(cargoMakeSource(), dir)
+	_, err := discoverSource(osFiles{}, cargoMakeSource(), dir)
 	if err == nil || !strings.Contains(err.Error(), "Makefile.toml") {
 		t.Errorf("discoverSource() error = %v, want a Makefile.toml parse error", err)
 	}
@@ -252,7 +252,7 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 	writeFile(t, dir, "Makefile.toml", "[tasks.fmt]\ndescription = \"Format\"\n")
 	writeFile(t, dir, ".cargo/config.toml", "[alias]\nlint = \"clippy\"\n")
 
-	tasks, errs := Discover(dir, Settings{})
+	tasks, errs := Discover(osFiles{}, dir, Settings{})
 	if len(errs) != 0 {
 		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
@@ -275,7 +275,7 @@ func TestDiscoverTasksTaskfileOrder(t *testing.T) {
 	writeFile(t, dir, "Taskfile.yml", "version: '3'\ntasks:\n  build:\n    desc: Build the app\n")
 
 	settings := Settings{Tasks: []RCTask{{Name: "deploy", Command: "./deploy.sh"}}}
-	tasks, errs := Discover(dir, settings)
+	tasks, errs := Discover(osFiles{}, dir, settings)
 	if len(errs) != 0 {
 		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
@@ -295,7 +295,7 @@ func TestDiscoverTasksSkipsBrokenSource(t *testing.T) {
 	writeFile(t, dir, "package.json", `not json`)
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := Discover(dir, Settings{})
+	tasks, errs := Discover(osFiles{}, dir, Settings{})
 	if len(errs) != 1 {
 		t.Fatalf("Discover() errors = %v, want exactly one", errs)
 	}
@@ -315,7 +315,7 @@ func TestDiscoverTasksRCTasksFirst(t *testing.T) {
 		{Name: "status", Command: "git status"},
 	}}
 
-	tasks, errs := Discover(dir, settings)
+	tasks, errs := Discover(osFiles{}, dir, settings)
 	if len(errs) != 0 {
 		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
@@ -336,7 +336,7 @@ func TestDiscoverTasksRCShadowsBuiltin(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
 
 	settings := Settings{Tasks: []RCTask{{Name: "build", Command: "make -C tools build"}}}
-	tasks, errs := Discover(dir, settings)
+	tasks, errs := Discover(osFiles{}, dir, settings)
 	if len(errs) != 0 {
 		t.Fatalf("Discover() errors = %v, want none", errs)
 	}
@@ -352,7 +352,7 @@ func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 	writeFile(t, dir, "Makefile.toml", "[tasks\n") // broken, but disabled
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := Discover(dir, Settings{Disable: []string{"Makefile.toml"}})
+	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"Makefile.toml"}})
 	if len(errs) != 0 {
 		t.Fatalf("Discover() errors = %v, want none from the disabled source", errs)
 	}
@@ -367,7 +367,7 @@ func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := Discover(dir, Settings{Disable: []string{"cargo"}})
+	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo"}})
 	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "cargo") {
 		t.Errorf("Discover() errors = %v, want one warning about %q", errs, "cargo")
 	}

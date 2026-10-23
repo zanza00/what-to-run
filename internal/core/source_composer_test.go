@@ -101,7 +101,7 @@ func TestDiscoverComposerTasks(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, dir, "composer.json", tt.file)
 
-			got, err := discoverSource(composerSource(), dir)
+			got, err := discoverSource(osFiles{}, composerSource(), dir)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("discoverSource() succeeded, want error")
@@ -166,7 +166,7 @@ func TestDiscoverComposerLifecycleEvents(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "composer.json", string(data))
 
-	got, err := discoverSource(composerSource(), dir)
+	got, err := discoverSource(osFiles{}, composerSource(), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -179,7 +179,7 @@ func TestDiscoverComposerLifecycleEvents(t *testing.T) {
 }
 
 func TestDiscoverComposerTasksMissingFile(t *testing.T) {
-	got, err := discoverSource(composerSource(), t.TempDir())
+	got, err := discoverSource(osFiles{}, composerSource(), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}

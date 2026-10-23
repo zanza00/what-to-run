@@ -32,7 +32,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 )
@@ -74,9 +73,9 @@ type RCTask struct {
 
 // defaultSources returns the built-in sources in display order, wired with
 // the rc file settings that reach into them.
-func defaultSources(settings Settings) []source {
+func defaultSources(settings Settings, files Files) []source {
 	return []source{
-		packageJSONSource(settings.PackageManager),
+		packageJSONSource(settings.PackageManager, files),
 		makeSource(),
 		taskfileSource(),
 		justfileSource(),
@@ -91,9 +90,9 @@ func defaultSources(settings Settings) []source {
 
 // discoverSource runs one source over dir: the first candidate file that
 // exists is parsed and its tasks are stamped with the file name.
-func discoverSource(src source, dir string) ([]Task, error) {
+func discoverSource(files Files, src source, dir string) ([]Task, error) {
 	for _, name := range src.Files {
-		data, err := os.ReadFile(filepath.Join(dir, name))
+		data, err := files.ReadFile(filepath.Join(dir, name))
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
@@ -176,8 +175,8 @@ func rcTasks(settings Settings, dir string) []Task {
 // name; Makefile targets keep the order they appear in the file. A source that
 // fails to parse is reported in errs and skipped (a disabled source is not read
 // at all), and rc tasks shadow same-named tasks of the built-in sources.
-func Discover(dir string, settings Settings) ([]Task, []error) {
-	sources, errs := enabledSources(defaultSources(settings), settings.Disable)
+func Discover(files Files, dir string, settings Settings) ([]Task, []error) {
+	sources, errs := enabledSources(defaultSources(settings, files), settings.Disable)
 
 	rc := rcTasks(settings, dir)
 	shadowed := make(map[string]bool, len(rc))
@@ -188,7 +187,7 @@ func Discover(dir string, settings Settings) ([]Task, []error) {
 	var tasks []Task
 	tasks = append(tasks, rc...)
 	for _, src := range sources {
-		ts, err := discoverSource(src, dir)
+		ts, err := discoverSource(files, src, dir)
 		if err != nil {
 			errs = append(errs, err)
 			continue

@@ -172,8 +172,9 @@ func reportChoice(w io.Writer, t core.Task, insert bool) {
 // warnings are returned even when tasks were found, for the picker's status
 // line.
 func discover() ([]core.Task, config, []error) {
-	cfg, warnings := loadConfig(defaultConfigFiles("."))
-	tasks, sourceWarnings := core.Discover(".", coreSettings(cfg))
+	projectFile, globalFile := defaultConfigFiles(".")
+	cfg, warnings := loadConfig(osFiles{}, projectFile, globalFile)
+	tasks, sourceWarnings := core.Discover(osFiles{}, ".", coreSettings(cfg))
 	return tasks, cfg, append(warnings, sourceWarnings...)
 }
 

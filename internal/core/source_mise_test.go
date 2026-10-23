@@ -121,7 +121,7 @@ list = ["echo one", "echo two"]
 				writeFile(t, dir, name, content)
 			}
 
-			got, err := discoverSource(miseSource(), dir)
+			got, err := discoverSource(osFiles{}, miseSource(), dir)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("discoverSource() succeeded, want error")
@@ -142,7 +142,7 @@ list = ["echo one", "echo two"]
 }
 
 func TestDiscoverMiseTasksMissingFile(t *testing.T) {
-	got, err := discoverSource(miseSource(), t.TempDir())
+	got, err := discoverSource(osFiles{}, miseSource(), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}

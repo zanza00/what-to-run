@@ -83,7 +83,7 @@ func TestDiscoverDevboxTasks(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, dir, "devbox.json", tt.file)
 
-			got, err := discoverSource(devboxSource(), dir)
+			got, err := discoverSource(osFiles{}, devboxSource(), dir)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("discoverSource() succeeded, want error")
@@ -104,7 +104,7 @@ func TestDiscoverDevboxTasks(t *testing.T) {
 }
 
 func TestDiscoverDevboxTasksMissingFile(t *testing.T) {
-	got, err := discoverSource(devboxSource(), t.TempDir())
+	got, err := discoverSource(osFiles{}, devboxSource(), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}

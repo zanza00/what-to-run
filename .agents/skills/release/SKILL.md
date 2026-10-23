@@ -18,7 +18,7 @@ to reach that tag with evidence and then prove that every channel moved.
 | Trigger | `vX.Y.Z` tag on a commit contained in `origin/main` |
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
 | Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY` (missing → channel skipped with a warning) |
-| Release assets | `checksums.txt`, 4 tarballs, 2 `.deb` files (7 total) |
+| Release assets | `checksums.txt`, 4 tarballs, 2 Windows zips, 2 `.deb` files (9 total) |
 | Version string | `wtr --version` prints `wtr X.Y.Z` in released binaries, `wtr vX.Y.Z-N-g…` from `task build` |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
@@ -158,7 +158,7 @@ Run the bundled verifier with the tag:
 .agents/skills/release/scripts/verify-release.sh vX.Y.Z
 ```
 
-It checks the release is public and carries exactly the seven assets, the
+It checks the release is public and carries exactly the nine assets, the
 Homebrew formula has the version and download URLs, the apt index on
 `gh-pages` has the version for amd64 and arm64, the AUR package has it when
 that secret is configured, the downloaded archive matches `checksums.txt`, and

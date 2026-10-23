@@ -93,10 +93,13 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   secret is unset, and `scripts/publish-repo.py` updates the apt and RPM
   repositories on the `gh-pages` branch (served via GitHub Pages) using the
   `APT_GPG_PRIVATE_KEY` secret, skipped with a warning while that secret is
-  unset; the same key signs the RPM packages at build time. `--version` prints
-  the version
-  injected with `-X main.version` (the tag in GoReleaser, `git describe` in
-  `Taskfile.yml`). The publishers have Python tests: run
+  unset; the same key signs the RPM packages at build time. The publisher also
+  copies `scripts/setup.deb.sh` and `scripts/setup.rpm.sh` to the root of
+  `gh-pages`, where the one-liners in `docs/install.md` fetch them from; the
+  apt repository stays at the site root and the RPM repository lives under
+  `/rpm/`. `--version` prints the version injected with `-X main.version` (the
+  tag in GoReleaser, `git describe` in `Taskfile.yml`). The publishers have
+  Python tests: run
   `python3 -m unittest discover -s scripts -p '*_test.py'` when touching them.
 - The optional rc file (`config.go`, documented in `docs/config.md`;
   `.what-to-run.toml` in the project,

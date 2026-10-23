@@ -25,8 +25,19 @@ This installs both binaries from the GitHub releases.
 
 ## Debian and Ubuntu (apt repository)
 
-Add the project's apt repository, signed with the project's GPG key, and
-install from it:
+Configure the project's apt repository, signed with the project's GPG key,
+with one command:
+
+```sh
+curl -fsSL https://zanza00.github.io/what-to-run/setup.deb.sh | sudo bash
+sudo apt install what-to-run
+```
+
+The URL serves the script as plain text, so you can read it before running it.
+It only adds the key and the source, then refreshes the apt indexes. The
+repository supports both `amd64` and `arm64`.
+
+The same steps by hand:
 
 ```sh
 curl -fsSL https://zanza00.github.io/what-to-run/key.gpg \
@@ -37,8 +48,6 @@ sudo apt update
 sudo apt install what-to-run
 ```
 
-The repository supports both `amd64` and `arm64`.
-
 ## Debian and Ubuntu (.deb package)
 
 The `.deb` packages for each version are attached to the
@@ -48,6 +57,36 @@ directly:
 
 ```sh
 sudo apt install ./what-to-run_<version>_linux_amd64.deb
+```
+
+## Fedora, RHEL and derivatives (dnf/yum repository)
+
+Configure the project's RPM repository with one command:
+
+```sh
+curl -fsSL https://zanza00.github.io/what-to-run/setup.rpm.sh | sudo bash
+sudo dnf install what-to-run
+```
+
+The URL serves the script as plain text, so you can read it before running it.
+It imports the repository key, writes `/etc/yum.repos.d/what-to-run.repo`, and
+refreshes the dnf metadata. The repository supports both `x86_64` and
+`aarch64`.
+
+The same steps by hand:
+
+```sh
+sudo rpm --import https://zanza00.github.io/what-to-run/key.asc
+sudo tee /etc/yum.repos.d/what-to-run.repo >/dev/null <<'EOF'
+[what-to-run]
+name=what-to-run
+baseurl=https://zanza00.github.io/what-to-run/rpm/
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://zanza00.github.io/what-to-run/key.asc
+EOF
+sudo dnf install what-to-run
 ```
 
 ## Fedora, RHEL and derivatives (.rpm package)

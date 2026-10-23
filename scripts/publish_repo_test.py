@@ -126,6 +126,8 @@ class PublishTest(unittest.TestCase):
         self.assertTrue((repository / "conf" / "distributions").exists())
         self.assertTrue((repository / "rpm" / "what-to-run_1.2.3_linux_amd64.rpm").exists())
         self.assertTrue((repository / "rpm" / "what-to-run_1.2.3_linux_arm64.rpm").exists())
+        self.assertTrue((repository / "setup.deb.sh").exists())
+        self.assertTrue((repository / "setup.rpm.sh").exists())
         self.assertTrue(any("createrepo_c" in command for command in calls))
         self.assertTrue(any("--detach-sign" in command for command in calls))
 
@@ -137,6 +139,8 @@ class PublishTest(unittest.TestCase):
             publisher.publish("v1.2.3", key_file=self.key, dist_dir=dist, dry_run=True)
         self.assertFalse(any("createrepo_c" in command for command in calls))
         self.assertFalse((dist / "repo" / "rpm").exists())
+        self.assertTrue((dist / "repo" / "setup.deb.sh").exists())
+        self.assertFalse((dist / "repo" / "setup.rpm.sh").exists())
 
 
 if __name__ == "__main__":

@@ -215,6 +215,14 @@ if [[ $repositories_expected == 1 ]]; then
     fi
     rm -rf "$keyring" "$signature" "$repomd"
   fi
+
+  for script in setup.deb.sh setup.rpm.sh; do
+    if gh api "repos/$repo/contents/$script?ref=gh-pages" >/dev/null 2>&1; then
+      ok "setup script $script is published on gh-pages"
+    else
+      bad_or_warn "setup script $script is missing from gh-pages"
+    fi
+  done
 fi
 
 # --- AUR ------------------------------------------------------------------

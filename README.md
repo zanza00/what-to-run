@@ -30,8 +30,8 @@ With [mise](https://mise.jdx.dev/) instead:
 mise use -g github:zanza00/what-to-run
 ```
 
-For the apt repository, `.deb` packages, release tarballs, Windows or
-`go install`, see [Installation](docs/install.md).
+For the apt and RPM repositories, `.deb` and `.rpm` packages, release
+tarballs, Windows or `go install`, see [Installation](docs/install.md).
 
 ### Set up the widget
 

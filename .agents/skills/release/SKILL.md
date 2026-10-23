@@ -24,6 +24,7 @@ channel moved.
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
 | RPM | `rpm/repodata/primary.xml.gz` and `repomd.xml.asc` on `gh-pages` |
+| Setup scripts | `setup.deb.sh` and `setup.rpm.sh` at the root of `gh-pages` |
 | AUR | `what-to-run-bin` |
 
 The release notes are the commits between the previous tag and this one,
@@ -100,8 +101,8 @@ a shim without an installed version, either run it ad hoc
 (`mise x goreleaser@latest -- goreleaser check`) or skip it and say so — CI's
 `cross` job still runs `goreleaser check`.
 
-Touch `scripts/publish-*.py` or the release workflow in this change? Run the
-publisher tests:
+Touch `scripts/publish-*.py`, the setup scripts or the release workflow in
+this change? Run the publisher tests:
 
 ```sh
 python3 -m unittest discover -s scripts -p '*_test.py'
@@ -164,10 +165,11 @@ Run the bundled verifier with the tag:
 It checks the release is public and carries exactly the eleven assets, the
 Homebrew formula has the version and download URLs, the apt index and the RPM
 metadata on `gh-pages` have the version for both architectures, the RPM
-metadata signature verifies with the repository key, the AUR package has it
-when that secret is configured, the downloaded archive matches `checksums.txt`,
-and a binary for this platform prints `wtr X.Y.Z`. Missing repository/AUR
-secrets show as `skip`, matching the workflow.
+metadata signature verifies with the repository key, the setup scripts are
+published, the AUR package has it when that secret is configured, the
+downloaded archive matches `checksums.txt`, and a binary for this platform
+prints `wtr X.Y.Z`. Missing repository/AUR secrets show as `skip`, matching
+the workflow.
 
 Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
 only asserts that the release is public and the asset names are right. For a

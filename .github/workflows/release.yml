@@ -135,3 +135,6 @@ jobs:
               -H "Accept: application/vnd.github.raw" | grep -qx "Version: $version"
           done
           scripts/check-rpm-repository.sh "$RELEASE_TAG"
+          for script in setup.deb.sh setup.rpm.sh; do
+            gh api "repos/$GITHUB_REPOSITORY/contents/$script?ref=gh-pages" >/dev/null
+          done

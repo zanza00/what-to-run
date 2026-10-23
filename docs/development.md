@@ -144,6 +144,11 @@ release was published, run the `republish packages` workflow with the tag as
 input: it updates `gh-pages` from the released assets without recreating the
 release.
 
+The same publisher copies `scripts/setup.deb.sh` and `scripts/setup.rpm.sh`
+to the root of `gh-pages`, where the one-liners in `docs/install.md` fetch
+them from. The scripts are not tied to a version, so an edit reaches the site
+with the next release (or a `republish packages` run).
+
 To validate the release setup without publishing:
 
 ```sh

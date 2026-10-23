@@ -10,11 +10,13 @@ import (
 )
 
 // justfileSource returns the source for just recipes: the first of the three
-// file names just itself looks for, in that order.
+// file names just itself looks for, in that order. Like just, it also looks in
+// the parent directories of the project directory.
 func justfileSource() source {
 	return source{
-		Files: []string{"justfile", "Justfile", ".justfile"},
-		Parse: parseJustfile,
+		Files:         []string{"justfile", "Justfile", ".justfile"},
+		SearchParents: true,
+		Parse:         parseJustfile,
 	}
 }
 

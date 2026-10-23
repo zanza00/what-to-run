@@ -12,6 +12,7 @@ import (
 
 // taskfileSource returns the source for go-task tasks: the first of the eight
 // default Taskfile names that exists, in the order go-task itself searches.
+// Like task, it also looks in the parent directories of the project directory.
 func taskfileSource() source {
 	return source{
 		Files: []string{
@@ -19,7 +20,8 @@ func taskfileSource() source {
 			"Taskfile.dist.yml", "taskfile.dist.yml",
 			"Taskfile.dist.yaml", "taskfile.dist.yaml",
 		},
-		Parse: parseTaskfile,
+		SearchParents: true,
+		Parse:         parseTaskfile,
 	}
 }
 

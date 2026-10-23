@@ -55,7 +55,10 @@ key, for example `--key ctrl-g`.
 
 ## Task sources
 
-The picker discovers tasks in the current project directory:
+The picker discovers tasks in the current project directory. The `justfile`
+and `Taskfile` sources also look in parent directories, like `just` and `task`
+themselves do: the nearest file wins, and its badge is the path relative to the
+current directory (for example `../../justfile`).
 
 | File | Discovered tasks | Command |
 | --- | --- | --- |

@@ -75,7 +75,10 @@ User-only keys (`theme` and `projects`) are not allowed in a project
 ### Built-in task sources
 
 The picker looks for these files in the project directory; the `disable`
-setting above accepts any of their file names. A source that fails to parse
+setting above accepts any of their file names. The `justfile` and `Taskfile`
+sources also look in parent directories, like `just` and `task` themselves do:
+the nearest file wins, and its badge is the path relative to the project
+directory (for example `../../Taskfile.yml`). A source that fails to parse
 only warns and does not hide the tasks of the other sources.
 
 | File(s) | Discovered tasks | Command |

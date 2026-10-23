@@ -20,6 +20,8 @@ func TestRunInitShells(t *testing.T) {
 		{"zsh", []string{"zsh"}, "zle -N wtr-widget"},
 		{"bash", []string{"bash"}, "for _wtr_keymap in emacs-standard vi-insert vi-command; do"},
 		{"bash, key after the shell", []string{"bash", "--key", "ctrl-g"}, `WTR_KEY='\C-g'`},
+		{"powershell", []string{"powershell"}, "Set-PSReadLineKeyHandler"},
+		{"pwsh alias, key after the shell", []string{"pwsh", "--key", "alt-x"}, "-Chord 'Alt+x'"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -33,7 +35,7 @@ func TestRunInitShells(t *testing.T) {
 		})
 	}
 
-	for _, args := range [][]string{nil, {"fish"}, {"zsh", "bash"}} {
+	for _, args := range [][]string{nil, {"fish"}, {"zsh", "bash"}, {"powershell", "--key", "^[x"}} {
 		if err := runInit(args, io.Discard); err == nil {
 			t.Errorf("runInit(%q) should fail", args)
 		}

@@ -15,9 +15,9 @@ project. Supported task files:
 
 Discovery and execution are implemented: a filterable list runs the selected
 task, in place in fullscreen (tea.ExecProcess) or at the prompt after quitting
-with `--inline` (the widget flow from `init zsh` and `init bash`), propagating
-the task's exit code. In inline mode `tab` instead places the command line in
-the shell prompt without running it.
+with `--inline` (the widget flow from `init zsh`, `init bash` and
+`init powershell`), propagating the task's exit code. In inline mode `tab`
+instead places the command line in the shell prompt without running it.
 
 ## Go development
 
@@ -34,10 +34,11 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   source registry, `source_*.go` = one parser per source, `theme.go` = the
   named looks and the styles derived from them, `theme_modal.go` = the ctrl+t
   theme picker overlay, `warning_modal.go` = the ctrl+w warning modal and
-  dismissed-warnings cache, `notice.go` = the transient toast, `zshinit.go`
-  and `bashinit.go` = the shell widgets printed by `init zsh` and `init bash`);
+  dismissed-warnings cache, `notice.go` = the transient toast, `zshinit.go`,
+  `bashinit.go` and `powershellinit.go` = the shell widgets printed by
+  `init zsh`, `init bash` and `init powershell`);
   `cmd/wtr` only parses flags/subcommands and calls `tui.Run` / `tui.Preview` /
-  `tui.ZshInit` / `tui.BashInit`. Adding a source: a
+  `tui.ZshInit` / `tui.BashInit` / `tui.PowerShellInit`. Adding a source: a
   `source` literal and its parser in a new `source_<name>.go`, one line in
   `defaultSources`, and table-driven tests next to them. Unknown `package.json`
   shapes etc. belong in the matching `source_*.go`.
@@ -45,9 +46,10 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `bin/what-to-run` the explicit one for shell rc files. The invoked
   name is the one shown in usage, messages and the picker title (on Windows
   without the `.exe` suffix), and
-  `init zsh` and `init bash` embed the invoked command — the bare name via
-  PATH, or the absolute path — in `WTR_BIN`; with the explicit name, `--help`
-  and the generated script also point at `wtr` when it is on PATH.
+  `init zsh`, `init bash` and `init powershell` embed the invoked command — the
+  bare name via PATH, or the absolute path — in `WTR_BIN`; with the explicit
+  name, `--help` and the generated script also point at `wtr` when it is on
+  PATH.
   `cmd/wtr/main_test.go` pins the helpers.
 - Releases are tag-driven: `.github/workflows/release.yml` runs on `vX.Y.Z`
   tags whose commit is in `main`, builds the linux+darwin archives holding both
@@ -119,8 +121,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   (verified in tmux: the child output gets erased and dead frame rows remain).
   That is why the inline picker quits and the task runs afterwards.
 - The inline widget protocol (fzf-style): the generated widgets (`init zsh`,
-  `init bash`) capture stdout, the picker renders on the terminal via
-  `tea.OpenTTY`/`tea.WithOutput` and reports its result on stdout
+  `init bash`, `init powershell`) capture stdout, the picker renders on the
+  terminal via `tea.OpenTTY`/`tea.WithOutput` and reports its result on stdout
   (`run`/`insert` line + the command line from `Task.commandLine`). A
   directory with no tasks keeps the inline picker open on a persistent
   "no tasks found here" screen (enter/esc close), instead of printing an
@@ -133,9 +135,13 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   rebinds the tail of the chain at press time. The chain needs bash 4.3 or
   later (`bind -x` takes only two-byte sequences before), and the binds sit
   inside an `[[ $- == *i* ]]` guard, so a non-interactive shell sourcing the
-  rc file stays quiet. With stdout on the terminal (no widget) `Run` executes
-  the task itself after `restoreCursor`, and `tab` just prints the command
-  line.
+  rc file stays quiet. The PowerShell widget (`powershellinit.go`) captures
+  stdout natively and hands the result to PSReadLine — `Insert` for tab,
+  `Replace` + `AcceptLine` for enter — with the line quoted for
+  `--shell powershell`; on legacy conhost the cursor-query timeout makes the
+  first inline frame fall back to fullscreen. With stdout on the terminal (no
+  widget) `Run` executes the task itself after `restoreCursor`, and `tab` just
+  prints the command line.
 - `.agents/skills/` is committed on purpose (see `skills-lock.json`);
   `release/` is this repository's own skill (not vendored, so it has no lock
   entry) and walks the tag-to-verification release flow; `bubbletea-tfe` is a

@@ -42,8 +42,8 @@ func main() {
 	inline := flag.Bool("inline", false,
 		"render between the current line and the bottom of the screen instead\n"+
 			"of taking over the whole screen (for shell widgets that launch the\n"+
-			"binary right below the prompt, see '"+prog+" init zsh' and\n"+
-			"'"+prog+" init bash')")
+			"binary right below the prompt, see '"+prog+" init zsh',\n"+
+			"'"+prog+" init bash' and '"+prog+" init powershell')")
 	debugArea := flag.Bool("debug-area", false,
 		"draw a border around the area managed in inline mode (development aid)")
 	theme := flag.String("theme", "",
@@ -63,7 +63,7 @@ func main() {
 	flag.Usage = func() {
 		out := flag.CommandLine.Output()
 		fmt.Fprintf(out, "usage: %s [flags]\n"+
-			"       %s init zsh|bash [--key combo]\n\nFlags:\n", prog, prog)
+			"       %s init zsh|bash|powershell [--key combo]\n\nFlags:\n", prog, prog)
 		flag.PrintDefaults()
 		if hint := helpHint(prog, shortNameAvailable()); hint != "" {
 			fmt.Fprintf(out, "\n%s\n", hint)
@@ -109,22 +109,25 @@ func main() {
 	os.Exit(1)
 }
 
-// runInit implements the init subcommand, `<prog> init zsh|bash [--key
-// combo]`: it prints to w the shell integration for the running binary, ready
-// to be evaluated by an interactive shell:
+// runInit implements the init subcommand, `<prog> init zsh|bash|powershell
+// [--key combo]`: it prints to w the shell integration for the running binary,
+// ready to be evaluated by an interactive shell:
 //
 //	eval "$(what-to-run init zsh --key ctrl-s)"
 //	eval "$(what-to-run init bash)"
+//	what-to-run init powershell | Out-String | Invoke-Expression
 func runInit(args []string, w io.Writer) error {
 	fs := flag.NewFlagSet(prog+" init", flag.ExitOnError)
 	key := fs.String("key", tui.DefaultKey,
-		"combo that opens the picker: a name like ctrl-s or alt-x, or a raw\n"+
-			"sequence as the shell binds keys (^[x for zsh, \\e[15~ for bash)")
+		"combo that opens the picker: a name like ctrl-s or alt-x, or, for zsh\n"+
+			"and bash, a raw sequence as they bind keys (^[x for zsh, \\e[15~\n"+
+			"for bash); PowerShell takes key names only")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "usage: %s init zsh|bash [--key combo]\n\n"+
+		fmt.Fprintf(fs.Output(), "usage: %s init zsh|bash|powershell [--key combo]\n\n"+
 			"Print the shell integration to stdout, for eval:\n\n"+
 			"  eval \"$(%s init zsh --key ctrl-s)\"\n"+
-			"  eval \"$(%s init bash --key ctrl-s)\"\n\nFlags:\n", prog, prog, prog)
+			"  eval \"$(%s init bash --key ctrl-s)\"\n"+
+			"  %s init powershell | Out-String | Invoke-Expression\n\nFlags:\n", prog, prog, prog, prog)
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -133,7 +136,7 @@ func runInit(args []string, w io.Writer) error {
 
 	rest := fs.Args()
 	if len(rest) == 0 {
-		return fmt.Errorf("missing shell argument: use '%s init zsh|bash [--key combo]'", prog)
+		return fmt.Errorf("missing shell argument: use '%s init zsh|bash|powershell [--key combo]'", prog)
 	}
 	shell, tail := rest[0], rest[1:]
 	init := tui.ZshInit
@@ -141,8 +144,10 @@ func runInit(args []string, w io.Writer) error {
 	case "zsh":
 	case "bash":
 		init = tui.BashInit
+	case "powershell", "pwsh":
+		init = tui.PowerShellInit
 	default:
-		return fmt.Errorf("unsupported shell %q: only zsh and bash are supported", shell)
+		return fmt.Errorf("unsupported shell %q: only zsh, bash and powershell are supported", shell)
 	}
 	// flag stops at the first positional argument, so a flag written after
 	// the shell name ("init zsh --key ctrl-g") needs a second pass.

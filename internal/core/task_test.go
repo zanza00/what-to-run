@@ -60,10 +60,3 @@ func TestCommandLineForPowerShell(t *testing.T) {
 		})
 	}
 }
-
-func TestCommandLineUsesPlatformDefault(t *testing.T) {
-	task := Task{Source: "rc", Name: "t", Args: []string{"echo", "it's"}}
-	if got, want := task.CommandLine(), task.CommandLineFor(DefaultShellDialect()); got != want {
-		t.Errorf("CommandLine() = %q, want the platform default %q", got, want)
-	}
-}

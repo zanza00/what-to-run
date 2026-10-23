@@ -910,7 +910,7 @@ func TestTabChoosesInsertInline(t *testing.T) {
 	if !m.chosenInsert {
 		t.Error("chosenInsert after tab = false, want true")
 	}
-	if got, want := m.chosen.CommandLine(), "npm run build"; got != want {
+	if got, want := m.chosen.CommandLineFor(m.shell), "npm run build"; got != want {
 		t.Errorf("chosen command line = %q, want %q", got, want)
 	}
 }

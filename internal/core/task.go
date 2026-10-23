@@ -25,13 +25,6 @@ func (t Task) Command() *exec.Cmd {
 	return cmd
 }
 
-// CommandLine returns the task's command as a shell line in the platform's
-// default dialect, ready to be placed in the shell prompt by the inline
-// widget (see internal/shell).
-func (t Task) CommandLine() string {
-	return t.CommandLineFor(DefaultShellDialect())
-}
-
 // CommandLineFor returns the task's command as a shell line quoted for the
 // given dialect, ready to be placed in a prompt by an inline widget. In
 // PowerShell a quoted command word is a string expression, so it takes the

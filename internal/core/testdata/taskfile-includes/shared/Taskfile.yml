@@ -1,0 +1,5 @@
+tasks:
+  build:
+    desc: Shared build
+  test:
+    desc: Test the shared code

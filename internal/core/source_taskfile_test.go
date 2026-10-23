@@ -1,6 +1,8 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -229,7 +231,7 @@ includes:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseTaskfile("", []byte(tt.in))
+			got, err := parseTaskfile(osFiles{}, "", []byte(tt.in))
 			if err != nil {
 				t.Fatalf("parseTaskfile() error = %v", err)
 			}
@@ -243,11 +245,11 @@ includes:
 // TestParseTaskfileCmdsScalarEqualsList pins the shorthand: a cmds scalar is
 // the same task as a one-element command list.
 func TestParseTaskfileCmdsScalarEqualsList(t *testing.T) {
-	scalar, err := parseTaskfile("", []byte("tasks:\n  x:\n    cmds: echo one\n"))
+	scalar, err := parseTaskfile(osFiles{}, "", []byte("tasks:\n  x:\n    cmds: echo one\n"))
 	if err != nil {
 		t.Fatalf("parseTaskfile() error = %v", err)
 	}
-	list, err := parseTaskfile("", []byte("tasks:\n  x:\n    cmds: [echo one]\n"))
+	list, err := parseTaskfile(osFiles{}, "", []byte("tasks:\n  x:\n    cmds: [echo one]\n"))
 	if err != nil {
 		t.Fatalf("parseTaskfile() error = %v", err)
 	}
@@ -261,13 +263,364 @@ func TestParseTaskfileCmdsScalarEqualsList(t *testing.T) {
 	}
 }
 
+// TestParseTaskfileIncludes covers the local includes the parser follows: the
+// string file and directory forms, the map form, namespacing and its chain,
+// flatten, optional and mandatory missing files, internal includes, remote
+// paths, broken included files and duplicate final names.
+func TestParseTaskfileIncludes(t *testing.T) {
+	// task is the task the parser derives from a name and a description.
+	task := func(name, desc string) Task {
+		return Task{Name: name, Desc: desc, Args: []string{"task", name}}
+	}
+
+	tests := []struct {
+		name  string
+		root  string
+		files map[string]string
+		want  []Task
+	}{
+		{
+			name: "string file include is namespaced",
+			root: `version: '3'
+includes:
+  docs: ./docs/Taskfile.yml
+tasks:
+  build:
+    desc: Build the app
+`,
+			files: map[string]string{
+				"docs/Taskfile.yml": "tasks:\n  serve:\n    desc: Serve the docs\n",
+			},
+			want: []Task{task("build", "Build the app"), task("docs:serve", "Serve the docs")},
+		},
+		{
+			name: "string directory include picks the first default name",
+			root: `includes:
+  tools: ./tools
+tasks:
+  root:
+    desc: Root task
+`,
+			files: map[string]string{
+				"tools/taskfile.yml":      "tasks:\n  format:\n    desc: Format the tools\n",
+				"tools/Taskfile.dist.yml": "tasks:\n  dist-only:\n    desc: From the dist file\n",
+			},
+			want: []Task{task("root", "Root task"), task("tools:format", "Format the tools")},
+		},
+		{
+			name: "map include with dir keeps the names and leaves Task.Dir empty",
+			root: `includes:
+  api:
+    taskfile: ./api/Taskfile.yml
+    dir: ./api
+tasks:
+  root:
+    desc: Root task
+`,
+			files: map[string]string{
+				"api/Taskfile.yml": "tasks:\n  build:\n    desc: Build the API\n",
+			},
+			want: []Task{task("api:build", "Build the API"), task("root", "Root task")},
+		},
+		{
+			name: "nested includes chain the namespace",
+			root: `includes:
+  a: ./a/Taskfile.yml
+`,
+			files: map[string]string{
+				"a/Taskfile.yml": `includes:
+  b: ./sub/Taskfile.yml
+tasks:
+  own:
+    desc: From a
+`,
+				"a/sub/Taskfile.yml": "tasks:\n  deep:\n    desc: From b\n",
+			},
+			want: []Task{task("a:b:deep", "From b"), task("a:own", "From a")},
+		},
+		{
+			name: "same file included on two branches keeps both namespaces",
+			root: `includes:
+  a: ./a/Taskfile.yml
+  b: ./b/Taskfile.yml
+`,
+			files: map[string]string{
+				"a/Taskfile.yml":      "includes:\n  shared: ../shared/Taskfile.yml\n",
+				"b/Taskfile.yml":      "includes:\n  shared: ../shared/Taskfile.yml\n",
+				"shared/Taskfile.yml": "tasks:\n  build:\n    desc: Shared build\n",
+			},
+			want: []Task{
+				task("a:shared:build", "Shared build"),
+				task("b:shared:build", "Shared build"),
+			},
+		},
+		{
+			name: "flatten at the root drops only its own key",
+			root: `includes:
+  lib:
+    taskfile: ./lib/Taskfile.yml
+    flatten: true
+tasks:
+  root:
+    desc: Root task
+`,
+			files: map[string]string{
+				"lib/Taskfile.yml": "tasks:\n  build:\n    desc: Build the lib\n",
+			},
+			want: []Task{task("build", "Build the lib"), task("root", "Root task")},
+		},
+		{
+			name: "flatten nested under a namespace keeps the inherited prefix",
+			root: `includes:
+  a: ./a/Taskfile.yml
+`,
+			files: map[string]string{
+				"a/Taskfile.yml": `includes:
+  sub:
+    taskfile: ./sub/Taskfile.yml
+    flatten: true
+tasks:
+  own:
+    desc: From a
+`,
+				"a/sub/Taskfile.yml": "tasks:\n  flat:\n    desc: From sub\n",
+			},
+			want: []Task{task("a:flat", "From sub"), task("a:own", "From a")},
+		},
+		{
+			name: "optional missing include is skipped",
+			root: `includes:
+  extra:
+    taskfile: ./missing/Taskfile.yml
+    optional: true
+tasks:
+  root:
+    desc: Root task
+`,
+			want: []Task{task("root", "Root task")},
+		},
+		{
+			name: "mandatory missing include is skipped best-effort",
+			root: `includes:
+  extra: ./missing/Taskfile.yml
+tasks:
+  root:
+    desc: Root task
+`,
+			want: []Task{task("root", "Root task")},
+		},
+		{
+			name: "internal include hides its nested tasks",
+			root: `includes:
+  hidden:
+    taskfile: ./hidden/Taskfile.yml
+    internal: true
+  visible: ./visible/Taskfile.yml
+tasks:
+  root:
+    desc: Root task
+`,
+			files: map[string]string{
+				"hidden/Taskfile.yml": `includes:
+  more: ./more/Taskfile.yml
+tasks:
+  secret:
+    desc: Should stay hidden
+`,
+				"hidden/more/Taskfile.yml": "tasks:\n  leak:\n    desc: Also hidden\n",
+				"visible/Taskfile.yml":     "tasks:\n  shown:\n    desc: Visible\n",
+			},
+			want: []Task{task("root", "Root task"), task("visible:shown", "Visible")},
+		},
+		{
+			name: "remote includes are skipped",
+			root: `includes:
+  docs: https://example.com/Taskfile.yml
+  repo: git@github.com:owner/repo.git//Taskfile.yml
+tasks:
+  root:
+    desc: Root task
+`,
+			want: []Task{task("root", "Root task")},
+		},
+		{
+			name: "included parse error is skipped",
+			root: `includes:
+  broken: ./broken/Taskfile.yml
+tasks:
+  root:
+    desc: Root task
+`,
+			files: map[string]string{
+				"broken/Taskfile.yml": "tasks: [\n",
+			},
+			want: []Task{task("root", "Root task")},
+		},
+		{
+			name: "duplicate flatten name keeps the first include",
+			root: `includes:
+  a:
+    taskfile: ./a/Taskfile.yml
+    flatten: true
+  b:
+    taskfile: ./b/Taskfile.yml
+    flatten: true
+`,
+			files: map[string]string{
+				"a/Taskfile.yml": "tasks:\n  from-a:\n    desc: From a\n  shared:\n    desc: First\n",
+				"b/Taskfile.yml": "tasks:\n  from-b:\n    desc: From b\n  shared:\n    desc: Second\n",
+			},
+			want: []Task{
+				task("from-a", "From a"),
+				task("from-b", "From b"),
+				task("shared", "First"),
+			},
+		},
+		{
+			name: "root task beats a flattened include task",
+			root: `includes:
+  shared:
+    taskfile: ./shared/Taskfile.yml
+    flatten: true
+tasks:
+  build:
+    desc: Root build
+`,
+			files: map[string]string{
+				"shared/Taskfile.yml": "tasks:\n  build:\n    desc: Included build\n  test:\n    desc: Shared test\n",
+			},
+			want: []Task{task("build", "Root build"), task("test", "Shared test")},
+		},
+		{
+			name: "sequence taskfile is skipped",
+			root: `includes:
+  bad:
+    taskfile: [./a/Taskfile.yml]
+tasks:
+  root:
+    desc: Root task
+`,
+			want: []Task{task("root", "Root task")},
+		},
+		{
+			name: "map include without a taskfile is skipped",
+			root: `includes:
+  bad:
+    dir: ./somewhere
+tasks:
+  root:
+    desc: Root task
+`,
+			want: []Task{task("root", "Root task")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, content := range tt.files {
+				writeFile(t, dir, name, content)
+			}
+
+			got, err := parseTaskfile(osFiles{}, dir, []byte(tt.root))
+			if err != nil {
+				t.Fatalf("parseTaskfile() error = %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseTaskfile() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseTaskfileTemplatedIncludeSkipped: an include path with Task template
+// braces is not followed, even when a directory with that literal name exists.
+func TestParseTaskfileTemplatedIncludeSkipped(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "{{.DOCS}}/Taskfile.yml", "tasks:\n  serve:\n    desc: Should not appear\n")
+
+	root := `includes:
+  docs: ./{{.DOCS}}/Taskfile.yml
+tasks:
+  root:
+    desc: Root task
+`
+	got, err := parseTaskfile(osFiles{}, dir, []byte(root))
+	if err != nil {
+		t.Fatalf("parseTaskfile() error = %v", err)
+	}
+	want := []Task{{Name: "root", Desc: "Root task", Args: []string{"task", "root"}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("parseTaskfile() = %+v, want %+v", got, want)
+	}
+}
+
+// TestParseTaskfileIncludeCycle: two Taskfiles including each other terminate,
+// with the include read once and the result stable across calls.
+func TestParseTaskfileIncludeCycle(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Taskfile.yml", "includes:\n  a: ./a/Taskfile.yml\n")
+	writeFile(t, dir, "a/Taskfile.yml", "includes:\n  b: ../b/Taskfile.yml\ntasks:\n  one:\n    desc: From a\n")
+	writeFile(t, dir, "b/Taskfile.yml", "includes:\n  a: ../a/Taskfile.yml\ntasks:\n  two:\n    desc: From b\n")
+	root, err := os.ReadFile(filepath.Join(dir, "Taskfile.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := parseTaskfile(osFiles{}, dir, root)
+	if err != nil {
+		t.Fatalf("parseTaskfile() error = %v", err)
+	}
+	second, err := parseTaskfile(osFiles{}, dir, root)
+	if err != nil {
+		t.Fatalf("second parseTaskfile() error = %v", err)
+	}
+	want := []Task{
+		{Name: "a:b:two", Desc: "From b", Args: []string{"task", "a:b:two"}},
+		{Name: "a:one", Desc: "From a", Args: []string{"task", "a:one"}},
+	}
+	if !reflect.DeepEqual(first, want) {
+		t.Errorf("parseTaskfile() = %+v, want %+v", first, want)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Errorf("parseTaskfile() is not deterministic: %+v vs %+v", first, second)
+	}
+}
+
+// TestParseTaskfileIncludesFixture parses the permanent fixture: a root
+// Taskfile with a map include into .taskfiles/, a string directory include, a
+// flatten include, an internal include, an optional missing include and a
+// nested include. It pins the final names, the descriptions and the order.
+func TestParseTaskfileIncludesFixture(t *testing.T) {
+	const dir = "testdata/taskfile-includes"
+	root, err := os.ReadFile(filepath.Join(dir, "Taskfile.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := parseTaskfile(osFiles{}, dir, root)
+	if err != nil {
+		t.Fatalf("parseTaskfile() error = %v", err)
+	}
+	want := []Task{
+		{Name: "build", Desc: "Build the project", Args: []string{"task", "build"}},
+		{Name: "docs:nested:lint", Desc: "Lint the documentation", Args: []string{"task", "docs:nested:lint"}},
+		{Name: "docs:serve", Desc: "Serve the documentation", Args: []string{"task", "docs:serve"}},
+		{Name: "test", Desc: "Test the shared code", Args: []string{"task", "test"}},
+		{Name: "tools:format", Desc: "Format the tools", Args: []string{"task", "tools:format"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("parseTaskfile() = %+v, want %+v", got, want)
+	}
+}
+
 // TestDiscoverTaskfileBadYAML: a malformed Taskfile is a warning naming the
 // file that broke, not a fatal error and not a silent empty list.
 func TestDiscoverTaskfileBadYAML(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.yml", "tasks:\n  build: [\n")
 
-	tasks, err := discoverSource(osFiles{}, taskfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
 	if err == nil {
 		t.Fatalf("discoverSource() = %+v, nil; want a parse error", tasks)
 	}
@@ -284,7 +637,7 @@ func TestDiscoverTaskfileFirstFileWins(t *testing.T) {
 	writeFile(t, dir, "Taskfile.dist.yml", "tasks:\n  dist-only:\n    desc: From the dist file\n")
 	writeFile(t, dir, "Taskfile.yml", "tasks:\n  local-only:\n    desc: From the local file\n")
 
-	tasks, err := discoverSource(osFiles{}, taskfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -300,7 +653,7 @@ func TestDiscoverTaskfileDistFallback(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.dist.yml", "tasks:\n  build:\n    desc: Build from the dist file\n")
 
-	tasks, err := discoverSource(osFiles{}, taskfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -311,7 +664,7 @@ func TestDiscoverTaskfileDistFallback(t *testing.T) {
 }
 
 func TestDiscoverTaskfileMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, taskfileSource(), t.TempDir())
+	got, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}
@@ -325,7 +678,7 @@ func TestTaskfileSourceFiles(t *testing.T) {
 		"Taskfile.dist.yml", "taskfile.dist.yml",
 		"Taskfile.dist.yaml", "taskfile.dist.yaml",
 	}
-	if got := taskfileSource().Files; !reflect.DeepEqual(got, want) {
-		t.Errorf("taskfileSource().Files = %v, want %v", got, want)
+	if got := taskfileSource(osFiles{}).Files; !reflect.DeepEqual(got, want) {
+		t.Errorf("taskfileSource(osFiles{}).Files = %v, want %v", got, want)
 	}
 }

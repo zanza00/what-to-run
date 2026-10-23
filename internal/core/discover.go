@@ -89,7 +89,7 @@ func defaultSources(settings Settings, files Files) []source {
 	return []source{
 		packageJSONSource(settings.PackageManager, files),
 		makeSource(),
-		taskfileSource(),
+		taskfileSource(files),
 		justfileSource(),
 		cargoMakeSource(),
 		cargoAliasSource(),

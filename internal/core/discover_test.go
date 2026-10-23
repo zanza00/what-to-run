@@ -153,7 +153,7 @@ func TestParseMakeTargetsDeduplicates(t *testing.T) {
 // Taskfile, which is the repository's build entry point: every task a
 // contributor types must reach the picker with its description.
 func TestDiscoverTaskfileOfThisRepo(t *testing.T) {
-	tasks, err := discoverSource(osFiles{}, taskfileSource(), "../..")
+	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), "../..")
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}

@@ -31,7 +31,7 @@ func TestDiscoverSourceSearchesParentsJust(t *testing.T) {
 func TestDiscoverSourceSearchesParentsTask(t *testing.T) {
 	dir := filepath.Join(upwardSearchDir, "a", "b")
 
-	tasks, err := discoverSource(osFiles{}, taskfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}

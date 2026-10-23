@@ -1,0 +1,20 @@
+version: '3'
+
+includes:
+  docs:
+    taskfile: .taskfiles/Taskfile.yml
+    dir: .
+  tools: ./tools
+  shared:
+    taskfile: ./shared/Taskfile.yml
+    flatten: true
+  hidden:
+    taskfile: ./hidden/Taskfile.yml
+    internal: true
+  extra:
+    taskfile: ./missing/Taskfile.yml
+    optional: true
+
+tasks:
+  build:
+    desc: Build the project

@@ -1,0 +1,3 @@
+# Build the project
+build:
+    echo build

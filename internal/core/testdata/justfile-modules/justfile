@@ -1,0 +1,5 @@
+mod tools
+
+# Root recipe
+root:
+    echo root

@@ -1,0 +1,6 @@
+includes:
+  more: ./more/Taskfile.yml
+
+tasks:
+  secret:
+    desc: Hidden task

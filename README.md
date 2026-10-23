@@ -9,11 +9,11 @@ A task picker for the commands you can never remember in a repository.
 
 ## Why
 
-I built `what-to-run` because I kept opening `package.json`, `Makefile`, or
-`Makefile.toml` just to check what a project could run. It discovers those
-tasks and makes them available from one key. It is first and foremost a
-**shell widget**: selected commands run through your shell and become part of
-your normal terminal history.
+I built `what-to-run` because I kept opening `package.json`, `Makefile`,
+`Taskfile.yml`, `justfile`, or `Makefile.toml` just to check what a project
+could run. It discovers those tasks and makes them available from one key. It
+is first and foremost a **shell widget**: selected commands run through your
+shell and become part of your normal terminal history.
 
 ## Get started
 
@@ -66,12 +66,17 @@ key, for example `--key ctrl-g`. PowerShell takes key names only (`ctrl-s`,
 
 ## Task sources
 
-The picker discovers tasks in the current project directory:
+The picker discovers tasks in the current project directory. The `justfile`
+and `Taskfile` sources also look in parent directories, like `just` and `task`
+themselves do: the nearest file wins, and its badge is the path relative to the
+current directory (for example `../../justfile`).
 
 | File | Discovered tasks | Command |
 | --- | --- | --- |
 | `package.json` | `scripts` | `<package-manager> run <name>` |
 | `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
+| `Taskfile.yml` and the other go-task default names | `tasks` and local `includes` (internal tasks hidden) | `task <name>` |
+| `justfile`, `Justfile`, `.justfile` | Recipes, local `import`s and modules (private recipes hidden) | `just <name>` |
 | `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
 | `.cargo/config`, `.cargo/config.toml` | `[alias]` (chains resolved for the description) | `cargo <name>` |
 | `devbox.json` | `shell.scripts` | `devbox run <name>` |
@@ -86,6 +91,32 @@ The picker discovers tasks in the current project directory:
 - For `package.json`, the package manager is detected from the `packageManager`
   field or a lockfile, falling back to npm.
 - Composer lifecycle events are skipped because Composer runs them itself.
+- For Taskfiles, local `includes` are followed recursively, relative to the
+  including file: an included task is namespaced (`docs:build`) unless the
+  include sets `flatten: true`, and an `internal` include hides all its tasks.
+  Remote and templated include paths are not followed, and a missing include
+  (optional or not) or an unparsable one is skipped without losing the other
+  tasks. On a flatten collision the first definition wins (the root file
+  before the includes).
+  Aliases are not listed as extra rows and `label` does not rename a task.
+  Internal tasks are hidden; a task described only by a template shows the
+  template as written.
+- For justfiles, local `import`s are followed recursively, relative to the
+  importing file: an imported recipe keeps the root file's name and command, so
+  the picker still runs `just <name>`. Modules (`mod`) are followed too: the
+  source is `name.just`, `name/mod.just` or `name/justfile`/`name/.justfile` in
+  any capitalization, an explicit quoted path may name the file or its
+  directory, and the module's recipes are listed as `name::recipe`, chained for
+  nested modules. A missing, unreadable or unparsable file is skipped, and a
+  cycle terminates instead of recursing. When a name is defined more than once,
+  the shallowest file wins and, at equal depth, the earlier include. Aliases are
+  not listed as extra rows. Private recipes are hidden (a `_` prefix or
+  `[private]`); `@` only marks a silent recipe, which is still listed. Recipe
+  parameters do not appear in the command line: the picker runs `just <name>`
+  and lets just apply the defaults. Groups are flattened into one alphabetical
+  list, so the order differs from `just --list`, which prints grouped recipes
+  after the ungrouped ones. Because the parser works line by line, a column-0
+  line inside a `'''...'''` string can be mistaken for a recipe header.
 
 ## Running without the widget
 

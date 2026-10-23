@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/zanza00/what-to-run/internal/core"
 )
 
 // update feeds msg to m and returns the resulting concrete model.
@@ -27,8 +28,8 @@ func press(m model, s string) model {
 }
 
 // sampleTasks returns a small task list for the UI tests.
-func sampleTasks() []Task {
-	return []Task{
+func sampleTasks() []core.Task {
+	return []core.Task{
 		{Source: "package.json", Name: "build", Desc: "go build ./...", Args: []string{"npm", "run", "build"}},
 		{Source: "Makefile", Name: "build-all", Desc: "Build everything", Args: []string{"make", "build-all"}},
 		{Source: "Makefile", Name: "test", Desc: "Run the tests", Args: []string{"make", "test"}},
@@ -85,7 +86,7 @@ func TestViewShowsCommandLines(t *testing.T) {
 func TestViewHidesRepeatedDescription(t *testing.T) {
 	// An rc task without a custom description defaults to its command: the
 	// row must not print it twice.
-	tasks := []Task{{Source: "rc", Name: "status", Desc: "git status", Args: []string{"sh", "-c", "git status"}}}
+	tasks := []core.Task{{Source: "rc", Name: "status", Desc: "git status", Args: []string{"sh", "-c", "git status"}}}
 	got := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10}).View().Content
 	if n := strings.Count(got, "git status"); n != 1 {
 		t.Errorf("View() shows %q %d times, want once:\n%s", "git status", n, got)
@@ -96,7 +97,7 @@ func TestViewShowsScriptBodyMatchingTaskName(t *testing.T) {
 	// A package.json script like "knip": "knip" has the same text as the
 	// script name in "pnpm run knip", but its script body must still be
 	// shown in the description column.
-	tasks := []Task{
+	tasks := []core.Task{
 		{Source: "package.json", Name: "test:watch", Desc: "vitest", Args: []string{"pnpm", "run", "test:watch"}},
 		{Source: "package.json", Name: "knip", Desc: "knip", Args: []string{"pnpm", "run", "knip"}},
 	}
@@ -116,7 +117,7 @@ func TestFilteringByCommandLine(t *testing.T) {
 }
 
 func TestFilteringByDescription(t *testing.T) {
-	tasks := []Task{
+	tasks := []core.Task{
 		{Source: "package.json", Name: "build", Desc: "tsc && vite build", Args: []string{"npm", "run", "build"}},
 		{Source: "Makefile", Name: "test", Desc: "Run the tests", Args: []string{"make", "test"}},
 	}
@@ -141,7 +142,7 @@ func TestFilteringByDescription(t *testing.T) {
 }
 
 func TestFilteringRanksAndRejectsScatteredCrossWordNoise(t *testing.T) {
-	tasks := []Task{
+	tasks := []core.Task{
 		{
 			Source: "package.json",
 			Name:   "test:watch",
@@ -273,7 +274,7 @@ func TestMatchPositionsPrefersContiguousAndWordBoundaries(t *testing.T) {
 }
 
 func TestViewHighlightsMatches(t *testing.T) {
-	tasks := []Task{
+	tasks := []core.Task{
 		{Source: "package.json", Name: "build", Desc: "tsc && vite build", Args: []string{"npm", "run", "build"}},
 		{Source: "package.json", Name: "dev", Desc: "vite --open", Args: []string{"npm", "run", "dev"}},
 	}
@@ -294,7 +295,7 @@ func TestViewHighlightsMatches(t *testing.T) {
 }
 
 func TestViewWindowsLongDescriptionAroundMatch(t *testing.T) {
-	tasks := []Task{
+	tasks := []core.Task{
 		{
 			Source: "package.json",
 			Name:   "build",
@@ -309,6 +310,68 @@ func TestViewWindowsLongDescriptionAroundMatch(t *testing.T) {
 	want := m.styles.selectedMatch.Render("postbuild")
 	if !strings.Contains(got, want) {
 		t.Errorf("narrow View() did not keep the matched description span visible:\n%s", got)
+	}
+}
+
+func TestViewFlattensMultiLineDescriptions(t *testing.T) {
+	// A Taskfile `desc: |` block and a just `[doc("a\nb")]` keep their
+	// newlines in Task.Desc, but a row is one line: the description has to
+	// stay in the description column and the source badge on the same row.
+	tests := []struct {
+		name string
+		desc string
+	}{
+		{"lf", "Build the app\nSecond line"},
+		{"crlf", "Build the app\r\nSecond line"},
+		{"block scalar with blank line", "Build the app\n\nSecond line\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tasks := []core.Task{{
+				Source: "Taskfile.yml",
+				Name:   "build",
+				Desc:   tt.desc,
+				Args:   []string{"task", "build"},
+			}}
+			m := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10})
+
+			row := m.taskRow(tasks[0], false, 80)
+			if strings.ContainsAny(row, "\r\n") {
+				t.Errorf("taskRow() = %q, want no embedded newline", row)
+			}
+			if !strings.Contains(row, "Build the app Second line") {
+				t.Errorf("taskRow() = %q, want both description lines joined by a space", row)
+			}
+			if !strings.HasSuffix(row, m.styles.dim.Render("Taskfile.yml")) {
+				t.Errorf("taskRow() = %q, want the source badge on the same row", row)
+			}
+			if w := lipgloss.Width(row); w > 80 {
+				t.Errorf("taskRow() is %d columns wide, want at most 80: %q", w, row)
+			}
+			if !strings.Contains(m.View().Content, "Build the app Second line") {
+				t.Errorf("View() does not show the flattened description:\n%s", m.View().Content)
+			}
+		})
+	}
+}
+
+func TestViewHighlightsMatchOnSecondDescriptionLine(t *testing.T) {
+	// The match mask is computed on the flattened description, so a token
+	// found on the second line of a `desc: |` block still highlights the
+	// runes the row actually shows.
+	tasks := []core.Task{{
+		Source: "Taskfile.yml",
+		Name:   "build",
+		Desc:   "Build the app\nSecond line",
+		Args:   []string{"task", "build"},
+	}}
+	m := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10})
+	m = press(m, "second")
+
+	got := m.View().Content
+	if !strings.Contains(got, m.styles.selectedMatch.Render("Second")) {
+		t.Errorf("View() did not highlight the match on the flattened description:\n%s", got)
 	}
 }
 
@@ -506,9 +569,9 @@ func TestViewInlineHelpMentionsFullscreen(t *testing.T) {
 }
 
 func TestViewFullscreenFillsHeightAndScrolls(t *testing.T) {
-	tasks := make([]Task, 30)
+	tasks := make([]core.Task, 30)
 	for i := range tasks {
-		tasks[i] = Task{Source: "Makefile", Name: fmt.Sprintf("task-%02d", i), Args: []string{"make", fmt.Sprintf("task-%02d", i)}}
+		tasks[i] = core.Task{Source: "Makefile", Name: fmt.Sprintf("task-%02d", i), Args: []string{"make", fmt.Sprintf("task-%02d", i)}}
 	}
 
 	m := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10})
@@ -646,6 +709,8 @@ func TestViewNoTasksShowsPersistentEmptyState(t *testing.T) {
 		"no tasks found here",
 		"package.json",
 		"Makefile.toml",
+		"Taskfile.yml",
+		"justfile",
 		".cargo/config.toml",
 		"devbox.json",
 		"composer.json",
@@ -768,7 +833,7 @@ func TestEnterQuitsWithChosenTaskInline(t *testing.T) {
 	if m.chosen == nil || m.chosen.Name != "build" {
 		t.Fatalf("chosen task = %+v, want build", m.chosen)
 	}
-	if got, want := m.chosen.command().Args, []string{"npm", "run", "build"}; !slices.Equal(got, want) {
+	if got, want := m.chosen.Command().Args, []string{"npm", "run", "build"}; !slices.Equal(got, want) {
 		t.Errorf("chosen command args = %v, want %v", got, want)
 	}
 }
@@ -804,7 +869,7 @@ func TestTabChoosesInsertInline(t *testing.T) {
 	if !m.chosenInsert {
 		t.Error("chosenInsert after tab = false, want true")
 	}
-	if got, want := m.chosen.commandLine(), "npm run build"; got != want {
+	if got, want := m.chosen.CommandLine(), "npm run build"; got != want {
 		t.Errorf("chosen command line = %q, want %q", got, want)
 	}
 }
@@ -834,17 +899,17 @@ func TestEnterChosenIsRunInline(t *testing.T) {
 }
 
 func TestReportChoice(t *testing.T) {
-	task := Task{Source: "rc", Name: "greet", Args: []string{"echo", "it's a test"}}
+	task := core.Task{Source: "rc", Name: "greet", Args: []string{"echo", "it's a test"}}
 	tests := []struct {
 		name   string
 		insert bool
-		shell  shellDialect
+		shell  core.ShellDialect
 		want   string
 	}{
-		{"run", false, shellPOSIX, "run\necho 'it'\\''s a test'\n"},
-		{"insert", true, shellPOSIX, "insert\necho 'it'\\''s a test'\n"},
-		{"powershell", false, shellPowerShell, "run\necho 'it''s a test'\n"},
-		{"cmd", false, shellCmd, "run\necho \"it's a test\"\n"},
+		{"run", false, core.ShellPOSIX, "run\necho 'it'\\''s a test'\n"},
+		{"insert", true, core.ShellPOSIX, "insert\necho 'it'\\''s a test'\n"},
+		{"powershell", false, core.ShellPowerShell, "run\necho 'it''s a test'\n"},
+		{"cmd", false, core.ShellCmd, "run\necho \"it's a test\"\n"},
 	}
 
 	for _, tt := range tests {

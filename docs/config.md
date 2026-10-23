@@ -29,8 +29,8 @@ theme = "dracula"
 package_manager = "npm"
 
 # Sources disabled globally, by any of their file names (package.json,
-# Makefile, Makefile.toml, .cargo/config, devbox.json, composer.json,
-# deno.json, mise.toml).
+# Makefile, Taskfile.yml, justfile, Makefile.toml, .cargo/config, devbox.json,
+# composer.json, deno.json, mise.toml).
 disable = ["Makefile.toml"]
 
 # Global custom tasks, available in every project unless shadowed.
@@ -76,13 +76,27 @@ User-only keys (`theme` and `projects`) are not allowed in a project
 ### Built-in task sources
 
 The picker looks for these files in the project directory; the `disable`
-setting above accepts any of their file names. A source that fails to parse
+setting above accepts any of their file names. The `justfile` and `Taskfile`
+sources also look in parent directories, like `just` and `task` themselves do:
+the nearest file wins, and its badge is the path relative to the project
+directory (for example `../../Taskfile.yml`). A source that fails to parse
 only warns and does not hide the tasks of the other sources.
+
+A Taskfile's local `includes` are followed recursively, with paths relative to
+the including file (a directory include is searched for the default Taskfile
+names). Included tasks are namespaced with the include key (`docs:build`)
+unless the include sets `flatten: true`; an `internal` include hides all its
+tasks. Remote and templated include paths are not followed, a missing include
+(optional or not) or an unparsable one is skipped in best-effort mode, and a
+flatten name collision keeps the first definition (the root file before the
+includes).
 
 | File(s) | Discovered tasks | Command |
 | --- | --- | --- |
 | `package.json` | `scripts` | `<package-manager> run <name>` |
 | `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
+| `Taskfile.yml`, `taskfile.yml`, `Taskfile.yaml`, `taskfile.yaml`, `Taskfile.dist.yml`, `taskfile.dist.yml`, `Taskfile.dist.yaml`, `taskfile.dist.yaml` | `tasks` and local `includes` (internal tasks and internal includes hidden) | `task <name>` |
+| `justfile`, `Justfile`, `.justfile` | Recipes (private recipes hidden) | `just <name>` |
 | `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
 | `.cargo/config`, `.cargo/config.toml` | `[alias]` | `cargo <name>` |
 | `devbox.json` | `shell.scripts` | `devbox run <name>` |

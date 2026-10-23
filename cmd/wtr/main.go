@@ -1,8 +1,9 @@
 // Command wtr is a TUI for running the tasks declared in a project's files
-// (package.json, Makefile, Makefile.toml, .cargo/config, devbox.json,
-// composer.json, deno.json, mise.toml, and the rc file). The same program is
-// also built as what-to-run, the explicit name for shell rc files: the invoked
-// name is the one shown in usage, messages and the picker title.
+// (package.json, Makefile, Taskfile.yml, justfile, Makefile.toml,
+// .cargo/config, devbox.json, composer.json, deno.json, mise.toml, and the rc
+// file). The same program is also built as what-to-run, the explicit name for
+// shell rc files: the invoked name is the one shown in usage, messages and the
+// picker title.
 package main
 
 import (
@@ -17,6 +18,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/zanza00/what-to-run/internal/shell"
 	"github.com/zanza00/what-to-run/internal/tui"
 )
 
@@ -25,7 +27,7 @@ import (
 var prog = progName(os.Args[0])
 
 // version is the release version, injected at build time with
-// `-X main.version` (see the Makefile and .goreleaser.yaml); local builds
+// `-X main.version` (see Taskfile.yml and .goreleaser.yaml); local builds
 // report "dev".
 var version = "dev"
 
@@ -118,7 +120,7 @@ func main() {
 //	what-to-run init powershell | Out-String | Invoke-Expression
 func runInit(args []string, w io.Writer) error {
 	fs := flag.NewFlagSet(prog+" init", flag.ExitOnError)
-	key := fs.String("key", tui.DefaultKey,
+	key := fs.String("key", shell.DefaultKey,
 		"combo that opens the picker: a name like ctrl-s or alt-x, or, for zsh\n"+
 			"and bash, a raw sequence as they bind keys (^[x for zsh, \\e[15~\n"+
 			"for bash); PowerShell takes key names only")
@@ -138,16 +140,16 @@ func runInit(args []string, w io.Writer) error {
 	if len(rest) == 0 {
 		return fmt.Errorf("missing shell argument: use '%s init zsh|bash|powershell [--key combo]'", prog)
 	}
-	shell, tail := rest[0], rest[1:]
-	init := tui.ZshInit
-	switch shell {
+	sh, tail := rest[0], rest[1:]
+	init := shell.ZshInit
+	switch sh {
 	case "zsh":
 	case "bash":
-		init = tui.BashInit
+		init = shell.BashInit
 	case "powershell", "pwsh":
-		init = tui.PowerShellInit
+		init = shell.PowerShellInit
 	default:
-		return fmt.Errorf("unsupported shell %q: only zsh, bash and powershell are supported", shell)
+		return fmt.Errorf("unsupported shell %q: only zsh, bash and powershell are supported", sh)
 	}
 	// flag stops at the first positional argument, so a flag written after
 	// the shell name ("init zsh --key ctrl-g") needs a second pass.

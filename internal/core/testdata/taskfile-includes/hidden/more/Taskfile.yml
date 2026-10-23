@@ -1,0 +1,3 @@
+tasks:
+  leak:
+    desc: Hidden nested task

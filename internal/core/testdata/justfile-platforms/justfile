@@ -1,0 +1,30 @@
+# Build the app
+build:
+    echo build
+
+# Server build for Unix
+[unix]
+[doc("Build the server (Unix)")]
+serve:
+    echo serve-unix
+
+# Server build for Windows
+[windows]
+[doc("Build the server (Windows)")]
+serve:
+    echo serve-windows
+
+[linux]
+[doc("Run the tests on Linux")]
+test:
+    echo test-linux
+
+[macos]
+[doc("Run the tests on macOS")]
+test:
+    echo test-macos
+
+[windows]
+[doc("Run the tests on Windows")]
+test:
+    echo test-windows

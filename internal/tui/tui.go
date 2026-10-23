@@ -19,6 +19,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
+	"github.com/zanza00/what-to-run/internal/core"
 )
 
 // areaStyle draws the border around the inline area when DebugArea is set: a
@@ -46,9 +47,11 @@ type Options struct {
 
 	// Inline renders the UI between the current cursor line and the bottom of
 	// the screen instead of taking over the whole screen. It is meant for
-	// shell widgets that launch the binary right below the prompt (the zsh
-	// and bash integrations from 'wtr init zsh' and 'wtr init bash', see
-	// ZshInit and BashInit) so that the shell history above stays visible.
+	// shell widgets that launch the binary right below the prompt (the zsh,
+	// bash and PowerShell integrations from 'wtr init zsh', 'wtr init bash'
+	// and 'wtr init powershell', see shell.ZshInit, shell.BashInit and
+	// shell.PowerShellInit) so that the shell history above
+	// stays visible.
 	// ctrl+f expands the picker to the whole screen and toggles back.
 	Inline bool
 
@@ -82,10 +85,10 @@ func (o Options) prog() string {
 
 // shell returns the command-line dialect, falling back to the platform
 // default for an unknown value (newModel reports it as a warning).
-func (o Options) shell() shellDialect {
-	shell, err := parseShell(o.Shell)
+func (o Options) shell() core.ShellDialect {
+	shell, err := core.ParseShellDialect(o.Shell)
 	if err != nil {
-		return defaultShell()
+		return core.DefaultShellDialect()
 	}
 	return shell
 }
@@ -98,8 +101,9 @@ func (o Options) shell() shellDialect {
 // the terminal is handed over to the task (tea.ExecProcess) and taken back
 // afterwards, with the outcome shown in the status line.
 //
-// In inline mode the picker only chooses. A shell widget (the zsh and bash
-// integrations, see ZshInit and BashInit) runs it with stdout captured, so
+// In inline mode the picker only chooses. A shell widget (the zsh, bash and
+// PowerShell integrations, see shell.ZshInit, shell.BashInit and
+// shell.PowerShellInit) runs it with stdout captured, so
 // Bubble Tea renders on the terminal itself and the result is reported on
 // stdout as two lines: the mode ("run" after enter, "insert" after tab) and
 // the command line. The widget then executes the command or places it in the
@@ -182,11 +186,11 @@ func Run(opts Options) error {
 
 	if m.chosenInsert {
 		// No widget to insert into: print the command line.
-		fmt.Println(m.chosen.commandLineFor(opts.shell()))
+		fmt.Println(m.chosen.CommandLineFor(opts.shell()))
 		return nil
 	}
 
-	cmd := m.chosen.command()
+	cmd := m.chosen.Command()
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("task %s: %w", m.chosen.Name, err)
@@ -197,22 +201,42 @@ func Run(opts Options) error {
 // reportChoice writes the picker result for the calling shell widget: the
 // mode line ("run" or "insert") followed by the command line, quoted for the
 // shell that will read it.
-func reportChoice(w io.Writer, t Task, insert bool, shell shellDialect) {
+func reportChoice(w io.Writer, t core.Task, insert bool, shell core.ShellDialect) {
 	mode := "run"
 	if insert {
 		mode = "insert"
 	}
-	fmt.Fprintf(w, "%s\n%s\n", mode, t.commandLineFor(shell))
+	fmt.Fprintf(w, "%s\n%s\n", mode, t.CommandLineFor(shell))
 }
 
 // discover gathers the tasks of the current directory and the rc settings:
 // the rc file first (its problems become warnings), then every source. The
 // warnings are returned even when tasks were found, for the picker's status
 // line.
-func discover() ([]Task, config, []error) {
-	cfg, warnings := loadConfig(defaultConfigFiles("."))
-	tasks, sourceWarnings := discoverTasks(".", cfg)
+func discover() ([]core.Task, config, []error) {
+	projectFile, globalFile := defaultConfigFiles(".")
+	cfg, warnings := loadConfig(osFiles{}, projectFile, globalFile)
+	tasks, sourceWarnings := core.Discover(osFiles{}, ".", coreSettings(cfg))
 	return tasks, cfg, append(warnings, sourceWarnings...)
+}
+
+// coreSettings maps the rc settings onto the task domain's configuration: the
+// discovery layer knows nothing about the TOML file.
+func coreSettings(cfg config) core.Settings {
+	settings := core.Settings{
+		PackageManager: cfg.PackageManager,
+		Disable:        cfg.Disable,
+		Tasks:          make([]core.RCTask, len(cfg.Tasks)),
+	}
+	for i, t := range cfg.Tasks {
+		settings.Tasks[i] = core.RCTask{
+			Name:        t.Name,
+			Command:     t.Command,
+			Description: t.Description,
+			Cwd:         t.Cwd,
+		}
+	}
+	return settings
 }
 
 // noTasksError is the error of a directory with nothing to run.
@@ -293,7 +317,7 @@ type cursorPosTimeoutMsg struct{}
 // taskDoneMsg reports that a task run in place inside the fullscreen picker
 // has finished.
 type taskDoneMsg struct {
-	task Task
+	task core.Task
 	err  error
 }
 
@@ -301,7 +325,7 @@ type taskDoneMsg struct {
 // tasks.
 type model struct {
 	opts     Options
-	tasks    []Task
+	tasks    []core.Task
 	warnings []error
 
 	width  int
@@ -336,9 +360,9 @@ type model struct {
 	cursor int    // index into visible()
 	offset int    // index of the first visible row of the list
 
-	status  string    // outcome of the last in-place run, shown in the help line
-	started time.Time // when the current in-place run started
-	chosen  *Task     // task chosen in inline mode, to run or insert after quitting
+	status  string     // outcome of the last in-place run, shown in the help line
+	started time.Time  // when the current in-place run started
+	chosen  *core.Task // task chosen in inline mode, to run or insert after quitting
 
 	// notice is the transient confirmation shown as a toast (see notice.go);
 	// noticeID invalidates the timer of a replaced notice.
@@ -370,7 +394,7 @@ type model struct {
 	warningIdx   int
 }
 
-func newModel(opts Options, tasks []Task, warnings []error) model {
+func newModel(opts Options, tasks []core.Task, warnings []error) model {
 	idx, ok := themeIndex(opts.Theme)
 	if !ok {
 		warnings = append([]error{fmt.Errorf(
@@ -378,7 +402,7 @@ func newModel(opts Options, tasks []Task, warnings []error) model {
 			opts.Theme, defaultTheme)}, warnings...)
 	}
 	if opts.Shell != "" {
-		if _, err := parseShell(opts.Shell); err != nil {
+		if _, err := core.ParseShellDialect(opts.Shell); err != nil {
 			warnings = append([]error{err}, warnings...)
 		}
 	}
@@ -725,7 +749,7 @@ func (m model) run() (tea.Model, tea.Cmd) {
 
 	m.status = m.styles.dim.Render("running " + t.Name + "…")
 	m.started = time.Now()
-	return m, tea.ExecProcess(t.command(), func(err error) tea.Msg {
+	return m, tea.ExecProcess(t.Command(), func(err error) tea.Msg {
 		return taskDoneMsg{task: t, err: err}
 	})
 }
@@ -752,20 +776,20 @@ func (m model) filterTokens() []string {
 
 // visible returns the tasks matching the current filter, ranked from best to
 // worst match (ties keep discovery order).
-func (m model) visible() []Task {
+func (m model) visible() []core.Task {
 	tokens := m.filterTokens()
 	if len(tokens) == 0 {
 		return m.tasks
 	}
 
 	type scoredTask struct {
-		task  Task
+		task  core.Task
 		score int
 	}
 	matches := make([]scoredTask, 0, len(m.tasks))
 	shell := m.opts.shell()
 	for _, t := range m.tasks {
-		if score, ok := t.matchScore(tokens, shell); ok {
+		if score, ok := taskMatchScore(t, tokens, shell); ok {
 			matches = append(matches, scoredTask{task: t, score: score})
 		}
 	}
@@ -773,27 +797,27 @@ func (m model) visible() []Task {
 		return b.score - a.score
 	})
 
-	out := make([]Task, len(matches))
+	out := make([]core.Task, len(matches))
 	for i, m := range matches {
 		out[i] = m.task
 	}
 	return out
 }
 
-// matches reports whether the task matches all tokens, as case-insensitive
+// taskMatches reports whether the task matches all tokens, as case-insensitive
 // subsequences of its name, command line or description: the rows show the
 // command and the description (e.g. a package.json script body), so typing
 // "npm", "tsc" or "vite" must find it.
-func (t Task) matches(tokens []string, shell shellDialect) bool {
-	_, ok := t.matchScore(tokens, shell)
+func taskMatches(t core.Task, tokens []string, shell core.ShellDialect) bool {
+	_, ok := taskMatchScore(t, tokens, shell)
 	return ok
 }
 
-// matchScore scores how well t matches all tokens. Contiguous matches always
+// taskMatchScore scores how well t matches all tokens. Contiguous matches always
 // outrank non-contiguous subsequence matches, and within the same tier a
 // match in the task name or command line outranks one in the description. The
 // command line is quoted for shell, so the score is the same as the row shown.
-func (t Task) matchScore(tokens []string, shell shellDialect) (int, bool) {
+func taskMatchScore(t core.Task, tokens []string, shell core.ShellDialect) (int, bool) {
 	const (
 		contigCmdTier  = 2000
 		contigDescTier = 1000
@@ -803,7 +827,7 @@ func (t Task) matchScore(tokens []string, shell shellDialect) (int, bool) {
 		prefixBonus    = 200
 	)
 
-	cmdLine := t.commandLineFor(shell)
+	cmdLine := t.CommandLineFor(shell)
 	nameLower := strings.ToLower(t.Name)
 	total := 0
 
@@ -1244,8 +1268,9 @@ func (m model) filterLine() string {
 func (m model) emptyStateLines() []string {
 	return []string{
 		"  " + m.styles.title.Render("no tasks found here"),
-		"  " + m.styles.dim.Render("looked for task files: package.json, Makefile, Makefile.toml,"),
-		"  " + m.styles.dim.Render(".cargo/config.toml, devbox.json, composer.json, deno.json and mise.toml"),
+		"  " + m.styles.dim.Render("looked for task files: package.json, Makefile, Taskfile.yml, justfile,"),
+		"  " + m.styles.dim.Render("Makefile.toml, .cargo/config.toml, devbox.json, composer.json,"),
+		"  " + m.styles.dim.Render("deno.json and mise.toml"),
 		"  " + m.styles.dim.Render("add [[tasks]] to .what-to-run.toml for custom commands"),
 	}
 }
@@ -1275,13 +1300,38 @@ func (m model) listLines(w int) []string {
 	return rows
 }
 
+// flattenDesc puts a description on the single row the picker gives a task:
+// task files allow multi-line descriptions (a Taskfile `desc: |` block, a
+// just `[doc("a\nb")]`), and a run of CR and LF becomes one space, as
+// `task --list` does.
+func flattenDesc(s string) string {
+	if !strings.ContainsAny(s, "\r\n") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	pendingSpace := false
+	for _, r := range s {
+		if r == '\r' || r == '\n' {
+			pendingSpace = true
+			continue
+		}
+		if pendingSpace {
+			b.WriteByte(' ')
+			pendingSpace = false
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 // taskRow renders one list row: the cursor marker, the command line that will
 // run, the description and the source file, right-aligned. The command comes
 // first and keeps its whole text — it already contains the task name for
 // every runner — then the description takes the room that is left, and is
 // dropped before the command shrinks. The whole selected row carries the
 // theme's tint, or reverse video in the colorless theme.
-func (m model) taskRow(t Task, selected bool, w int) string {
+func (m model) taskRow(t core.Task, selected bool, w int) string {
 	badge := t.Source
 	badgeW := lipgloss.Width(badge)
 
@@ -1295,7 +1345,7 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 	tokens := m.filterTokens()
 
 	cmdW := min(m.commandWidth(), avail)
-	cmdRaw := t.commandLineFor(m.opts.shell())
+	cmdRaw := t.CommandLineFor(m.opts.shell())
 	cmd, cmdMatch := truncateMatched(cmdRaw, matchPositions(cmdRaw, tokens), cmdW)
 	cmd += strings.Repeat(" ", max(cmdW-lipgloss.Width(cmd), 0))
 
@@ -1305,6 +1355,7 @@ func (m model) taskRow(t Task, selected bool, w int) string {
 		// description default to their own command (sh -c <cmd>).
 		desc = ""
 	}
+	desc = flattenDesc(desc)
 	var (
 		descLine  string
 		descMatch []bool
@@ -1467,7 +1518,7 @@ func (m model) commandWidth() int {
 	shell := m.opts.shell()
 	cmdW := 0
 	for _, t := range m.visible() {
-		cmdW = max(cmdW, lipgloss.Width(t.commandLineFor(shell)))
+		cmdW = max(cmdW, lipgloss.Width(t.CommandLineFor(shell)))
 	}
 	return cmdW
 }

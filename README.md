@@ -9,11 +9,11 @@ A task picker for the commands you can never remember in a repository.
 
 ## Why
 
-I built `what-to-run` because I kept opening `package.json`, `Makefile`, or
-`Makefile.toml` just to check what a project could run. It discovers those
-tasks and makes them available from one key. It is first and foremost a
-**shell widget**: selected commands run through your shell and become part of
-your normal terminal history.
+I built `what-to-run` because I kept opening `package.json`, `Makefile`,
+`Taskfile.yml`, or `Makefile.toml` just to check what a project could run. It
+discovers those tasks and makes them available from one key. It is first and
+foremost a **shell widget**: selected commands run through your shell and
+become part of your normal terminal history.
 
 ## Get started
 
@@ -61,6 +61,7 @@ The picker discovers tasks in the current project directory:
 | --- | --- | --- |
 | `package.json` | `scripts` | `<package-manager> run <name>` |
 | `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
+| `Taskfile.yml` and the other go-task default names | `tasks` (internal tasks hidden) | `task <name>` |
 | `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
 | `.cargo/config`, `.cargo/config.toml` | `[alias]` (chains resolved for the description) | `cargo <name>` |
 | `devbox.json` | `shell.scripts` | `devbox run <name>` |
@@ -75,6 +76,10 @@ The picker discovers tasks in the current project directory:
 - For `package.json`, the package manager is detected from the `packageManager`
   field or a lockfile, falling back to npm.
 - Composer lifecycle events are skipped because Composer runs them itself.
+- For Taskfiles, only the tasks in the file itself are listed: `includes` and
+  remote Taskfiles are not followed, aliases are not listed as extra rows and
+  `label` does not rename a task. Internal tasks are hidden; a task described
+  only by a template shows the template as written.
 
 ## Running without the widget
 

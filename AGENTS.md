@@ -5,6 +5,9 @@ project. Supported task files:
 
 - `package.json`
 - `Makefile`, `makefile`, `GNUmakefile`
+- `Taskfile.yml` and the other go-task default names (`taskfile.yml`,
+  `Taskfile.yaml`, `taskfile.yaml`, `Taskfile.dist.yml`, `taskfile.dist.yml`,
+  `Taskfile.dist.yaml`, `taskfile.dist.yaml`)
 - `Makefile.toml`
 - `.cargo/config`, `.cargo/config.toml`
 - `devbox.json`

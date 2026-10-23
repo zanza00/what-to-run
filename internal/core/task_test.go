@@ -40,6 +40,27 @@ func TestCommandLine(t *testing.T) {
 	}
 }
 
+func TestCommandLineForPowerShell(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"plain command word stays bare", []string{"npm", "run", "build"}, "npm run build"},
+		{"quoted path with spaces takes the call operator", []string{`C:\Program Files\tool.exe`, "--flag"}, `& 'C:\Program Files\tool.exe' --flag`},
+		{"single quote in the path is doubled", []string{`C:\Program Files\O'Brien\tool.exe`, "--flag"}, `& 'C:\Program Files\O''Brien\tool.exe' --flag`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := Task{Source: "rc", Name: "t", Args: tt.args}
+			if got := task.CommandLineFor(ShellPowerShell); got != tt.want {
+				t.Errorf("CommandLineFor(powershell) = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCommandLineUsesPlatformDefault(t *testing.T) {
 	task := Task{Source: "rc", Name: "t", Args: []string{"echo", "it's"}}
 	if got, want := task.CommandLine(), task.CommandLineFor(DefaultShellDialect()); got != want {

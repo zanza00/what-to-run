@@ -33,11 +33,16 @@ func (t Task) CommandLine() string {
 }
 
 // CommandLineFor returns the task's command as a shell line quoted for the
-// given dialect, ready to be placed in a prompt by an inline widget.
+// given dialect, ready to be placed in a prompt by an inline widget. In
+// PowerShell a quoted command word is a string expression, so it takes the
+// call operator (&) to be executed.
 func (t Task) CommandLineFor(shell ShellDialect) string {
 	parts := make([]string, len(t.Args))
 	for i, arg := range t.Args {
 		parts[i] = quoteArgFor(shell, arg)
+	}
+	if shell == ShellPowerShell && len(parts) > 0 && parts[0] != t.Args[0] {
+		parts[0] = "& " + parts[0]
 	}
 	return strings.Join(parts, " ")
 }

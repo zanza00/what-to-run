@@ -212,7 +212,7 @@ func TestCommandLineFor(t *testing.T) {
 		{"powershell doubles the quote", []string{"echo", "it's a test"}, ShellPowerShell, `echo 'it''s a test'`},
 		{"cmd groups the argument in double quotes", []string{"echo", "it's a test"}, ShellCmd, `echo "it's a test"`},
 		{"posix path with spaces", []string{`C:\Program Files\tool.exe`, "--flag"}, ShellPOSIX, `'C:\Program Files\tool.exe' --flag`},
-		{"powershell path with spaces", []string{`C:\Program Files\tool.exe`, "--flag"}, ShellPowerShell, `'C:\Program Files\tool.exe' --flag`},
+		{"powershell path with spaces takes the call operator", []string{`C:\Program Files\tool.exe`, "--flag"}, ShellPowerShell, `& 'C:\Program Files\tool.exe' --flag`},
 		{"cmd path with spaces", []string{`C:\Program Files\tool.exe`, "--flag"}, ShellCmd, `"C:\Program Files\tool.exe" --flag`},
 		{"empty argv", nil, ShellPOSIX, ""},
 	}

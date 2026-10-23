@@ -312,6 +312,68 @@ func TestViewWindowsLongDescriptionAroundMatch(t *testing.T) {
 	}
 }
 
+func TestViewFlattensMultiLineDescriptions(t *testing.T) {
+	// A Taskfile `desc: |` block and a just `[doc("a\nb")]` keep their
+	// newlines in Task.Desc, but a row is one line: the description has to
+	// stay in the description column and the source badge on the same row.
+	tests := []struct {
+		name string
+		desc string
+	}{
+		{"lf", "Build the app\nSecond line"},
+		{"crlf", "Build the app\r\nSecond line"},
+		{"block scalar with blank line", "Build the app\n\nSecond line\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tasks := []Task{{
+				Source: "Taskfile.yml",
+				Name:   "build",
+				Desc:   tt.desc,
+				Args:   []string{"task", "build"},
+			}}
+			m := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10})
+
+			row := m.taskRow(tasks[0], false, 80)
+			if strings.ContainsAny(row, "\r\n") {
+				t.Errorf("taskRow() = %q, want no embedded newline", row)
+			}
+			if !strings.Contains(row, "Build the app Second line") {
+				t.Errorf("taskRow() = %q, want both description lines joined by a space", row)
+			}
+			if !strings.HasSuffix(row, m.styles.dim.Render("Taskfile.yml")) {
+				t.Errorf("taskRow() = %q, want the source badge on the same row", row)
+			}
+			if w := lipgloss.Width(row); w > 80 {
+				t.Errorf("taskRow() is %d columns wide, want at most 80: %q", w, row)
+			}
+			if !strings.Contains(m.View().Content, "Build the app Second line") {
+				t.Errorf("View() does not show the flattened description:\n%s", m.View().Content)
+			}
+		})
+	}
+}
+
+func TestViewHighlightsMatchOnSecondDescriptionLine(t *testing.T) {
+	// The match mask is computed on the flattened description, so a token
+	// found on the second line of a `desc: |` block still highlights the
+	// runes the row actually shows.
+	tasks := []Task{{
+		Source: "Taskfile.yml",
+		Name:   "build",
+		Desc:   "Build the app\nSecond line",
+		Args:   []string{"task", "build"},
+	}}
+	m := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10})
+	m = press(m, "second")
+
+	got := m.View().Content
+	if !strings.Contains(got, m.styles.selectedMatch.Render("Second")) {
+		t.Errorf("View() did not highlight the match on the flattened description:\n%s", got)
+	}
+}
+
 func TestViewKeepsCommandOnNarrowTerminals(t *testing.T) {
 	// At 44 columns the description barely fits: the command must stay
 	// readable, since it is what will actually run.

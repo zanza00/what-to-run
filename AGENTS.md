@@ -25,9 +25,9 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 
 - `make all` is the full check (fmt + vet, race tests, build); CI
   (`.github/workflows/checks.yml`, also called by the release workflow) runs
-  the same checks plus a gofmt gate on linux and macOS, so run `make all`
-  before committing. A single test:
-  `go test -race ./internal/tui -run TestViewInlineHeight`.
+  the same checks plus a gofmt gate on linux and macOS, and its `cross` job
+  builds and vets for Windows, so run `make all` before committing. A single
+  test: `go test -race ./internal/tui -run TestViewInlineHeight`.
 - All runtime code lives in `internal/tui` (`tui.go` = model and layout,
   `tasks.go` = the Task model, `shell.go` = the shell dialects and the
   command-line quoting, `sources.go` = the discovery framework and the

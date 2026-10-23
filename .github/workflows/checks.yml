@@ -49,10 +49,16 @@ jobs:
         env:
           CGO_ENABLED: "0"
         run: |
-          for os in linux darwin; do
+          for os in linux darwin windows; do
             GOOS=$os GOARCH=amd64 go build -o /dev/null ./cmd/wtr
             GOOS=$os GOARCH=arm64 go build -o /dev/null ./cmd/wtr
           done
+      - name: Vet for Windows
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: go vet ./...
       - name: Test Homebrew publisher
         # Python is used only by the release publisher, not by the CLI.
         run: python3 -m unittest discover -s scripts -p '*_test.py'

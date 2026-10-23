@@ -22,9 +22,16 @@ func justfileSource() source {
 // colon (parameters and dependencies) up to the colon that opens the recipe.
 var justRecipeRe = regexp.MustCompile(`^@?([A-Za-z_][A-Za-z0-9_-]*)[^:]*:`)
 
+// justKeywordRe matches the set, alias and export keywords. just takes any
+// whitespace after a keyword, a TAB included, and then either a statement or a
+// recipe header that carries the keyword as its name ("set:"); justHeaderColon
+// tells the two apart.
+var justKeywordRe = regexp.MustCompile(`^(set|alias|export)\s`)
+
 // justModuleRe matches the import and mod keywords, including their optional
-// "?" forms, which take a path up to a space.
-var justModuleRe = regexp.MustCompile(`^(import|mod)\?? `)
+// "?" forms, which take a path up to whitespace. The whitespace is required,
+// for the same reason as in justKeywordRe.
+var justModuleRe = regexp.MustCompile(`^(import|mod)\??\s`)
 
 // justAssignmentRe matches a top-level variable assignment. It is anchored and
 // requires the ":=" right after the name, so a recipe header carrying a
@@ -48,13 +55,15 @@ var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 // Settings, aliases, exports, imports and modules are skipped, as are
 // top-level variable assignments: the assignment rule is anchored on the name
 // and the ":=", so a recipe header with a trailing comment or a parameter
-// default containing ":=" is still listed. Imports and modules are not
-// followed, so a justfile whose recipes live in another file shows none of
-// them; aliases are not listed as extra rows. Groups are ignored: the picker
-// shows one flat alphabetical list, which orders grouped recipes differently
-// from "just --list". Triple-quoted strings can contain a column-0 line that
-// looks like a recipe header, which the line-based parser cannot tell from a
-// real one.
+// default containing ":=" is still listed. A keyword statement is skipped only
+// while no recipe-header colon follows, so a recipe named "set", "alias",
+// "export" or "import" is still listed however its parameters look. Imports
+// and modules are not followed, so a justfile whose recipes live in another
+// file shows none of them; aliases are not listed as extra rows. Groups are
+// ignored: the picker shows one flat alphabetical list, which orders grouped
+// recipes differently from "just --list". Triple-quoted strings can contain a
+// column-0 line that looks like a recipe header, which the line-based parser
+// cannot tell from a real one.
 func parseJustfile(_ string, data []byte) ([]Task, error) {
 	var (
 		tasks   []Task
@@ -142,14 +151,52 @@ func parseJustfile(_ string, data []byte) ([]Task, error) {
 }
 
 // isJustSetting reports whether the line declares a setting, an assignment, an
-// alias, an export, an import or a module rather than a recipe.
+// alias, an export, an import or a module rather than a recipe. A keyword
+// statement must be followed by whitespace — just reads a TAB as well as a
+// space — and must carry no colon that opens a recipe header: just lets a
+// recipe take a keyword as its name ("set x="1":"), which the header colon
+// tells apart from a setting.
 func isJustSetting(line string) bool {
-	for _, prefix := range []string{"set ", "alias ", "export "} {
-		if strings.HasPrefix(line, prefix) {
+	if justAssignmentRe.MatchString(line) {
+		return true
+	}
+	if justKeywordRe.MatchString(line) || justModuleRe.MatchString(line) {
+		return !justHeaderColon(line)
+	}
+	return false
+}
+
+// justHeaderColon reports whether the line carries the colon that opens a
+// recipe header: a ":" outside a quoted string and not part of a ":="
+// assignment. A "#" starts a comment, which may contain any text, so the scan
+// stops there. Quoted strings are read like stripJustComment reads them, so
+// the ":" of an import path or of a parameter default does not count.
+func justHeaderColon(line string) bool {
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case quote != 0:
+			if c == '\\' {
+				i++ // skip the escaped byte
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '#':
+			return false
+		case c == ':':
+			if i+1 < len(line) && line[i+1] == '=' {
+				i++ // skip the "=" of ":="
+				continue
+			}
 			return true
 		}
 	}
-	return justModuleRe.MatchString(line) || justAssignmentRe.MatchString(line)
+	return false
 }
 
 // justAttributes parses a "[...]" attribute line and returns the doc text, if

@@ -34,6 +34,67 @@ build:
 			},
 		},
 		{
+			name: "a tab after a keyword is still a setting",
+			in: "set\tshell := [\"bash\", \"-c\"]\n" +
+				"alias\tb := build\n" +
+				"export\tFOO := \"bar\"\n" +
+				"import\t\"x:y.just\"\n" +
+				"import?\t\"opt:y.just\"\n" +
+				"mod\tsub\n" +
+				"mod?\t\"sub:dir\"\n" +
+				"\nbuild:\n    echo build\n",
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
+			name: "a recipe named after a keyword is still a recipe",
+			in: `set:
+    echo set
+
+import: build
+    echo import
+`,
+			want: []Task{
+				{Name: "import", Desc: "", Args: []string{"just", "import"}},
+				{Name: "set", Desc: "", Args: []string{"just", "set"}},
+			},
+		},
+		{
+			name: "a recipe named after a keyword may take parameters",
+			in: `set x="1":
+    echo set
+
+alias y="2":
+    echo alias
+
+export z="3":
+    echo export
+
+import q="4":
+    echo import
+`,
+			want: []Task{
+				{Name: "alias", Desc: "", Args: []string{"just", "alias"}},
+				{Name: "export", Desc: "", Args: []string{"just", "export"}},
+				{Name: "import", Desc: "", Args: []string{"just", "import"}},
+				{Name: "set", Desc: "", Args: []string{"just", "set"}},
+			},
+		},
+		{
+			name: "a quoted colon and a trailing comment keep a keyword line a statement",
+			in: `set shell := ["bash", "-c"] # see a:b
+export PATH := "/a:b/bin"
+import "x:y.just" # : not a header
+mod? sub
+build:
+    echo build
+`,
+			want: []Task{
+				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+			},
+		},
+		{
 			name: "a doc comment uses only its last contiguous line",
 			in: `# First line
 # Second line

@@ -16,7 +16,7 @@ const upwardSearchDir = "testdata/upward-search"
 func TestDiscoverSourceSearchesParentsJust(t *testing.T) {
 	dir := filepath.Join(upwardSearchDir, "a", "b")
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -100,7 +100,7 @@ func TestDiscoverSourceNearestDirectoryWins(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(), grandchild)
+	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), grandchild)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -109,7 +109,7 @@ func TestDiscoverSourceNearestDirectoryWins(t *testing.T) {
 		t.Errorf("discoverSource() from the grandchild = %+v, want %+v", tasks, want)
 	}
 
-	tasks, err = discoverSource(osFiles{}, justfileSource(), child)
+	tasks, err = discoverSource(osFiles{}, justfileSource(osFiles{}), child)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -124,7 +124,7 @@ func TestDiscoverSourceNearestDirectoryWins(t *testing.T) {
 func TestDiscoverSourceSearchesParentsFromDot(t *testing.T) {
 	t.Chdir(filepath.Join(upwardSearchDir, "a", "b"))
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(), ".")
+	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), ".")
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}

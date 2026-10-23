@@ -65,7 +65,7 @@ current directory (for example `../../justfile`).
 | `package.json` | `scripts` | `<package-manager> run <name>` |
 | `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
 | `Taskfile.yml` and the other go-task default names | `tasks` and local `includes` (internal tasks hidden) | `task <name>` |
-| `justfile`, `Justfile`, `.justfile` | Recipes (private recipes hidden) | `just <name>` |
+| `justfile`, `Justfile`, `.justfile` | Recipes and local `import`s (private recipes hidden) | `just <name>` |
 | `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
 | `.cargo/config`, `.cargo/config.toml` | `[alias]` (chains resolved for the description) | `cargo <name>` |
 | `devbox.json` | `shell.scripts` | `devbox run <name>` |
@@ -90,15 +90,19 @@ current directory (for example `../../justfile`).
   Aliases are not listed as extra rows and `label` does not rename a task.
   Internal tasks are hidden; a task described only by a template shows the
   template as written.
-- For justfiles, only the recipes in the file itself are listed: `import` and
-  `mod` files are not followed and aliases are not listed as extra rows. Private
-  recipes are hidden (a `_` prefix or `[private]`); `@` only marks a silent
-  recipe, which is still listed. Recipe parameters do not appear in the command
-  line: the picker runs `just <name>` and lets just apply the defaults. Groups
-  are flattened into one alphabetical list, so the order differs from
-  `just --list`, which prints grouped recipes after the ungrouped ones. Because
-  the parser works line by line, a column-0 line inside a `'''...'''` string can
-  be mistaken for a recipe header.
+- For justfiles, local `import`s are followed recursively, relative to the
+  importing file: an imported recipe keeps the root file's name and command, so
+  the picker still runs `just <name>`. A missing, unreadable or unparsable
+  import is skipped, and an import cycle terminates instead of recursing. When
+  a name is defined more than once, the shallowest file wins and, at equal
+  depth, the earlier import. Modules (`mod`) are not followed and aliases are
+  not listed as extra rows. Private recipes are hidden (a `_` prefix or
+  `[private]`); `@` only marks a silent recipe, which is still listed. Recipe
+  parameters do not appear in the command line: the picker runs `just <name>`
+  and lets just apply the defaults. Groups are flattened into one alphabetical
+  list, so the order differs from `just --list`, which prints grouped recipes
+  after the ungrouped ones. Because the parser works line by line, a column-0
+  line inside a `'''...'''` string can be mistaken for a recipe header.
 
 ## Running without the widget
 

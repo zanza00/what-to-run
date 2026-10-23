@@ -2,6 +2,8 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"slices"
@@ -11,12 +13,15 @@ import (
 
 // justfileSource returns the source for just recipes: the first of the three
 // file names just itself looks for, in that order. Like just, it also looks in
-// the parent directories of the project directory.
-func justfileSource() source {
+// the parent directories of the project directory and follows the file's local
+// imports.
+func justfileSource(files Files) source {
 	return source{
 		Files:         []string{"justfile", "Justfile", ".justfile"},
 		SearchParents: true,
-		Parse:         parseJustfile,
+		Parse: func(dir string, data []byte) ([]Task, error) {
+			return parseJustfileFor(runtime.GOOS, files, dir, data)
+		},
 	}
 }
 
@@ -36,21 +41,19 @@ var justKeywordRe = regexp.MustCompile(`^(set|alias|export)\s`)
 // for the same reason as in justKeywordRe.
 var justModuleRe = regexp.MustCompile(`^(import|mod)\??\s`)
 
+// justImportRe captures the rest of an import statement, which justImportStatement
+// reads as a quoted path and an optional comment.
+var justImportRe = regexp.MustCompile(`^import\??\s+(.*)$`)
+
 // justAssignmentRe matches a top-level variable assignment. It is anchored and
 // requires the ":=" right after the name, so a recipe header carrying a
 // trailing comment ("build: # see FOO:=1") or a parameter default containing
 // ":=" is not mistaken for an assignment.
 var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 
-// parseJustfile returns the recipes a justfile declares on the running
-// platform, sorted by name like the ungrouped part of "just --list", each run
-// as "just <name>". Tests use parseJustfileFor to pick the platform.
-func parseJustfile(dir string, data []byte) ([]Task, error) {
-	return parseJustfileFor(runtime.GOOS, dir, data)
-}
-
 // parseJustfileFor returns the recipes a justfile declares for goos, sorted by
 // name like the ungrouped part of "just --list", each run as "just <name>".
+// Imported recipes are listed as if they were declared in the root file.
 //
 // The parser is line-based and forgiving. It recognizes a recipe header at
 // column 0, keeps the last contiguous "#" comment line above it or its
@@ -87,27 +90,57 @@ func parseJustfile(dir string, data []byte) ([]Task, error) {
 // assignment line is skipped like the one-line form, and a continuation the
 // file never closes is dropped.
 //
-// Settings, aliases, exports, imports and modules are skipped, as are
-// top-level variable assignments: the assignment rule is anchored on the name
-// and the ":=", so a recipe header with a trailing comment or a parameter
-// default containing ":=" is still listed. A keyword statement is skipped only
-// while no recipe-header colon follows, so a recipe named "set", "alias",
-// "export" or "import" is still listed however its parameters look. Imports
-// and modules are not followed, so a justfile whose recipes live in another
-// file shows none of them; aliases are not listed as extra rows. Groups are
+// Imports are followed recursively: "import" and "import?" take a quoted path,
+// resolved against the directory of the file that declares it, absolute paths
+// and a leading "~/" included. The imported recipes keep the importing file's
+// namespace, as they do in just, and aliases are not listed as extra rows. A
+// missing, unreadable or unparsable import is skipped, and a file already on
+// the active import chain is not read again, so a cycle terminates: the picker
+// never fails on an import. A nil Files port stops at the root document, which
+// is what the parser tests use.
+//
+// When a name is defined in more than one file, the shallowest definition wins
+// and, at equal depth, the first met in source order — the rule just documents
+// for duplicate recipes. Platform and privacy attributes still filter the
+// definitions before that choice, so only the definitions enabled on goos take
+// part in it.
+//
+// Settings, aliases, exports and modules are skipped, as are top-level variable
+// assignments: the assignment rule is anchored on the name and the ":=", so a
+// recipe header with a trailing comment or a parameter default containing ":="
+// is still listed. A keyword statement is skipped only while no recipe-header
+// colon follows, so a recipe named "set", "alias", "export" or "import" is
+// still listed however its parameters look. Modules are not followed yet, so a
+// justfile whose recipes live in a module shows none of them. Groups are
 // ignored: the picker shows one flat alphabetical list, which orders grouped
 // recipes differently from "just --list". Triple-quoted strings can contain a
 // column-0 line that looks like a recipe header, which the line-based parser
 // cannot tell from a real one.
-func parseJustfileFor(goos, _ string, data []byte) ([]Task, error) {
-	return selectJustTasks(goos, justDefinitions(data)), nil
+func parseJustfileFor(goos string, files Files, dir string, data []byte) ([]Task, error) {
+	return selectJustTasks(goos, justCollect(files, dir, data, 0, nil)), nil
 }
 
-// justDefinitions parses one justfile document into the recipes it defines, in
-// source order, keeping every duplicate and platform variant.
-func justDefinitions(data []byte) []justRecipe {
+// justDocument is one parsed justfile: the recipes it defines and the local
+// justfiles it imports, both in source order.
+type justDocument struct {
+	defs    []justRecipe
+	imports []justImport
+}
+
+// justImport is one "import" statement: the path as written, still unresolved.
+// The optional "import?" form needs no flag here, since a missing import is
+// skipped either way.
+type justImport struct {
+	path string
+}
+
+// justDocumentOf parses one justfile document into the recipes it defines and
+// the local files it imports, in source order, keeping every duplicate and
+// platform variant.
+func justDocumentOf(data []byte) justDocument {
 	var (
 		defs       []justRecipe
+		imports    []justImport
 		comment    string   // last contiguous "#" line
 		docAttr    string   // "[doc(...)]" attribute
 		hasDocAttr bool     // whether a "[doc(...)]" attribute was seen
@@ -183,6 +216,9 @@ func justDefinitions(data []byte) []justRecipe {
 		// checked before the recipe regex: an import path or an assignment
 		// containing a colon must not be read as a recipe header.
 		if isJustSetting(line) {
+			if path, ok := justImportStatement(line); ok {
+				imports = append(imports, justImport{path: path})
+			}
 			reset()
 			continue
 		}
@@ -220,22 +256,80 @@ func justDefinitions(data []byte) []justRecipe {
 		reset()
 	}
 
+	return justDocument{defs: defs, imports: imports}
+}
+
+// justCollect gathers the definitions of one justfile and of the files it
+// imports, recursively. depth is the number of import hops from the root file.
+// active holds the absolute paths on the current import chain, so a cycle is
+// skipped while the same file reached from two branches is still read under
+// both.
+func justCollect(files Files, dir string, data []byte, depth int, active map[string]bool) []justDefinition {
+	doc := justDocumentOf(data)
+	defs := make([]justDefinition, 0, len(doc.defs))
+	for _, def := range doc.defs {
+		defs = append(defs, justDefinition{justRecipe: def, depth: depth})
+	}
+	// Without a Files port there is nothing to read: the parser tests stop at
+	// the root document.
+	if files == nil || len(doc.imports) == 0 {
+		return defs
+	}
+	if active == nil {
+		active = make(map[string]bool)
+	}
+	for _, imp := range doc.imports {
+		path := justImportPath(dir, imp.path)
+		abs, err := filepath.Abs(path)
+		if err != nil || active[abs] {
+			continue
+		}
+		imported, err := files.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		active[abs] = true
+		defs = append(defs, justCollect(files, filepath.Dir(path), imported, depth+1, active)...)
+		delete(active, abs)
+	}
 	return defs
 }
 
+// justImportPath resolves an import path the way just does: relative to the
+// directory of the file that imports it, unless it is absolute, with a leading
+// "~/" naming the user's home directory.
+func justImportPath(dir, path string) string {
+	if rest, ok := strings.CutPrefix(path, "~/"); ok {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, rest)
+		}
+	}
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(dir, path)
+}
+
 // selectJustTasks picks one definition per recipe name and turns it into a
-// task: the first definition enabled on goos decides, and its privacy hides
-// the row. Definitions of other platforms and later duplicates are dropped.
-func selectJustTasks(goos string, defs []justRecipe) []Task {
-	var tasks []Task
-	selected := make(map[string]bool, len(defs))
+// task: the shallowest definition enabled on goos decides, and at equal depth
+// the first one met in source order wins. Its privacy hides the row.
+// Definitions of other platforms and later duplicates are dropped.
+func selectJustTasks(goos string, defs []justDefinition) []Task {
+	best := make(map[string]justDefinition, len(defs))
 	for _, def := range defs {
-		if selected[def.name] || !justPlatformEnabled(def.platforms, goos) {
+		if !justPlatformEnabled(def.platforms, goos) {
 			continue
 		}
-		selected[def.name] = true
+		if prev, ok := best[def.name]; ok && prev.depth <= def.depth {
+			continue
+		}
+		best[def.name] = def
+	}
+
+	tasks := make([]Task, 0, len(best))
+	for _, def := range best {
 		// Hiding applies to the selected definition only, as in just: the
-		// first enabled variant is the one the tool would see.
+		// winning variant is the one the tool would see.
 		if def.private || strings.HasPrefix(def.name, "_") {
 			continue
 		}
@@ -254,12 +348,20 @@ func selectJustTasks(goos string, defs []justRecipe) []Task {
 }
 
 // justRecipe is one definition of a recipe in a justfile. The same name may
-// appear more than once with different platform attributes.
+// appear more than once with different platform attributes, in one file or in
+// imported ones.
 type justRecipe struct {
 	name      string
 	desc      string
 	private   bool
 	platforms []string // empty means every platform
+}
+
+// justDefinition is one recipe definition with the import depth of the file
+// that declares it: the root justfile is 0.
+type justDefinition struct {
+	justRecipe
+	depth int
 }
 
 // justPlatformEnabled reports whether a recipe carrying the platform
@@ -383,6 +485,18 @@ func isJustSetting(line string) bool {
 		return !justHeaderColon(line)
 	}
 	return false
+}
+
+// justImportStatement returns the path of an "import" or "import?" statement.
+// The path is a quoted string, optionally followed by a "#" comment; anything
+// else after the keyword declares no import. The caller has already told the
+// line apart from a recipe named "import".
+func justImportStatement(line string) (string, bool) {
+	m := justImportRe.FindStringSubmatch(line)
+	if m == nil {
+		return "", false
+	}
+	return unquoteJustString(strings.TrimSpace(stripJustComment(m[1])))
 }
 
 // justHeaderColon reports whether the line carries the colon that opens a

@@ -3,7 +3,9 @@ package core
 import (
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +19,17 @@ func (osFiles) ReadFile(name string) ([]byte, error) { return os.ReadFile(name) 
 func (osFiles) Exists(name string) bool {
 	_, err := os.Stat(name)
 	return err == nil
+}
+func (osFiles) ReadDir(name string) ([]DirEntry, error) {
+	entries, err := os.ReadDir(name)
+	if err != nil {
+		return nil, err
+	}
+	directories := make([]DirEntry, len(entries))
+	for i, entry := range entries {
+		directories[i] = entry
+	}
+	return directories, nil
 }
 
 // mapFiles is an in-memory Files implementation: a path is present when it is
@@ -37,6 +50,37 @@ func (m mapFiles) Exists(name string) bool {
 	_, ok := m[name]
 	return ok
 }
+
+func (m mapFiles) ReadDir(name string) ([]DirEntry, error) {
+	prefix := strings.TrimSuffix(name, string(filepath.Separator)) + string(filepath.Separator)
+	children := make(map[string]bool)
+	for path := range m {
+		rest, ok := strings.CutPrefix(path, prefix)
+		if !ok || rest == "" {
+			continue
+		}
+		child, _, nested := strings.Cut(rest, string(filepath.Separator))
+		children[child] = children[child] || nested
+	}
+	if len(children) == 0 {
+		return nil, fs.ErrNotExist
+	}
+	entries := make([]DirEntry, 0, len(children))
+	for child, dir := range children {
+		entries = append(entries, mapDirEntry{name: child, dir: dir})
+	}
+	slices.SortFunc(entries, func(a, b DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+	return entries, nil
+}
+
+// mapDirEntry is the DirEntry an in-memory directory reports.
+type mapDirEntry struct {
+	name string
+	dir  bool
+}
+
+func (e mapDirEntry) Name() string { return e.name }
+func (e mapDirEntry) IsDir() bool  { return e.dir }
 
 // TestDiscoverInMemoryFiles proves discovery needs no disk: a package.json and
 // its lock file live only in the map, and the lock file still picks the runner.

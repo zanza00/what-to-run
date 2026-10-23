@@ -698,12 +698,12 @@ export FOO := "bar"
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseJustfile("", []byte(tt.in))
+			got, err := parseJustfileFor("linux", nil, "", []byte(tt.in))
 			if err != nil {
-				t.Fatalf("parseJustfile() error = %v", err)
+				t.Fatalf("parseJustfileFor() error = %v", err)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parseJustfile() = %+v, want %+v", got, tt.want)
+				t.Errorf("parseJustfileFor() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
@@ -719,12 +719,12 @@ func TestParseJustfileNeverErrors(t *testing.T) {
 		"{{{{ unbalanced\n",
 		"set shell := [\n",
 	} {
-		tasks, err := parseJustfile("", []byte(in))
+		tasks, err := parseJustfileFor("linux", nil, "", []byte(in))
 		if err != nil {
-			t.Errorf("parseJustfile(%q) error = %v, want nil", in, err)
+			t.Errorf("parseJustfileFor(%q) error = %v, want nil", in, err)
 		}
 		if tasks != nil {
-			t.Errorf("parseJustfile(%q) = %+v, want no tasks", in, tasks)
+			t.Errorf("parseJustfileFor(%q) = %+v, want no tasks", in, tasks)
 		}
 	}
 }
@@ -773,7 +773,7 @@ split:
 
 	for _, tt := range tests {
 		t.Run(tt.goos, func(t *testing.T) {
-			tasks, err := parseJustfileFor(tt.goos, "", []byte(in))
+			tasks, err := parseJustfileFor(tt.goos, nil, "", []byte(in))
 			if err != nil {
 				t.Fatalf("parseJustfileFor(%q) error = %v", tt.goos, err)
 			}
@@ -825,7 +825,7 @@ func TestParseJustfilePlatformVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.goos, func(t *testing.T) {
-			tasks, err := parseJustfileFor(tt.goos, "", data)
+			tasks, err := parseJustfileFor(tt.goos, nil, "", data)
 			if err != nil {
 				t.Fatalf("parseJustfileFor(%q) error = %v", tt.goos, err)
 			}
@@ -886,7 +886,7 @@ deploy:
 
 	for _, tt := range tests {
 		t.Run(tt.goos, func(t *testing.T) {
-			tasks, err := parseJustfileFor(tt.goos, "", []byte(in))
+			tasks, err := parseJustfileFor(tt.goos, nil, "", []byte(in))
 			if err != nil {
 				t.Fatalf("parseJustfileFor(%q) error = %v", tt.goos, err)
 			}
@@ -894,6 +894,297 @@ deploy:
 				t.Errorf("parseJustfileFor(%q) = %+v, want %+v", tt.goos, tasks, tt.want)
 			}
 		})
+	}
+}
+
+// parseJustfileTree parses main as the root justfile in root, with tree as the
+// justfiles it may import, keyed by their path relative to root.
+func parseJustfileTree(t *testing.T, goos, root, main string, tree map[string]string) []Task {
+	t.Helper()
+	files := make(mapFiles, len(tree))
+	for name, content := range tree {
+		files[filepath.Join(root, name)] = content
+	}
+	tasks, err := parseJustfileFor(goos, files, root, []byte(main))
+	if err != nil {
+		t.Fatalf("parseJustfileFor() error = %v", err)
+	}
+	return tasks
+}
+
+// TestParseJustfileImports covers how local imports join the list: their
+// recipes keep their own descriptions, resolve relative to the importing file,
+// and missing ones are skipped. The duplicate cases pin the precedence rule:
+// the shallowest file wins, and at equal depth the earlier import.
+func TestParseJustfileImports(t *testing.T) {
+	tests := []struct {
+		name string
+		main string
+		tree map[string]string
+		want []Task
+	}{
+		{
+			name: "an import adds its recipes with their descriptions",
+			main: "import 'lib/shared.just' # shared helpers\n\nroot:\n    echo root\n",
+			tree: map[string]string{
+				"lib/shared.just": "# Shared helper\nshared:\n    echo shared\n",
+			},
+			want: []Task{
+				{Name: "root", Args: []string{"just", "root"}},
+				{Name: "shared", Desc: "Shared helper", Args: []string{"just", "shared"}},
+			},
+		},
+		{
+			name: "nested imports resolve against the importing file",
+			main: "import \"lib/a.just\"\n",
+			tree: map[string]string{
+				"lib/a.just":        "import \"nested/b.just\"\n\nfrom-a:\n    echo a\n",
+				"lib/nested/b.just": "from-b:\n    echo b\n",
+			},
+			want: []Task{
+				{Name: "from-a", Args: []string{"just", "from-a"}},
+				{Name: "from-b", Args: []string{"just", "from-b"}},
+			},
+		},
+		{
+			name: "import? loads the file when it exists",
+			main: "import? \"shared.just\"\n",
+			tree: map[string]string{
+				"shared.just": "shared:\n    echo shared\n",
+			},
+			want: []Task{{Name: "shared", Args: []string{"just", "shared"}}},
+		},
+		{
+			name: "missing imports are skipped, optional or not",
+			main: "import \"missing.just\"\nimport? \"also-missing.just\"\n\nroot:\n    echo root\n",
+			want: []Task{{Name: "root", Args: []string{"just", "root"}}},
+		},
+		{
+			name: "the root definition wins over an imported one",
+			main: "import \"lib/shared.just\"\n\nbuild:\n    echo root\n",
+			tree: map[string]string{
+				"lib/shared.just": "# Imported build\nbuild:\n    echo shared\n",
+			},
+			want: []Task{{Name: "build", Args: []string{"just", "build"}}},
+		},
+		{
+			name: "the shallowest import wins even when a deeper one is read first",
+			main: "import \"lib/a.just\"\nimport \"deep.just\"\n",
+			tree: map[string]string{
+				"lib/a.just":           "import \"nested/deep.just\"\n\nfrom-a:\n    echo a\n",
+				"lib/nested/deep.just": "# Deep build\nbuild:\n    echo deep\n",
+				"deep.just":            "# Direct build\nbuild:\n    echo direct\n",
+			},
+			want: []Task{
+				{Name: "build", Desc: "Direct build", Args: []string{"just", "build"}},
+				{Name: "from-a", Args: []string{"just", "from-a"}},
+			},
+		},
+		{
+			name: "equal depth keeps the earlier import",
+			main: "import \"a.just\"\nimport \"b.just\"\n",
+			tree: map[string]string{
+				"a.just": "# From a\ndeploy:\n    echo a\n",
+				"b.just": "# From b\ndeploy:\n    echo b\n",
+			},
+			want: []Task{{Name: "deploy", Desc: "From a", Args: []string{"just", "deploy"}}},
+		},
+		{
+			name: "a diamond is not a cycle",
+			main: "import \"a.just\"\nimport \"b.just\"\n",
+			tree: map[string]string{
+				"a.just":      "import \"shared.just\"\nfrom-a:\n    echo a\n",
+				"b.just":      "import \"shared.just\"\nfrom-b:\n    echo b\n",
+				"shared.just": "shared:\n    echo shared\n",
+			},
+			want: []Task{
+				{Name: "from-a", Args: []string{"just", "from-a"}},
+				{Name: "from-b", Args: []string{"just", "from-b"}},
+				{Name: "shared", Args: []string{"just", "shared"}},
+			},
+		},
+		{
+			name: "a cycle terminates",
+			main: "import \"a.just\"\n",
+			tree: map[string]string{
+				"a.just": "import \"b.just\"\nfrom-a:\n    echo a\n",
+				"b.just": "import \"a.just\"\nfrom-b:\n    echo b\n",
+			},
+			want: []Task{
+				{Name: "from-a", Args: []string{"just", "from-a"}},
+				{Name: "from-b", Args: []string{"just", "from-b"}},
+			},
+		},
+		{
+			name: "an imported platform variant is filtered",
+			main: "import \"lib/platforms.just\"\n",
+			tree: map[string]string{
+				"lib/platforms.just": "[windows]\nwin:\n    echo win\n\n[linux]\nlin:\n    echo lin\n",
+			},
+			want: []Task{{Name: "lin", Args: []string{"just", "lin"}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseJustfileTree(t, "linux", t.TempDir(), tt.main, tt.tree)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseJustfileFor() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseJustfileModules covers how modules join the list: their recipes are
+// namespaced with "name::", the source is looked up where just looks for it,
+// and nested modules chain the namespace.
+func TestParseJustfileModules(t *testing.T) {
+	tests := []struct {
+		name string
+		main string
+		tree map[string]string
+		want []Task
+	}{
+		{
+			name: "mod name loads name.just",
+			main: "mod tools\n\nroot:\n    echo root\n",
+			tree: map[string]string{
+				"tools.just": "# Format the code\nfmt:\n    echo fmt\n",
+			},
+			want: []Task{
+				{Name: "root", Args: []string{"just", "root"}},
+				{Name: "tools::fmt", Desc: "Format the code", Args: []string{"just", "tools::fmt"}},
+			},
+		},
+		{
+			name: "mod name loads name/mod.just",
+			main: "mod tools\n",
+			tree: map[string]string{
+				"tools/mod.just": "fmt:\n    echo fmt\n",
+			},
+			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+		},
+		{
+			name: "mod name loads name/justfile in any capitalization",
+			main: "mod tools\n",
+			tree: map[string]string{
+				"tools/JustFile": "fmt:\n    echo fmt\n",
+			},
+			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+		},
+		{
+			name: "an explicit path reads a file",
+			main: "mod tools \"lib/tools.just\"\n",
+			tree: map[string]string{
+				"lib/tools.just": "fmt:\n    echo fmt\n",
+			},
+			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+		},
+		{
+			name: "an explicit path reads a directory",
+			main: "mod tools \"lib/tools\"\n",
+			tree: map[string]string{
+				"lib/tools/mod.just": "fmt:\n    echo fmt\n",
+			},
+			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+		},
+		{
+			name: "missing modules are skipped, optional or not",
+			main: "mod missing\nmod? also-missing\n\nroot:\n    echo root\n",
+			want: []Task{{Name: "root", Args: []string{"just", "root"}}},
+		},
+		{
+			name: "nested modules chain the namespace",
+			main: "mod outer\n",
+			tree: map[string]string{
+				"outer/mod.just":   "mod inner\n\nouter-task:\n    echo outer\n",
+				"outer/inner.just": "inner-task:\n    echo inner\n",
+			},
+			want: []Task{
+				{Name: "outer::inner::inner-task", Args: []string{"just", "outer::inner::inner-task"}},
+				{Name: "outer::outer-task", Args: []string{"just", "outer::outer-task"}},
+			},
+		},
+		{
+			name: "an import inside a module keeps the module namespace",
+			main: "mod tools \"lib/mod.just\"\n",
+			tree: map[string]string{
+				"lib/mod.just":    "import \"shared.just\"\n",
+				"lib/shared.just": "shared:\n    echo shared\n",
+			},
+			want: []Task{{Name: "tools::shared", Args: []string{"just", "tools::shared"}}},
+		},
+		{
+			name: "private recipes stay hidden inside a module",
+			main: "mod tools\n",
+			tree: map[string]string{
+				"tools.just": "_hidden:\n    echo hidden\n\nshown:\n    echo shown\n",
+			},
+			want: []Task{{Name: "tools::shown", Args: []string{"just", "tools::shown"}}},
+		},
+		{
+			name: "a module cycle terminates",
+			main: "mod a\n",
+			tree: map[string]string{
+				"a.just": "mod b\n\nfrom-a:\n    echo a\n",
+				"b.just": "mod a\n\nfrom-b:\n    echo b\n",
+			},
+			want: []Task{
+				{Name: "a::b::from-b", Args: []string{"just", "a::b::from-b"}},
+				{Name: "a::from-a", Args: []string{"just", "a::from-a"}},
+			},
+		},
+		{
+			name: "platform attributes filter module recipes too",
+			main: "mod tools\n",
+			tree: map[string]string{
+				"tools.just": "[windows]\nwin:\n    echo win\n\n[linux]\nlin:\n    echo lin\n",
+			},
+			want: []Task{{Name: "tools::lin", Args: []string{"just", "tools::lin"}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseJustfileTree(t, "linux", t.TempDir(), tt.main, tt.tree)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseJustfileFor() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseJustfileImportAbsolute: an absolute import path is read as written.
+func TestParseJustfileImportAbsolute(t *testing.T) {
+	root := t.TempDir()
+	abs := filepath.Join(root, "abs.just")
+	files := mapFiles{abs: "from-abs:\n    echo abs\n"}
+
+	tasks, err := parseJustfileFor("linux", files, t.TempDir(), []byte("import \""+abs+"\"\n"))
+	if err != nil {
+		t.Fatalf("parseJustfileFor() error = %v", err)
+	}
+	want := []Task{{Name: "from-abs", Args: []string{"just", "from-abs"}}}
+	if !reflect.DeepEqual(tasks, want) {
+		t.Errorf("parseJustfileFor() = %+v, want %+v", tasks, want)
+	}
+}
+
+// TestParseJustfileImportHome: a leading "~/" expands to the home directory,
+// as it does in just.
+func TestParseJustfileImportHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	files := mapFiles{filepath.Join(home, "home.just"): "from-home:\n    echo home\n"}
+
+	tasks, err := parseJustfileFor("linux", files, t.TempDir(), []byte("import \"~/home.just\"\n"))
+	if err != nil {
+		t.Fatalf("parseJustfileFor() error = %v", err)
+	}
+	want := []Task{{Name: "from-home", Args: []string{"just", "from-home"}}}
+	if !reflect.DeepEqual(tasks, want) {
+		t.Errorf("parseJustfileFor() = %+v, want %+v", tasks, want)
 	}
 }
 
@@ -911,8 +1202,8 @@ func justTaskNames(tasks []Task) []string {
 // order.
 func TestJustfileSourceFiles(t *testing.T) {
 	want := []string{"justfile", "Justfile", ".justfile"}
-	if got := justfileSource().Files; !reflect.DeepEqual(got, want) {
-		t.Errorf("justfileSource().Files = %v, want %v", got, want)
+	if got := justfileSource(osFiles{}).Files; !reflect.DeepEqual(got, want) {
+		t.Errorf("justfileSource(osFiles{}).Files = %v, want %v", got, want)
 	}
 }
 
@@ -924,7 +1215,7 @@ func TestDiscoverJustfileFirstFileWins(t *testing.T) {
 	writeFile(t, dir, ".justfile", "dot-only:\n    echo dot\n")
 	writeFile(t, dir, "justfile", "local-only:\n    echo local\n")
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -940,7 +1231,7 @@ func TestDiscoverJustfileDotFallback(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".justfile", "# Build the app\nbuild:\n    echo build\n")
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(), dir)
+	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
 	if err != nil {
 		t.Fatalf("discoverSource() error = %v", err)
 	}
@@ -950,8 +1241,44 @@ func TestDiscoverJustfileDotFallback(t *testing.T) {
 	}
 }
 
+// TestDiscoverJustfileImports: imported recipes are listed under the root
+// file's badge, since the picker runs "just <name>" from the project directory.
+func TestDiscoverJustfileImports(t *testing.T) {
+	dir := "testdata/justfile-imports"
+
+	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
+	if err != nil {
+		t.Fatalf("discoverSource() error = %v", err)
+	}
+	want := []Task{
+		{Source: "justfile", Name: "root", Desc: "Root recipe", Args: []string{"just", "root"}},
+		{Source: "justfile", Name: "shared", Desc: "Shared recipe", Args: []string{"just", "shared"}},
+	}
+	if !reflect.DeepEqual(tasks, want) {
+		t.Errorf("discoverSource() = %+v, want %+v", tasks, want)
+	}
+}
+
+// TestDiscoverJustfileModules: module recipes are listed under the root file's
+// badge, since the picker runs "just name::recipe" from the project directory.
+func TestDiscoverJustfileModules(t *testing.T) {
+	dir := "testdata/justfile-modules"
+
+	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
+	if err != nil {
+		t.Fatalf("discoverSource() error = %v", err)
+	}
+	want := []Task{
+		{Source: "justfile", Name: "root", Desc: "Root recipe", Args: []string{"just", "root"}},
+		{Source: "justfile", Name: "tools::fmt", Desc: "Format the code", Args: []string{"just", "tools::fmt"}},
+	}
+	if !reflect.DeepEqual(tasks, want) {
+		t.Errorf("discoverSource() = %+v, want %+v", tasks, want)
+	}
+}
+
 func TestDiscoverJustfileMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, justfileSource(), t.TempDir())
+	got, err := discoverSource(osFiles{}, justfileSource(osFiles{}), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
 	}

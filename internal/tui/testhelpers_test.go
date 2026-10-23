@@ -4,6 +4,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/zanza00/what-to-run/internal/core"
@@ -27,6 +29,37 @@ func (m memFiles) Exists(name string) bool {
 	_, ok := m[name]
 	return ok
 }
+
+func (m memFiles) ReadDir(name string) ([]core.DirEntry, error) {
+	prefix := strings.TrimSuffix(name, string(filepath.Separator)) + string(filepath.Separator)
+	children := make(map[string]bool)
+	for path := range m {
+		rest, ok := strings.CutPrefix(path, prefix)
+		if !ok || rest == "" {
+			continue
+		}
+		child, _, nested := strings.Cut(rest, string(filepath.Separator))
+		children[child] = children[child] || nested
+	}
+	if len(children) == 0 {
+		return nil, fs.ErrNotExist
+	}
+	entries := make([]core.DirEntry, 0, len(children))
+	for child, dir := range children {
+		entries = append(entries, memDirEntry{name: child, dir: dir})
+	}
+	slices.SortFunc(entries, func(a, b core.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+	return entries, nil
+}
+
+// memDirEntry is the core.DirEntry an in-memory directory reports.
+type memDirEntry struct {
+	name string
+	dir  bool
+}
+
+func (e memDirEntry) Name() string { return e.name }
+func (e memDirEntry) IsDir() bool  { return e.dir }
 
 // writeFile writes a fixture file inside dir, creating parent directories for
 // nested paths like .cargo/config.toml.

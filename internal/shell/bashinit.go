@@ -28,11 +28,11 @@ import (
 // chain needs bash 4.3 or later (in bash <= 4.2 bind -x takes only two-byte
 // sequences).
 //
-// prog is the name the binary was invoked as ("wtr", or whatever it was
-// renamed to): it appears in the script's comments. bin is the command the
-// widget launches — the invoked name, resolved through PATH at press time,
-// or an absolute path. key is a combo name ("ctrl-s", "alt-x") or a raw
-// readline key sequence as bind takes it ("\e[15~" for F5).
+// prog is the name the binary was invoked as; it appears in the script's
+// comments. bin is the command the widget launches — the invoked name,
+// resolved through PATH at press time, or an absolute path. key is a combo
+// name ("ctrl-s", "alt-x") or a raw readline key sequence as bind takes it
+// ("\e[15~" for F5).
 func BashInit(prog, bin, key string) (string, error) {
 	if bin == "" {
 		return "", errors.New("empty binary path")

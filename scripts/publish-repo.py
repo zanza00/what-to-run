@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""GoReleaser publisher for an APT repository hosted on GitHub Pages."""
+"""GoReleaser publisher for the apt and RPM repositories hosted on GitHub Pages."""
 
 import argparse
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -15,6 +16,10 @@ MAINTAINER_EMAIL = "codefloe@simonepicciani.it"
 KEY_FINGERPRINT = "D37ADCA12D5035565D1C232291119F65C5CA2B1F"
 DEFAULT_REPO_URL = "https://github.com/zanza00/what-to-run.git"
 DEFAULT_BRANCH = "gh-pages"
+RPM_DIRECTORY = "rpm"
+SCRIPT_DIR = Path(__file__).resolve().parent
+SETUP_SCRIPTS = ("setup.deb.sh", "setup.rpm.sh")
+ARCHITECTURES = ("amd64", "arm64")
 
 DISTRIBUTIONS = """Origin: zanza00
 Label: what-to-run
@@ -44,8 +49,10 @@ def render(tag, checksums):
         if name in hashes:
             raise ValueError("Duplicate checksum for %s" % name)
         hashes[name] = digest
-    expected = ["what-to-run_%s_linux_amd64.deb" % version,
-                "what-to-run_%s_linux_arm64.deb" % version]
+    expected = [
+        "what-to-run_%s_linux_%s.deb" % (version, arch)
+        for arch in ARCHITECTURES
+    ]
     for name in expected:
         if name not in hashes:
             raise KeyError(name)
@@ -73,6 +80,59 @@ def _key_fingerprint(key_file):
     return KEY_FINGERPRINT
 
 
+def _release_files(dist_dir, suffix, version):
+    """Return the release files with the suffix and version in the name."""
+    return sorted(
+        path for path in dist_dir.glob("*" + suffix) if version in path.name
+    )
+
+
+def _rpm_files(tag, dist_dir):
+    """Return the release RPMs, requiring both architectures when any exist."""
+    version = tag[1:]
+    expected = {
+        dist_dir / ("what-to-run_%s_linux_%s.rpm" % (version, arch))
+        for arch in ARCHITECTURES
+    }
+    present = {path for path in expected if path.is_file()}
+    if not present:
+        return []
+    if present != expected:
+        missing = sorted(path.name for path in expected - present)
+        raise ValueError(
+            "Missing RPMs for %s: %s" % (version, ", ".join(missing))
+        )
+    return sorted(present)
+
+
+def _build_rpm_repository(tag, rpms, work, environment, fingerprint=None):
+    """Stage the RPMs, regenerate the metadata and sign it when a key is given."""
+    rpm_dir = work / RPM_DIRECTORY
+    rpm_dir.mkdir(parents=True, exist_ok=True)
+    for rpm in rpms:
+        shutil.copy2(rpm, rpm_dir / rpm.name)
+    try:
+        subprocess.run(
+            # gzip and simple names keep the metadata readable by every
+            # dnf/yum version and by the verification steps.
+            ["createrepo_c", "--quiet", "--general-compress-type=gz",
+             "--simple-md-filenames", "--revision", tag, str(rpm_dir)],
+            check=True, capture_output=True, text=True, env=environment,
+        )
+    except FileNotFoundError as error:
+        raise SystemExit(
+            "createrepo_c is required to publish the RPM repository"
+        ) from error
+    if fingerprint is not None:
+        subprocess.run(
+            ["gpg", "--batch", "--yes", "--armor", "--detach-sign",
+             "--local-user", fingerprint,
+             "--output", str(rpm_dir / "repodata" / "repomd.xml.asc"),
+             str(rpm_dir / "repodata" / "repomd.xml")],
+            check=True, capture_output=True, text=True, env=environment,
+        )
+
+
 def publish(tag, *args, **kwargs):
     key_file = kwargs.get("key_file") or kwargs.get("gpg_key_file")
     dist_dir = kwargs.get("dist_dir")
@@ -98,7 +158,7 @@ def publish(tag, *args, **kwargs):
 
     version = tag[1:]
     if key_file is None and not dry_run:
-        print("Skipping apt publish: APT_GPG_KEY_FILE is not set")
+        print("Skipping package repository publish: APT_GPG_KEY_FILE is not set")
         return
     if key_file is not None:
         key_path = Path(key_file)
@@ -107,14 +167,11 @@ def publish(tag, *args, **kwargs):
     else:
         key_path = None
 
-    debs = []
-    if dist_dir.is_dir():
-        for path in sorted(dist_dir.glob("*.deb")):
-            if version in path.name:
-                debs.append(path)
+    debs = _release_files(dist_dir, ".deb", version) if dist_dir.is_dir() else []
+    rpms = _rpm_files(tag, dist_dir) if dist_dir.is_dir() else []
 
     if work_dir is None:
-        work = Path(tempfile.mkdtemp(prefix="apt-repo-"))
+        work = Path(tempfile.mkdtemp(prefix="repo-"))
     else:
         work = Path(work_dir)
     url = _clone_url(repo_url)
@@ -150,6 +207,7 @@ def publish(tag, *args, **kwargs):
     conf_dir.mkdir(parents=True, exist_ok=True)
     (conf_dir / "distributions").write_text(DISTRIBUTIONS)
 
+    fingerprint = KEY_FINGERPRINT
     if key_path is not None:
         subprocess.run(
             ["gpg", "--batch", "--import", str(key_path)],
@@ -166,8 +224,13 @@ def publish(tag, *args, **kwargs):
             check=True, capture_output=True, text=True, env=environment,
         )
 
+    if rpms:
+        _build_rpm_repository(
+            tag, rpms, work, environment,
+            fingerprint if key_path is not None else None,
+        )
+
     if key_path is not None:
-        fingerprint = _key_fingerprint(key_path)
         with open(work / "key.asc", "w") as handle:
             subprocess.run(
                 ["gpg", "--batch", "--armor", "--export", fingerprint],
@@ -179,25 +242,20 @@ def publish(tag, *args, **kwargs):
                 stdout=handle, check=True, env=environment,
             )
     (work / ".nojekyll").write_text("")
+    # The one-liners in docs/install.md point at these files on the site, so
+    # every publish keeps the served copies in sync with the checkout.
+    for name in SETUP_SCRIPTS:
+        shutil.copy2(SCRIPT_DIR / name, work / name)
 
     if dry_run:
-        destination = dist_dir / "apt"
-        destination.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            ["cp", "-a", "%s/." % work, "%s/" % destination],
-            check=True, env=environment,
-        )
+        destination = dist_dir / "repo"
+        shutil.copytree(work, destination, dirs_exist_ok=True)
         print(destination)
         return
 
     subprocess.run(["git", "-C", str(work), "add", "-A"], check=True, env=environment)
-    status = subprocess.run(
-        ["git", "-C", str(work), "status", "--porcelain"],
-        check=True, capture_output=True, text=True, env=environment,
-    )
-    if not status.stdout.strip():
-        print("APT repository already matches %s" % tag)
-        return
+    # reprepro dates the apt Release file and gpg dates the signatures, so a
+    # republish always changes the tree: there is no "nothing to commit" case.
     subprocess.run(
         ["git", "-C", str(work), "config", "user.name", MAINTAINER_NAME],
         check=True, env=environment,
@@ -207,14 +265,14 @@ def publish(tag, *args, **kwargs):
         check=True, env=environment,
     )
     subprocess.run(
-        ["git", "-C", str(work), "commit", "-m", "Update apt repository to %s" % tag],
+        ["git", "-C", str(work), "commit", "-m", "Update package repositories to %s" % tag],
         check=True, env=environment,
     )
     subprocess.run(
         ["git", "-C", str(work), "push", "origin", DEFAULT_BRANCH],
         check=True, env=environment,
     )
-    print("Published apt repository for %s" % tag)
+    print("Published package repositories for %s" % tag)
 
 
 def main():
@@ -229,7 +287,7 @@ def main():
         return
     key_file = args.gpg_key_file or os.environ.get("APT_GPG_KEY_FILE") or None
     if key_file is None and not args.dry_run:
-        print("Skipping apt publish: APT_GPG_KEY_FILE is not set")
+        print("Skipping package repository publish: APT_GPG_KEY_FILE is not set")
         return
     render(args.tag, args.artifact.read_text())
     publish(

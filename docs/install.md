@@ -23,10 +23,25 @@ mise use -g github:zanza00/what-to-run
 
 This installs both binaries from the GitHub releases.
 
-## Debian and Ubuntu (apt repository)
+## Debian and Ubuntu
 
-Add the project's apt repository, signed with the project's GPG key, and
-install from it:
+### apt repository
+
+Configure the project's apt repository, signed with the project's GPG key,
+with one command:
+
+```sh
+curl -fsSL https://zanza00.github.io/what-to-run/setup.deb.sh | sudo bash
+sudo apt install what-to-run
+```
+
+The script is `scripts/setup.deb.sh` in this repository, so you can read it
+before piping it to a shell. It only adds the key and the source, then
+refreshes the apt indexes. The repository supports both `amd64` and `arm64`;
+set `WTR_REPOSITORY` to use a mirror, or `WTR_APT_KEYRING` and
+`WTR_APT_SOURCES` to change the installed paths.
+
+The same steps by hand:
 
 ```sh
 curl -fsSL https://zanza00.github.io/what-to-run/key.gpg \
@@ -37,9 +52,7 @@ sudo apt update
 sudo apt install what-to-run
 ```
 
-The repository supports both `amd64` and `arm64`.
-
-## Debian and Ubuntu (.deb package)
+### .deb package
 
 The `.deb` packages for each version are attached to the
 [releases](https://github.com/zanza00/what-to-run/releases). Download the file
@@ -50,16 +63,77 @@ directly:
 sudo apt install ./what-to-run_<version>_linux_amd64.deb
 ```
 
+## Fedora, RHEL and derivatives
+
+### dnf/yum repository
+
+Configure the project's RPM repository with one command:
+
+```sh
+curl -fsSL https://zanza00.github.io/what-to-run/setup.rpm.sh | sudo bash
+sudo dnf install what-to-run
+```
+
+The script is `scripts/setup.rpm.sh` in this repository, so you can read it
+before piping it to a shell. It imports the repository key, writes
+`/etc/yum.repos.d/what-to-run.repo`, and refreshes the dnf metadata. The
+repository supports both `x86_64` and `aarch64`; set `WTR_REPOSITORY` to use a
+mirror, or `WTR_RPM_KEY` and `WTR_RPM_REPOSITORY_FILE` to change the installed
+paths.
+
+The same steps by hand:
+
+```sh
+sudo rpm --import https://zanza00.github.io/what-to-run/key.asc
+sudo tee /etc/yum.repos.d/what-to-run.repo >/dev/null <<'EOF'
+[what-to-run]
+name=what-to-run
+baseurl=https://zanza00.github.io/what-to-run/rpm/
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://zanza00.github.io/what-to-run/key.asc
+EOF
+sudo dnf install what-to-run
+```
+
+### .rpm package
+
+The `.rpm` packages are attached to the
+[releases](https://github.com/zanza00/what-to-run/releases) starting with the
+release after v0.7.0. Download the file for your architecture (`amd64`, or
+`arm64` on ARM machines) and install it directly:
+
+```sh
+sudo dnf install ./what-to-run_<version>_linux_amd64.rpm
+```
+
+The file names use the Go architecture names: `amd64` is `x86_64` and `arm64`
+is `aarch64`.
+
+The packages are signed with the project's GPG key, the same one that signs the
+apt repository. To verify a download, import the key and check the signature:
+
+```sh
+sudo rpm --import https://zanza00.github.io/what-to-run/key.asc
+rpm --checksig what-to-run_<version>_linux_amd64.rpm
+```
+
 ## Arch Linux
 
 An AUR package (`what-to-run-bin`) is pending. Until it is published, use a
-release tarball.
+[release tarball](#prebuilt-tarballs).
 
 ## Prebuilt tarballs
 
+> [!WARNING]
+> Use this only as a last resort: the CLI has no self-updater, so a tarball
+> installed by hand stays at that version until you replace it. Install through
+> one of the methods above to receive upgrades from your package manager.
+
 Each release attaches tarballs for macOS and Linux on Intel and ARM64, as an
 alternative to the packages above. Every archive contains both binaries.
-Extract it and put them on your `PATH`:
+Extract the archive and put both binaries on your `PATH`:
 
 ```sh
 tar -xzf what-to-run_<version>_linux_amd64.tar.gz

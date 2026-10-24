@@ -84,15 +84,20 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `cmd/wtr/main_test.go` pins the helpers.
 - Releases are tag-driven: `.github/workflows/release.yml` runs on `vX.Y.Z`
   tags whose commit is in `main`, builds the linux+darwin archives, the
-  Windows zips (both holding both binaries) and the linux `.deb` packages
-  through `.goreleaser.yaml`, and
+  Windows zips (both holding both binaries) and the linux `.deb` and `.rpm`
+  packages through `.goreleaser.yaml`, and
   `scripts/publish-homebrew.py` writes `Formula/what-to-run.rb` in
   `zanza00/homebrew-tap` using the `HOMEBREW_TAP_TOKEN` secret while
   `scripts/publish-aur.py` pushes the `what-to-run-bin` PKGBUILD to the AUR
   using the `AUR_SSH_PRIVATE_KEY` secret, skipped with a warning while that
-  secret is unset, and `scripts/publish-apt.py` updates the apt repository on
-  the `gh-pages` branch (served via GitHub Pages) using the `APT_GPG_PRIVATE_KEY`
-  secret, skipped with a warning while that secret is unset. `--version` prints
+  secret is unset, and `scripts/publish-repo.py` updates the apt and RPM
+  repositories on the `gh-pages` branch (served via GitHub Pages) using the
+  `APT_GPG_PRIVATE_KEY` secret, skipped with a warning while that secret is
+  unset; the same key signs the RPM packages at build time. The publisher also
+  copies `scripts/setup.deb.sh` and `scripts/setup.rpm.sh` to the root of
+  `gh-pages`, where the one-liners in `docs/install.md` fetch them from; the
+  apt repository stays at the site root and the RPM repository lives under
+  `/rpm/`. `--version` prints
   the version
   injected with `-X main.version` (the tag in GoReleaser, `git describe` in
   `Taskfile.yml`). The publishers have Python tests: run

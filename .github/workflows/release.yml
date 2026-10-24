@@ -70,20 +70,20 @@ jobs:
             fi
             echo "AUR_SSH_KEY_FILE=$RUNNER_TEMP/aur_key" >> "$GITHUB_ENV"
           fi
-          # APT repository publishing is optional while its key is unset.
+          # Package repository publishing is optional while its key is unset.
           if [ -z "$APT_GPG_PRIVATE_KEY" ]; then
             echo 'APT_GPG_KEY_FILE=' >> "$GITHUB_ENV"
-            echo '::warning title=APT publishing skipped::Set the APT_GPG_PRIVATE_KEY secret to publish the apt repository.'
+            echo '::warning title=Package repositories skipped::Set the APT_GPG_PRIVATE_KEY secret to publish the apt and RPM repositories.'
           else
             umask 077
             printf '%s\n' "$APT_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/apt_key"
             echo "APT_GPG_KEY_FILE=$RUNNER_TEMP/apt_key" >> "$GITHUB_ENV"
           fi
 
-      - name: Install apt repository tools
-        # The apt publisher shells out to reprepro, which the runner image does
-        # not ship.
-        run: sudo apt-get update && sudo apt-get install -y reprepro
+      - name: Install repository tools
+        # The publisher shells out to reprepro and createrepo_c, which the
+        # runner image does not ship.
+        run: sudo apt-get update && sudo apt-get install -y reprepro createrepo-c
       - name: Publish release
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -105,8 +105,10 @@ jobs:
             "what-to-run_${version}_darwin_amd64.tar.gz" \
             "what-to-run_${version}_darwin_arm64.tar.gz" \
             "what-to-run_${version}_linux_amd64.deb" \
+            "what-to-run_${version}_linux_amd64.rpm" \
             "what-to-run_${version}_linux_amd64.tar.gz" \
             "what-to-run_${version}_linux_arm64.deb" \
+            "what-to-run_${version}_linux_arm64.rpm" \
             "what-to-run_${version}_linux_arm64.tar.gz" \
             "what-to-run_${version}_windows_amd64.zip" \
             "what-to-run_${version}_windows_arm64.zip" | sort)"
@@ -117,3 +119,23 @@ jobs:
 
           actual="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | sort)"
           diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual")
+
+      - name: Verify package repositories
+        # Publishing is skipped when the GPG secret is unset, so there is
+        # nothing to check in that case.
+        if: env.APT_GPG_KEY_FILE != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          for arch in amd64 arm64; do
+            gh api "repos/$GITHUB_REPOSITORY/contents/dists/stable/main/binary-$arch/Packages?ref=gh-pages" \
+              -H "Accept: application/vnd.github.raw" | grep -qx "Version: $version"
+          done
+          scripts/check-rpm-repository.sh "$RELEASE_TAG"
+          for script in setup.deb.sh setup.rpm.sh; do
+            gh api "repos/$GITHUB_REPOSITORY/contents/$script?ref=gh-pages" \
+              -H "Accept: application/vnd.github.raw" | diff -u "scripts/$script" -
+          done

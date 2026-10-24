@@ -110,8 +110,8 @@ fall back to the full-screen picker after 250 ms.
 ## Release
 
 Releases are automated. Push a `vX.Y.Z` tag on a commit contained in `main`:
-`.github/workflows/release.yml` builds the archives and the `.deb` packages,
-creates the GitHub release, updates `Formula/what-to-run.rb` in the
+`.github/workflows/release.yml` builds the archives and the `.deb` and `.rpm`
+packages, creates the GitHub release, updates `Formula/what-to-run.rb` in the
 [zanza00/homebrew-tap](https://github.com/zanza00/homebrew-tap) repository,
 and, once the AUR secret below is set, pushes to the
 [what-to-run-bin](https://aur.archlinux.org/packages/what-to-run-bin) AUR
@@ -131,16 +131,23 @@ While the secret is unset (AUR registration is currently closed), releases skip
 AUR publishing with a warning instead of failing. When the package exists, the
 Arch Linux section in `docs/install.md` can advertise `yay -S what-to-run-bin`.
 
-The apt step needs an `APT_GPG_PRIVATE_KEY` repository secret holding the
-armored private key used to sign the repository (generated with
-`gpg --batch --gen-key`). It publishes through `scripts/publish-apt.py`, which
-updates the `gh-pages` branch served via GitHub Pages; the first release
-populates the repository. While the secret is unset, releases skip apt
-publishing with a warning instead of failing. The Debian/Ubuntu section in
-`docs/install.md` advertises the apt repository. If the apt step fails after the
-GitHub release was published, run the `republish apt` workflow with the tag as
+The package repository step needs an `APT_GPG_PRIVATE_KEY` repository secret
+holding the armored private key used to sign the apt repository, the RPM
+repository metadata and the RPM packages (generated with
+`gpg --batch --gen-key`). It publishes through `scripts/publish-repo.py`,
+which updates the apt and RPM repositories on the `gh-pages` branch served via
+GitHub Pages; the first release populates them. While the secret is unset,
+releases skip publishing with a warning instead of failing. The Debian/Ubuntu
+section in `docs/install.md` advertises the apt repository, and the Fedora/RHEL
+section documents the `.rpm` package. If the step fails after the GitHub
+release was published, run the `republish packages` workflow with the tag as
 input: it updates `gh-pages` from the released assets without recreating the
 release.
+
+The same publisher copies `scripts/setup.deb.sh` and `scripts/setup.rpm.sh`
+to the root of `gh-pages`, where the one-liners in `docs/install.md` fetch
+them from. The scripts are not tied to a version, so an edit reaches the site
+with the next release (or a `republish packages` run).
 
 To validate the release setup without publishing:
 

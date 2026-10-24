@@ -62,3 +62,7 @@ jobs:
       - name: Test Homebrew publisher
         # Python is used only by the release publisher, not by the CLI.
         run: python3 -m unittest discover -s scripts -p '*_test.py'
+      - name: Test the setup scripts as root
+        # The scripts refuse to run without root; the stub tools and the WTR_*
+        # paths keep this run inside a temporary directory.
+        run: sudo env "PATH=$PATH" python3 -m unittest discover -s scripts -p 'setup_scripts_test.py'

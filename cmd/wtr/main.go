@@ -1,9 +1,8 @@
 // Command wtr is a TUI for running the tasks declared in a project's files
 // (package.json, Makefile, Taskfile.yml, justfile, Makefile.toml,
 // .cargo/config, devbox.json, composer.json, deno.json, mise.toml, and the rc
-// file). The same program is also built as what-to-run, the explicit name for
-// shell rc files: the invoked name is the one shown in usage, messages and the
-// picker title.
+// file). The invoked name is the one shown in usage, messages and the picker
+// title.
 package main
 
 import (
@@ -12,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -22,8 +20,8 @@ import (
 	"github.com/zanza00/what-to-run/internal/tui"
 )
 
-// prog is the name the program was invoked as (wtr, what-to-run, or
-// whatever it was renamed to) and identifies itself with.
+// prog is the name the program was invoked as (wtr, or whatever it was
+// renamed to) and identifies itself with.
 var prog = progName(os.Args[0])
 
 // version is the release version, injected at build time with
@@ -63,13 +61,9 @@ func main() {
 		"print one static frame of the picker to stdout and exit (theming\n"+
 			"aid: compare themes side by side, e.g. with --theme)")
 	flag.Usage = func() {
-		out := flag.CommandLine.Output()
-		fmt.Fprintf(out, "usage: %s [flags]\n"+
+		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [flags]\n"+
 			"       %s init zsh|bash|powershell [--key combo]\n\nFlags:\n", prog, prog)
 		flag.PrintDefaults()
-		if hint := helpHint(prog, shortNameAvailable()); hint != "" {
-			fmt.Fprintf(out, "\n%s\n", hint)
-		}
 	}
 	flag.Parse()
 
@@ -115,9 +109,9 @@ func main() {
 // [--key combo]`: it prints to w the shell integration for the running binary,
 // ready to be evaluated by an interactive shell:
 //
-//	eval "$(what-to-run init zsh --key ctrl-s)"
-//	eval "$(what-to-run init bash)"
-//	what-to-run init powershell | Out-String | Invoke-Expression
+//	eval "$(wtr init zsh --key ctrl-s)"
+//	eval "$(wtr init bash)"
+//	wtr init powershell | Out-String | Invoke-Expression
 func runInit(args []string, w io.Writer) error {
 	fs := flag.NewFlagSet(prog+" init", flag.ExitOnError)
 	key := fs.String("key", shell.DefaultKey,
@@ -201,23 +195,6 @@ func progNameFor(goos, arg0 string) string {
 // version, so a copy-pasted bug report says both.
 func versionLine(prog, ver string) string {
 	return prog + " " + ver
-}
-
-// helpHint is the line appended to the usage of the explicit name, so the
-// short one is discoverable. It is empty when there is nothing to teach, or
-// when the short name is not around to be typed.
-func helpHint(name string, aliasAvailable bool) string {
-	if name == "what-to-run" && aliasAvailable {
-		return "The same program is also available as 'wtr', quicker to type."
-	}
-	return ""
-}
-
-// shortNameAvailable reports whether the short name resolves through PATH, so
-// the hint never points at a missing command.
-func shortNameAvailable() bool {
-	_, err := exec.LookPath("wtr")
-	return err == nil
 }
 
 // widgetBin is the command the generated zsh widget launches: the binary as

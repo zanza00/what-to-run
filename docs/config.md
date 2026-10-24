@@ -1,6 +1,6 @@
 # Configuration (`config.toml` & `.what-to-run.toml`)
 
-`what-to-run` (`wtr`) reads two optional TOML configuration files:
+`wtr` reads two optional TOML configuration files:
 
 1. **User global config:** `$XDG_CONFIG_HOME/what-to-run/config.toml`
    (normally `~/.config/what-to-run/config.toml`; on macOS with

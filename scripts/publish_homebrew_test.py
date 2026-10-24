@@ -27,7 +27,6 @@ class PublisherTest(unittest.TestCase):
         self.assertIn('version "1.2.3"', formula)
         self.assertIn('license "MIT"', formula)
         self.assertIn('bin.install "wtr"', formula)
-        self.assertIn('bin.install "what-to-run"', formula)
         self.assertIn("  test do", formula)
         self.assertEqual(formula.count("      url "), 4)
         for name, digest in self.entries.items():

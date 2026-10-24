@@ -40,8 +40,8 @@ const minInlineHeight = 15
 
 // Options configures the TUI.
 type Options struct {
-	// Prog is the name the program was invoked as ("wtr",
-	// "what-to-run"): it identifies the picker and its warnings.
+	// Prog is the name the program was invoked as ("wtr", or whatever it
+	// was renamed to): it identifies the picker and its warnings.
 	// Defaults to "wtr".
 	Prog string
 

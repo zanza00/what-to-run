@@ -21,17 +21,30 @@ directly.
 Run these commands from the repository root:
 
 ```sh
-task build # build bin/wtr and bin/what-to-run
-task test  # run tests with the race detector and coverage
-task all   # format, vet, test, and build
+task build    # build bin/wtr
+task test     # run tests with the race detector and coverage
+task fmt-md   # format the Markdown files with dprint
+task check-md # check the Markdown formatting
+task all      # format (Go and Markdown), vet, test, and build
 ```
+
+`task fmt-md` and `task check-md` download the pinned dprint release into
+`bin/tools` on first use, so there is no global dprint install and every
+machine uses the same version. The first run needs network access to download
+the binary and the Markdown plugin, which dprint caches in its user cache;
+later runs are offline. `task all` runs `task fmt-md` as part of its format
+step, and `task clean` deletes `bin/tools`, so the next run downloads the
+binary again.
+The Markdown under `.agents/skills/` is excluded in `dprint.json`: it is
+vendored and keeps the upstream formatting. Tables are kept as written too,
+because aligning their cells would turn the longer rows into very wide lines.
 
 ## Use the local build instead of a release
 
-`wtr` and `what-to-run` are found through `PATH`, and the first match wins. If
-you installed a release with Homebrew, apt, mise or any of the official install methods,
-a bare `wtr` runs that copy. To make the checkout win, put its `bin/` directory
-first in `PATH`, after the rc file lines that prepend an installer's directory
+`wtr` is found through `PATH`, and the first match wins. If you installed a
+release with Homebrew, apt, mise or any of the official install methods, a bare
+`wtr` runs that copy. To make the checkout win, put its `bin/` directory first
+in `PATH`, after the rc file lines that prepend an installer's directory
 (`brew shellenv`, `mise activate`, and similar add to the front themselves):
 
 ```sh
@@ -47,19 +60,18 @@ shell, check what is resolved:
 
 ```sh
 command -v wtr
-command -v what-to-run
 wtr --version # release: 0.4.0, local build: v0.4.0-3-gbe08e69
 ```
 
 A release prints the bare tag, while a local `task build` appends the commit
 distance from `git describe`, so `--version` tells the two apart. From then on
-`task build` replaces the binaries the shell runs, and `task install` is not
+`task build` replaces the binary the shell runs, and `task install` is not
 needed for local development.
 
 Start the widget with the bare command name, not with `bin/wtr`:
 
 ```sh
-eval "$(wtr init zsh)"  # or: eval "$(what-to-run init bash)"
+eval "$(wtr init zsh)"
 ```
 
 The generated script keeps `WTR_BIN` as that bare name and resolves it through

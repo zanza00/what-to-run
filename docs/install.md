@@ -33,9 +33,11 @@ curl -fsSL https://zanza00.github.io/what-to-run/setup.deb.sh | sudo bash
 sudo apt install what-to-run
 ```
 
-The URL serves the script as plain text, so you can read it before running it.
-It only adds the key and the source, then refreshes the apt indexes. The
-repository supports both `amd64` and `arm64`.
+The script is `scripts/setup.deb.sh` in this repository, so you can read it
+before piping it to a shell. It only adds the key and the source, then
+refreshes the apt indexes. The repository supports both `amd64` and `arm64`;
+set `WTR_REPOSITORY` to use a mirror, or `WTR_APT_KEYRING` and
+`WTR_APT_SOURCES` to change the installed paths.
 
 The same steps by hand:
 
@@ -68,10 +70,12 @@ curl -fsSL https://zanza00.github.io/what-to-run/setup.rpm.sh | sudo bash
 sudo dnf install what-to-run
 ```
 
-The URL serves the script as plain text, so you can read it before running it.
-It imports the repository key, writes `/etc/yum.repos.d/what-to-run.repo`, and
-refreshes the dnf metadata. The repository supports both `x86_64` and
-`aarch64`.
+The script is `scripts/setup.rpm.sh` in this repository, so you can read it
+before piping it to a shell. It imports the repository key, writes
+`/etc/yum.repos.d/what-to-run.repo`, and refreshes the dnf metadata. The
+repository supports both `x86_64` and `aarch64`; set `WTR_REPOSITORY` to use a
+mirror, or `WTR_RPM_KEY` and `WTR_RPM_REPOSITORY_FILE` to change the installed
+paths.
 
 The same steps by hand:
 

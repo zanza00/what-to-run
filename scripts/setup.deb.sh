@@ -5,6 +5,9 @@
 #
 # The script installs the repository key and source, then refreshes the apt
 # indexes. Install the package with: sudo apt install what-to-run
+#
+# WTR_REPOSITORY overrides the repository URL; WTR_APT_KEYRING and
+# WTR_APT_SOURCES override the installed paths.
 set -eu
 
 REPOSITORY="${WTR_REPOSITORY:-https://zanza00.github.io/what-to-run}"

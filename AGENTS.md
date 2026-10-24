@@ -97,9 +97,10 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   copies `scripts/setup.deb.sh` and `scripts/setup.rpm.sh` to the root of
   `gh-pages`, where the one-liners in `docs/install.md` fetch them from; the
   apt repository stays at the site root and the RPM repository lives under
-  `/rpm/`. `--version` prints the version injected with `-X main.version` (the
-  tag in GoReleaser, `git describe` in `Taskfile.yml`). The publishers have
-  Python tests: run
+  `/rpm/`. `--version` prints
+  the version
+  injected with `-X main.version` (the tag in GoReleaser, `git describe` in
+  `Taskfile.yml`). The publishers have Python tests: run
   `python3 -m unittest discover -s scripts -p '*_test.py'` when touching them.
 - The optional rc file (`config.go`, documented in `docs/config.md`;
   `.what-to-run.toml` in the project,

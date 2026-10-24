@@ -5,6 +5,7 @@
 A task picker for the commands you can never remember.
 
 ![what-to-run running in a terminal](docs/images/what-to-run.png)
+
 </div>
 
 ## Why

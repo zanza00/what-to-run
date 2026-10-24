@@ -176,16 +176,22 @@ This requires Go 1.27.2 or later.
 
 ## Upgrading from a two-name release
 
-Earlier releases also installed a `what-to-run` alias for the same binary. If
-an rc file still calls it, replace it with `wtr`:
+Earlier releases shipped a second binary, `what-to-run`, built from the same
+program. If an rc file still calls it, replace it with `wtr`:
 
 ```sh
 eval "$(wtr init zsh)"   # was: eval "$(what-to-run init zsh)"
+eval "$(wtr init bash)"  # was: eval "$(what-to-run init bash)"
 ```
 
-Upgrading through a package manager removes the alias; the configuration in
-`~/.config/what-to-run/` and the `.what-to-run.toml` project file keep their
-names.
+```powershell
+wtr init powershell | Out-String | Invoke-Expression
+# was: what-to-run init powershell | Out-String | Invoke-Expression
+```
+
+Upgrading to a release that ships this change removes the second binary; the
+configuration in `~/.config/what-to-run/` and the `.what-to-run.toml` project
+file keep their names.
 
 ## Next steps
 

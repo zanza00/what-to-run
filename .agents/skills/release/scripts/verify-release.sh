@@ -13,6 +13,7 @@ set -uo pipefail
 repo=zanza00/what-to-run
 tap_repo=zanza00/homebrew-tap
 aur_package=what-to-run-bin
+pages_url=https://zanza00.github.io/what-to-run
 
 failures=0
 checks=0
@@ -217,10 +218,15 @@ if [[ $repositories_expected == 1 ]]; then
   fi
 
   for script in setup.deb.sh setup.rpm.sh; do
-    if gh api "repos/$repo/contents/$script?ref=gh-pages" >/dev/null 2>&1; then
-      ok "setup script $script is published on gh-pages"
-    else
+    published=""
+    published=$(gh api "repos/$repo/contents/$script?ref=gh-pages" \
+      -H "Accept: application/vnd.github.raw" 2>/dev/null) || published=""
+    if [[ -z $published ]]; then
       bad_or_warn "setup script $script is missing from gh-pages"
+    elif ! grep -qF "$pages_url" <<<"$published"; then
+      bad_or_warn "setup script $script does not point at $pages_url"
+    else
+      ok "setup script $script is published on gh-pages"
     fi
   done
 fi

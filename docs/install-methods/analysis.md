@@ -1,6 +1,6 @@
 # Additional installation methods: analysis and rollout plan
 
-Status: proposal, not implemented. Target: the next minor release (`0.8.0`)
+Status: proposal, not implemented. Target: the next minor release (`0.9.0`)
 or later.
 
 This note evaluates additional installation methods for `what-to-run`, with a
@@ -35,7 +35,7 @@ Snap, Flatpak, MSYS2, and MacPorts are deliberately out of scope for now.
 | `.deb` and `.rpm` assets | Attached to each GitHub release |
 | AUR | `what-to-run-bin` is implemented but skipped while `AUR_SSH_PRIVATE_KEY` is unset; AUR registration is closed |
 | Tarballs and Windows zip | Attached to each GitHub release |
-| `go install` | Compiles locally; installs only `wtr` |
+| `go install` | Compiles and installs `wtr` locally |
 
 Windows currently has no package-manager channel: users either extract the zip
 by hand or run `go install`. That is the gap this proposal closes.
@@ -51,8 +51,8 @@ The release pipeline is tag-driven and runs GoReleaser on `ubuntu-latest`:
   two Windows zips, two `.deb` files, and two `.rpm` files. The workflow and
   `.agents/skills/release/scripts/verify-release.sh` both assert that exact
   set.
-- The Windows zips contain both `wtr.exe` and `what-to-run.exe`. Every new
-  channel must install both names.
+- The Windows zip contains `wtr.exe`. Every new channel must install the `wtr`
+  command; the package identifiers stay as they are.
 - `checks.yml` runs `goreleaser check` in its `cross` job, so a broken
   `.goreleaser.yaml` fails CI before a tag is pushed.
 - The Homebrew, AUR, and package-repository publishers are Python scripts with
@@ -92,8 +92,8 @@ acceptable limitation.
   with an up-to-date App Installer.
 - Portable installs need no administrator rights.
 - The manifest supports both `amd64` and `arm64` natively.
-- A zip with two portable files maps directly to the two binaries already
-  shipped in the Windows archives.
+- The zip with a single portable file maps directly to `wtr.exe`, which is
+  already shipped in the Windows archives.
 - GoReleaser OSS can generate the manifests and open the update pull request
   from the existing release job.
 
@@ -119,8 +119,8 @@ acceptable limitation.
 GoReleaser's `winget` pipe selects the Windows zip archives, emits
 `InstallerType: zip` with `NestedInstallerType: portable`, and derives
 `NestedInstallerFiles` from the binaries inside each archive. Because the zip
-contains both executables, the generated manifest aliases both `wtr` and
-`what-to-run`; no separate packaging step is needed.
+contains `wtr.exe`, the generated manifest aliases `wtr`; no separate
+packaging step is needed.
 
 ### Configuration sketch
 
@@ -205,9 +205,9 @@ winget upgrade --id zanza00.WhatToRun -e
 winget uninstall --id zanza00.WhatToRun
 ```
 
-Mention that WinGet may lag a release by a few days while the manifest pull
-request is reviewed. Do not advertise the command in `README.md` before the
-first package is actually available.
+Verify the install with `wtr --version`. Mention that WinGet may lag a release
+by a few days while the manifest pull request is reviewed. Do not advertise the
+command in `README.md` before the first package is actually available.
 
 ### Effort
 
@@ -247,10 +247,9 @@ scoops:
 ```
 
 GoReleaser writes a manifest with `64bit` and `arm64` entries and a `bin`
-array containing both executables, so Scoop creates shims for `wtr` and
-`what-to-run`. Decide whether the manifest lives at the bucket root or under
-`bucket/`, then verify `scoop bucket list` and `scoop install` against a test
-bucket.
+array containing `wtr.exe`, so Scoop creates the `wtr` shim. Decide whether the
+manifest lives at the bucket root or under `bucket/`, then verify
+`scoop bucket list` and `scoop install` against a test bucket.
 
 ### User commands
 
@@ -279,8 +278,8 @@ scoop uninstall what-to-run
 
 The bucket manifest is live as soon as GoReleaser pushes it, so this channel
 can be checked strictly: the manifest must contain the release version, both
-architecture URLs, and both binary names. A missing or stale manifest is a
-`FAIL`, not a `pending` state.
+architecture URLs, and `wtr.exe`. A missing or stale manifest is a `FAIL`, not
+a `pending` state.
 
 ### Effort
 
@@ -315,7 +314,7 @@ A Chocolatey package is a `.nupkg` containing:
   `checksums.txt`.
 
 Chocolatey creates shims for every executable in the package's tools directory,
-so both `wtr` and `what-to-run` become available without extra work.
+so `wtr` becomes available without extra work.
 
 ### Build and publish job
 
@@ -351,9 +350,9 @@ publish-chocolatey:
 The script should render the nuspec and install script, run `choco pack` into
 `dist`, install from that directory
 (`choco install what-to-run --source dist --version <version>`), smoke-test
-`wtr --version` and `what-to-run --version`, and only then run `choco push`.
-The first version should be pushed manually and monitored through moderation;
-the job can be enabled afterwards.
+`wtr --version`, and only then run `choco push`. The first version should be
+pushed manually and monitored through moderation; the job can be enabled
+afterwards.
 
 ### User commands
 
@@ -458,7 +457,8 @@ prerequisite for WinGet, Scoop, or Chocolatey.
 
 - `docs/install.md`: add WinGet, Scoop, and Chocolatey under Windows, with
   install, upgrade, and uninstall commands; keep the zip as the manual
-  fallback.
+  fallback. The page already explains the two-name upgrade: new channels must
+  install only `wtr` and must not resurrect `what-to-run`.
 - `README.md`: add the WinGet one-liner and link to the installation page,
   but only once the first package is live.
 - `docs/development.md`: document the new secrets, the Windows job, and the
@@ -498,16 +498,18 @@ The new channels should follow it:
 
 ### Testing
 
-- `task all` before committing, as required by the repository.
+- `task all` before committing, as required by the repository; it includes
+  `fmt-md`.
+- `task check-md` for a check-only Markdown pass.
 - `goreleaser check` and `goreleaser release --snapshot --clean`; inspect the
   generated WinGet and Scoop manifests under `dist/`.
 - `winget validate --manifest <directory>` on Windows, then install from the
-  manifest and check both commands.
-- Install the Scoop manifest from a test bucket and check both shims.
-- Run `choco pack`, install from the local package, and run both commands
+  manifest and check `wtr --version`.
+- Install the Scoop manifest from a test bucket and check the `wtr` shim.
+- Run `choco pack`, install from the local package, and run `wtr --version`
   before pushing.
 - Test upgrades from the previous release, not only clean installs.
-- Check that uninstalling through each manager removes both commands.
+- Check that uninstalling through each manager removes the `wtr` command.
 - The existing cross-build job covers the Windows binaries; these channels are
   packaging work, so no PTY tests are needed. The Windows job is the end-to-end
   test for Chocolatey.

@@ -13,8 +13,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -27,7 +29,7 @@ func main() {
 		os.Exit(2)
 	}
 	dest := os.Args[1]
-	if info, err := os.Stat(dest); err == nil && !info.IsDir() {
+	if hasPinnedVersion(dest) {
 		return
 	}
 	target, err := targetFor(runtime.GOOS, runtime.GOARCH)
@@ -38,6 +40,22 @@ func main() {
 		fail(err)
 	}
 	fmt.Printf("Installed dprint %s to %s\n", dprintVersion, dest)
+}
+
+// hasPinnedVersion reports whether dest is a regular file running the release
+// pinned in dprintVersion. Comparing the version instead of the file's
+// existence keeps bin/tools in sync when the pin moves: a stale copy is
+// reinstalled. A failed run means reinstalling too.
+func hasPinnedVersion(dest string) bool {
+	info, err := os.Stat(dest)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	out, err := exec.Command(dest, "--version").Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) == "dprint "+dprintVersion
 }
 
 func targetFor(goos, goarch string) (string, error) {

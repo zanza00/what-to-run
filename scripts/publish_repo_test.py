@@ -75,6 +75,15 @@ class PublishTest(unittest.TestCase):
                             "b" * 64 + "  what-to-run_1.2.3_linux_arm64.deb\n")
         return dist, artifact
 
+    def _recorder(self):
+        calls = []
+
+        def record(command, **kwargs):
+            calls.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        return calls, record
+
     def test_empty_key_skips_publication(self):
         # The release workflow exports an empty value when the secret is
         # unset; that must skip publishing instead of failing on ".".
@@ -102,16 +111,12 @@ class PublishTest(unittest.TestCase):
 
     def test_incomplete_rpm_set_raises(self):
         dist, _ = self._dist(rpm_architectures=("amd64",))
-        with self.assertRaises(KeyError):
+        with self.assertRaisesRegex(ValueError, "arm64"):
             publisher.publish("v1.2.3", key_file=self.key, dist_dir=dist, dry_run=True)
 
     def test_dry_run_writes_repository(self):
         dist, artifact = self._dist()
-        calls = []
-
-        def record(command, **kwargs):
-            calls.append(command)
-            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        calls, record = self._recorder()
 
         with patch("sys.argv", ["publisher", "--tag", "v1.2.3", "--artifact", str(artifact),
                                 "--gpg-key-file", str(self.key), "--dry-run"]), \
@@ -126,11 +131,7 @@ class PublishTest(unittest.TestCase):
 
     def test_rpm_repository_is_skipped_without_rpms(self):
         dist, _ = self._dist(rpm_architectures=())
-        calls = []
-
-        def record(command, **kwargs):
-            calls.append(command)
-            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        calls, record = self._recorder()
 
         with patch.object(publisher.subprocess, "run", side_effect=record):
             publisher.publish("v1.2.3", key_file=self.key, dist_dir=dist, dry_run=True)

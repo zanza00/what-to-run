@@ -17,6 +17,7 @@ KEY_FINGERPRINT = "D37ADCA12D5035565D1C232291119F65C5CA2B1F"
 DEFAULT_REPO_URL = "https://github.com/zanza00/what-to-run.git"
 DEFAULT_BRANCH = "gh-pages"
 RPM_DIRECTORY = "rpm"
+ARCHITECTURES = ("amd64", "arm64")
 
 DISTRIBUTIONS = """Origin: zanza00
 Label: what-to-run
@@ -46,8 +47,10 @@ def render(tag, checksums):
         if name in hashes:
             raise ValueError("Duplicate checksum for %s" % name)
         hashes[name] = digest
-    expected = ["what-to-run_%s_linux_amd64.deb" % version,
-                "what-to-run_%s_linux_arm64.deb" % version]
+    expected = [
+        "what-to-run_%s_linux_%s.deb" % (version, arch)
+        for arch in ARCHITECTURES
+    ]
     for name in expected:
         if name not in hashes:
             raise KeyError(name)
@@ -75,23 +78,33 @@ def _key_fingerprint(key_file):
     return KEY_FINGERPRINT
 
 
+def _release_files(dist_dir, suffix, version):
+    """Return the release files with the suffix and version in the name."""
+    return sorted(
+        path for path in dist_dir.glob("*" + suffix) if version in path.name
+    )
+
+
 def _rpm_files(tag, dist_dir):
     """Return the release RPMs, requiring both architectures when any exist."""
     version = tag[1:]
-    rpms = sorted(path for path in dist_dir.glob("*.rpm") if version in path.name)
-    if not rpms:
+    expected = {
+        dist_dir / ("what-to-run_%s_linux_%s.rpm" % (version, arch))
+        for arch in ARCHITECTURES
+    }
+    present = {path for path in expected if path.is_file()}
+    if not present:
         return []
-    expected = {"what-to-run_%s_linux_amd64.rpm" % version,
-                "what-to-run_%s_linux_arm64.rpm" % version}
-    found = {path.name for path in rpms}
-    if found != expected:
-        missing = sorted(expected - found)
-        raise KeyError(", ".join(missing))
-    return rpms
+    if present != expected:
+        missing = sorted(path.name for path in expected - present)
+        raise ValueError(
+            "Missing RPMs for %s: %s" % (version, ", ".join(missing))
+        )
+    return sorted(present)
 
 
-def _build_rpm_repository(tag, rpms, work, environment):
-    """Stage the RPMs and (re)generate the signed repository metadata."""
+def _build_rpm_repository(tag, rpms, work, environment, fingerprint=None):
+    """Stage the RPMs, regenerate the metadata and sign it when a key is given."""
     rpm_dir = work / RPM_DIRECTORY
     rpm_dir.mkdir(parents=True, exist_ok=True)
     for rpm in rpms:
@@ -99,8 +112,7 @@ def _build_rpm_repository(tag, rpms, work, environment):
     try:
         subprocess.run(
             # gzip and simple names keep the metadata readable by every
-            # dnf/yum version and by the verification steps; the fixed
-            # revision makes repeated publishes idempotent.
+            # dnf/yum version and by the verification steps.
             ["createrepo_c", "--quiet", "--general-compress-type=gz",
              "--simple-md-filenames", "--revision", tag, str(rpm_dir)],
             check=True, capture_output=True, text=True, env=environment,
@@ -109,7 +121,14 @@ def _build_rpm_repository(tag, rpms, work, environment):
         raise SystemExit(
             "createrepo_c is required to publish the RPM repository"
         ) from error
-    return rpm_dir
+    if fingerprint is not None:
+        subprocess.run(
+            ["gpg", "--batch", "--yes", "--armor", "--detach-sign",
+             "--local-user", fingerprint,
+             "--output", str(rpm_dir / "repodata" / "repomd.xml.asc"),
+             str(rpm_dir / "repodata" / "repomd.xml")],
+            check=True, capture_output=True, text=True, env=environment,
+        )
 
 
 def publish(tag, *args, **kwargs):
@@ -146,11 +165,7 @@ def publish(tag, *args, **kwargs):
     else:
         key_path = None
 
-    debs = []
-    if dist_dir.is_dir():
-        for path in sorted(dist_dir.glob("*.deb")):
-            if version in path.name:
-                debs.append(path)
+    debs = _release_files(dist_dir, ".deb", version) if dist_dir.is_dir() else []
     rpms = _rpm_files(tag, dist_dir) if dist_dir.is_dir() else []
 
     if work_dir is None:
@@ -208,15 +223,10 @@ def publish(tag, *args, **kwargs):
         )
 
     if rpms:
-        rpm_dir = _build_rpm_repository(tag, rpms, work, environment)
-        if key_path is not None:
-            subprocess.run(
-                ["gpg", "--batch", "--yes", "--armor", "--detach-sign",
-                 "--local-user", fingerprint,
-                 "--output", str(rpm_dir / "repodata" / "repomd.xml.asc"),
-                 str(rpm_dir / "repodata" / "repomd.xml")],
-                check=True, capture_output=True, text=True, env=environment,
-            )
+        _build_rpm_repository(
+            tag, rpms, work, environment,
+            fingerprint if key_path is not None else None,
+        )
 
     if key_path is not None:
         with open(work / "key.asc", "w") as handle:
@@ -238,13 +248,8 @@ def publish(tag, *args, **kwargs):
         return
 
     subprocess.run(["git", "-C", str(work), "add", "-A"], check=True, env=environment)
-    status = subprocess.run(
-        ["git", "-C", str(work), "status", "--porcelain"],
-        check=True, capture_output=True, text=True, env=environment,
-    )
-    if not status.stdout.strip():
-        print("Package repositories already match %s" % tag)
-        return
+    # reprepro dates the apt Release file and gpg dates the signatures, so a
+    # republish always changes the tree: there is no "nothing to commit" case.
     subprocess.run(
         ["git", "-C", str(work), "config", "user.name", MAINTAINER_NAME],
         check=True, env=environment,

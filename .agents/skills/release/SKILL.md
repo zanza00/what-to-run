@@ -23,7 +23,7 @@ channel moved.
 | Version string | `wtr --version` prints `wtr X.Y.Z` in released binaries, `wtr vX.Y.Z-N-g…` from `task build` |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
-| RPM | `rpm/repodata/primary.xml.gz` on `gh-pages` |
+| RPM | `rpm/repodata/primary.xml.gz` and `repomd.xml.asc` on `gh-pages` |
 | AUR | `what-to-run-bin` |
 
 The release notes are the commits between the previous tag and this one,
@@ -163,10 +163,11 @@ Run the bundled verifier with the tag:
 
 It checks the release is public and carries exactly the eleven assets, the
 Homebrew formula has the version and download URLs, the apt index and the RPM
-metadata on `gh-pages` have the version for both architectures, the AUR
-package has it when that secret is configured, the downloaded archive matches
-`checksums.txt`, and a binary for this platform prints `wtr X.Y.Z`. Missing
-repository/AUR secrets show as `skip`, matching the workflow.
+metadata on `gh-pages` have the version for both architectures, the RPM
+metadata signature verifies with the repository key, the AUR package has it
+when that secret is configured, the downloaded archive matches `checksums.txt`,
+and a binary for this platform prints `wtr X.Y.Z`. Missing repository/AUR
+secrets show as `skip`, matching the workflow.
 
 Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
 only asserts that the release is public and the asset names are right. For a

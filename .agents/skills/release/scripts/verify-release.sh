@@ -4,10 +4,10 @@
 # Usage: verify-release.sh vX.Y.Z
 #
 # Checks the GitHub release and its exact asset set, the Homebrew formula, the
-# apt index and RPM metadata on gh-pages, the AUR package when that channel is
-# configured, and a downloaded binary of this machine's platform. Channels
-# whose Actions secret is unset are reported as skipped, matching the release
-# workflow.
+# apt index and RPM metadata (including its signature) on gh-pages, the AUR
+# package when that channel is configured, and a downloaded binary of this
+# machine's platform. Channels whose Actions secret is unset are reported as
+# skipped, matching the release workflow.
 set -uo pipefail
 
 repo=zanza00/what-to-run
@@ -68,6 +68,32 @@ if ! secrets=$(gh api "repos/$repo/actions/secrets" --jq '.secrets[].name' 2>/de
 fi
 has_secret() {
   [[ $known_secrets == 1 ]] && grep -qx "$1" <<<"$secrets"
+}
+
+bad_or_warn() {
+  if [[ $known_secrets == 1 ]]; then
+    bad "$1"
+  else
+    warn "$1"
+  fi
+}
+
+# rpm_has ARCH VERSION: true when the primary metadata has a what-to-run
+# package for that architecture with that version.
+rpm_has() {
+  local arch=$1 version=$2
+  awk -v arch="$arch" -v version="$version" '
+    /<package / { block = "" }
+    { block = block $0 "\n" }
+    /<\/package>/ {
+      if (block ~ "<name>what-to-run</name>" &&
+          block ~ "<arch>" arch "</arch>" &&
+          block ~ "ver=\"" version "\"") {
+        found = 1
+      }
+    }
+    END { exit !found }
+  ' <<<"$metadata"
 }
 
 # --- GitHub release -------------------------------------------------------
@@ -145,20 +171,12 @@ if [[ $repositories_expected == 1 ]]; then
       "repos/$repo/contents/dists/stable/main/binary-$arch/Packages?ref=gh-pages" \
       -H "Accept: application/vnd.github.raw" 2>/dev/null) || packages=""
     if [[ -z $packages ]]; then
-      if [[ $known_secrets == 1 ]]; then
-        bad "cannot read the apt index for $arch from gh-pages"
-      else
-        warn "cannot read the apt index for $arch from gh-pages"
-      fi
+      bad_or_warn "cannot read the apt index for $arch from gh-pages"
     elif grep -A1 -x "Package: what-to-run" <<<"$packages" |
       grep -qx "Version: $version"; then
       ok "apt index for $arch carries $version"
     else
-      if [[ $known_secrets == 1 ]]; then
-        bad "apt index for $arch does not carry $version"
-      else
-        warn "apt index for $arch does not carry $version"
-      fi
+      bad_or_warn "apt index for $arch does not carry $version"
     fi
   done
 
@@ -168,24 +186,34 @@ if [[ $repositories_expected == 1 ]]; then
     metadata=""
   fi
   if [[ -z $metadata ]]; then
-    if [[ $known_secrets == 1 ]]; then
-      bad "cannot read the RPM metadata from gh-pages"
-    else
-      warn "cannot read the RPM metadata from gh-pages"
-    fi
+    bad_or_warn "cannot read the RPM metadata from gh-pages"
   else
     for arch in x86_64 aarch64; do
-      if grep -q "<arch>$arch</arch>" <<<"$metadata" &&
-        grep -q "ver=\"$version\"" <<<"$metadata"; then
+      if rpm_has "$arch" "$version"; then
         ok "RPM metadata carries $version for $arch"
       else
-        if [[ $known_secrets == 1 ]]; then
-          bad "RPM metadata does not carry $version for $arch"
-        else
-          warn "RPM metadata does not carry $version for $arch"
-        fi
+        bad_or_warn "RPM metadata does not carry $version for $arch"
       fi
     done
+
+    need gpg
+    keyring=$(mktemp -d)
+    signature=$(mktemp)
+    repomd=$(mktemp)
+    if ! gh api "repos/$repo/contents/key.asc?ref=gh-pages" \
+        -H "Accept: application/vnd.github.raw" >"$keyring/key.asc" 2>/dev/null ||
+      ! gh api "repos/$repo/contents/rpm/repodata/repomd.xml.asc?ref=gh-pages" \
+        -H "Accept: application/vnd.github.raw" >"$signature" 2>/dev/null ||
+      ! gh api "repos/$repo/contents/rpm/repodata/repomd.xml?ref=gh-pages" \
+        -H "Accept: application/vnd.github.raw" >"$repomd" 2>/dev/null; then
+      bad_or_warn "cannot read the RPM metadata signature from gh-pages"
+    elif GNUPGHOME="$keyring" gpg --batch --quiet --import "$keyring/key.asc" 2>/dev/null &&
+      GNUPGHOME="$keyring" gpg --batch --quiet --verify "$signature" "$repomd" 2>/dev/null; then
+      ok "RPM metadata signature verifies with the repository key"
+    else
+      bad_or_warn "RPM metadata signature does not verify"
+    fi
+    rm -rf "$keyring" "$signature" "$repomd"
   fi
 fi
 

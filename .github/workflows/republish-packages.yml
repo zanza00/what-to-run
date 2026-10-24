@@ -70,8 +70,10 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           version="${RELEASE_TAG#v}"
-          gh api "repos/$GITHUB_REPOSITORY/contents/dists/stable/main/binary-amd64/Packages?ref=gh-pages" \
-            --jq '.content' | base64 -d | grep -qx "Version: $version"
+          for arch in amd64 arm64; do
+            gh api "repos/$GITHUB_REPOSITORY/contents/dists/stable/main/binary-$arch/Packages?ref=gh-pages" \
+              -H "Accept: application/vnd.github.raw" | grep -qx "Version: $version"
+          done
       - name: Verify RPM repository
         shell: bash
         env:
@@ -83,6 +85,4 @@ jobs:
             echo "No RPM assets for $RELEASE_TAG; skipping RPM verification."
             exit 0
           fi
-          version="${RELEASE_TAG#v}"
-          gh api "repos/$GITHUB_REPOSITORY/contents/rpm/repodata/primary.xml.gz?ref=gh-pages" \
-            --jq '.content' | base64 -d | gzip -d | grep -q "ver=\"$version\""
+          scripts/check-rpm-repository.sh "$RELEASE_TAG"

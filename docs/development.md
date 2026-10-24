@@ -138,10 +138,11 @@ repository metadata and the RPM packages (generated with
 which updates the apt and RPM repositories on the `gh-pages` branch served via
 GitHub Pages; the first release populates them. While the secret is unset,
 releases skip publishing with a warning instead of failing. The Debian/Ubuntu
-and Fedora/RHEL sections in `docs/install.md` advertise the repositories. If
-the step fails after the GitHub release was published, run the
-`republish packages` workflow with the tag as input: it updates `gh-pages`
-from the released assets without recreating the release.
+section in `docs/install.md` advertises the apt repository, and the Fedora/RHEL
+section documents the `.rpm` package. If the step fails after the GitHub
+release was published, run the `republish packages` workflow with the tag as
+input: it updates `gh-pages` from the released assets without recreating the
+release.
 
 To validate the release setup without publishing:
 

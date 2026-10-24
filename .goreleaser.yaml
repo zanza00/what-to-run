@@ -56,8 +56,8 @@ nfpms:
     ids: [wtr, what-to-run]
     rpm:
       # The key that signs the apt repository also signs the RPM packages, so
-      # dnf verifies them with gpgcheck=1. Local snapshot builds without the
-      # key produce unsigned packages.
+      # the RPM repository can serve them with gpgcheck=1. Local snapshot
+      # builds without the key produce unsigned packages.
       signature:
         # index keeps local snapshot builds working when the variable is
         # unset: nfpm only signs when the path is not empty.

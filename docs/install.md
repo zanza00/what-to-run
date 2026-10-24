@@ -52,13 +52,21 @@ sudo apt install ./what-to-run_<version>_linux_amd64.deb
 
 ## Fedora, RHEL and derivatives (.rpm package)
 
-The `.rpm` packages for each version are attached to the
-[releases](https://github.com/zanza00/what-to-run/releases). Download the file
-for your architecture (`amd64`, or `arm64` on ARM machines) and install it
-directly:
+The `.rpm` packages are attached to the
+[releases](https://github.com/zanza00/what-to-run/releases) starting with the
+release after v0.7.0. Download the file for your architecture (`amd64`, or
+`arm64` on ARM machines) and install it directly:
 
 ```sh
 sudo dnf install ./what-to-run_<version>_linux_amd64.rpm
+```
+
+The packages are signed with the project's GPG key, the same one that signs the
+apt repository. To verify a download, import the key and check the signature:
+
+```sh
+sudo rpm --import https://zanza00.github.io/what-to-run/key.asc
+rpm --checksig what-to-run_<version>_linux_amd64.rpm
 ```
 
 ## Arch Linux

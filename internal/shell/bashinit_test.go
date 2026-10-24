@@ -75,10 +75,10 @@ func TestBashInitNamesTheInvokedProgram(t *testing.T) {
 		want []string
 	}{
 		{
-			prog: "what-to-run",
+			prog: "task-picker",
 			want: []string{
-				"# what-to-run: bash integration, Ctrl-G opens the inline picker.",
-				`eval "$(what-to-run init bash --key Ctrl-G)"`,
+				"# task-picker: bash integration, Ctrl-G opens the inline picker.",
+				`eval "$(task-picker init bash --key Ctrl-G)"`,
 			},
 		},
 		{prog: "wtr", want: []string{"# wtr: bash integration"}},
@@ -105,7 +105,7 @@ func TestBashInitIsQuiet(t *testing.T) {
 	if err != nil {
 		t.Skip("bash not installed")
 	}
-	for _, prog := range []string{"wtr", "what-to-run", ""} {
+	for _, prog := range []string{"wtr", "task-picker", ""} {
 		for _, key := range []string{"ctrl-s", "ctrl-g", `\e[15~`} {
 			script, err := BashInit(prog, "/bin/wtr", key)
 			if err != nil {
@@ -154,7 +154,7 @@ func TestBashInitParsesAsBash(t *testing.T) {
 	if err != nil {
 		t.Skip("bash not installed")
 	}
-	for _, prog := range []string{"wtr", "what-to-run"} {
+	for _, prog := range []string{"wtr", "task-picker"} {
 		for _, key := range []string{"ctrl-s", "alt-x", `\e[15~`} {
 			script, err := BashInit(prog, "/bin/wtr", key)
 			if err != nil {

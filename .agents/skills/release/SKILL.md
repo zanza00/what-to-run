@@ -28,8 +28,10 @@ channel moved.
 | AUR | `what-to-run-bin` |
 
 The release notes are the commits between the previous tag and this one,
-oldest first, with merge commits dropped. They are only as good as the commit
-messages already on `main`.
+oldest first, with merge commits dropped; GoReleaser prints their subjects
+only, so a `BREAKING CHANGE:` footer or a one-way removal stays invisible.
+When the range contains one, prepare the note by hand — step 5 adds it after
+the release exists.
 
 ## 0. Read the state
 
@@ -155,6 +157,14 @@ package channels. On failure, read `gh run view "$run_id" --log-failed` and
 follow `references/recovery.md` — where it stopped decides what is safe.
 
 ## 5. Verify every channel
+
+If the commit range carries a `BREAKING CHANGE:` footer or a one-way removal,
+add that note to the published release now — the tag stays put, only the notes
+change:
+
+```sh
+gh release edit vX.Y.Z --notes-file notes.md
+```
 
 Run the bundled verifier with the tag:
 

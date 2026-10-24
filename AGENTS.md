@@ -81,19 +81,15 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   (`command_windows.go`) — so discovery and config parsing can run against an
   in-memory port in tests. The platform shell choice stays testable off Windows
   through `shellCommandFor(goos, ...)`.
-- `task build` compiles `cmd/wtr` twice: `bin/wtr` is the CLI name and
-  `bin/what-to-run` the explicit one for shell rc files. The invoked
-  name is the one shown in usage, messages and the picker title (on Windows
-  without the `.exe` suffix), and
-  `init zsh`, `init bash` and `init powershell` embed the invoked command — the
-  bare name via PATH, or the absolute path — in `WTR_BIN`; with the explicit
-  name, `--help` and the generated script also point at `wtr` when it is on
-  PATH.
+- `task build` compiles `cmd/wtr` into `bin/wtr`. The invoked name is the one
+  shown in usage, messages and the picker title (on Windows without the `.exe`
+  suffix), and `init zsh`, `init bash` and `init powershell` embed the invoked
+  command — the bare name via PATH, or the absolute path — in `WTR_BIN`.
   `cmd/wtr/main_test.go` pins the helpers.
 - Releases are tag-driven: `.github/workflows/release.yml` runs on `vX.Y.Z`
   tags whose commit is in `main`, builds the linux+darwin archives, the
-  Windows zips (both holding both binaries) and the linux `.deb` and `.rpm`
-  packages through `.goreleaser.yaml`, and
+  Windows zips and the linux `.deb` and `.rpm` packages through
+  `.goreleaser.yaml`, and
   `scripts/publish-homebrew.py` writes `Formula/what-to-run.rb` in
   `zanza00/homebrew-tap` using the `HOMEBREW_TAP_TOKEN` secret while
   `scripts/publish-aur.py` pushes the `what-to-run-bin` PKGBUILD to the AUR

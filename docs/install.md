@@ -1,9 +1,6 @@
 # Installation
 
-Releases ship two binaries with the same picker: `what-to-run` (the explicit
-name) and `wtr` (the short alias). The methods below install both unless noted
-otherwise. Run `wtr --version` or `what-to-run --version` to verify the
-installation.
+The command is `wtr`. Run `wtr --version` to verify an installation.
 
 ## Homebrew
 
@@ -21,7 +18,7 @@ On macOS or Linux with [mise](https://mise.jdx.dev/):
 mise use -g github:zanza00/what-to-run
 ```
 
-This installs both binaries from the GitHub releases.
+This installs `wtr` from the GitHub releases.
 
 ## Debian and Ubuntu
 
@@ -132,12 +129,12 @@ An AUR package (`what-to-run-bin`) is pending. Until it is published, use a
 > one of the methods above to receive upgrades from your package manager.
 
 Each release attaches tarballs for macOS and Linux on Intel and ARM64, as an
-alternative to the packages above. Every archive contains both binaries.
-Extract the archive and put both binaries on your `PATH`:
+alternative to the packages above. Extract one and put the binary on your
+`PATH`:
 
 ```sh
 tar -xzf what-to-run_<version>_linux_amd64.tar.gz
-sudo install -m 755 wtr what-to-run /usr/local/bin/
+sudo install -m 755 wtr /usr/local/bin/
 ```
 
 Use `what-to-run_<version>_darwin_arm64.tar.gz` on Apple silicon, and so on.
@@ -156,13 +153,11 @@ PowerShell:
 Expand-Archive what-to-run_<version>_windows_amd64.zip -DestinationPath C:\Tools\what-to-run
 $env:Path = "C:\Tools\what-to-run;$env:Path"   # or add it permanently
 wtr --version
-what-to-run --version
 ```
 
-The archive contains both `wtr.exe` and `what-to-run.exe`: the invoked name is
-the one shown in usage, messages and the picker title.
+The archive contains `wtr.exe`.
 
-The binaries are not code-signed, so SmartScreen may block the first run.
+The binary is not code-signed, so SmartScreen may block the first run.
 `Unblock-File` clears the mark of the web on the extracted files:
 
 ```powershell
@@ -171,14 +166,32 @@ Get-ChildItem C:\Tools\what-to-run | Unblock-File
 
 ## Go
 
-With Go installed, `go install` compiles the program locally (it installs only
-`wtr`):
+With Go installed, `go install` compiles the program locally:
 
 ```sh
 go install github.com/zanza00/what-to-run/cmd/wtr@latest
 ```
 
 This requires Go 1.27.2 or later.
+
+## Upgrading from a two-name release
+
+Earlier releases shipped a second binary, `what-to-run`, built from the same
+program. If an rc file still calls it, replace it with `wtr`:
+
+```sh
+eval "$(wtr init zsh)"   # was: eval "$(what-to-run init zsh)"
+eval "$(wtr init bash)"  # was: eval "$(what-to-run init bash)"
+```
+
+```powershell
+wtr init powershell | Out-String | Invoke-Expression
+# was: what-to-run init powershell | Out-String | Invoke-Expression
+```
+
+Upgrading to a release that ships this change removes the second binary; the
+configuration in `~/.config/what-to-run/` and the `.what-to-run.toml` project
+file keep their names.
 
 ## Next steps
 

@@ -94,10 +94,10 @@ func TestPowerShellInitNamesTheInvokedProgram(t *testing.T) {
 		want []string
 	}{
 		{
-			prog: "what-to-run",
+			prog: "task-picker",
 			want: []string{
-				"# what-to-run: PowerShell integration, Ctrl-G opens the inline picker.",
-				"#   what-to-run init powershell | Out-String | Invoke-Expression",
+				"# task-picker: PowerShell integration, Ctrl-G opens the inline picker.",
+				"#   task-picker init powershell | Out-String | Invoke-Expression",
 			},
 		},
 		{prog: "wtr", want: []string{"# wtr: PowerShell integration"}},
@@ -143,7 +143,7 @@ func TestPowerShellInitParsesAsPowerShell(t *testing.T) {
 [System.Management.Automation.Language.Parser]::ParseInput([Console]::In.ReadToEnd(), [ref]$tokens, [ref]$errors) | Out-Null
 if ($errors.Count -gt 0) { $errors | ForEach-Object { [Console]::Error.WriteLine($_.Message) }; exit 1 }
 `
-	for _, prog := range []string{"wtr", "what-to-run"} {
+	for _, prog := range []string{"wtr", "task-picker"} {
 		for _, key := range []string{"ctrl-s", "alt-x", "alt-1"} {
 			script, err := PowerShellInit(prog, `C:\Tools\wtr.exe`, key)
 			if err != nil {

@@ -32,7 +32,6 @@ class RenderTest(unittest.TestCase):
         self.assertIn("provides=('what-to-run')", pkgbuild)
         self.assertIn("conflicts=('what-to-run')", pkgbuild)
         self.assertIn('install -Dm755 "${srcdir}/wtr" "${pkgdir}/usr/bin/wtr"', pkgbuild)
-        self.assertIn('install -Dm755 "${srcdir}/what-to-run" "${pkgdir}/usr/bin/what-to-run"', pkgbuild)
         for arch, go_arch in (("x86_64", "amd64"), ("aarch64", "arm64")):
             name = f"what-to-run_1.2.3_linux_{go_arch}.tar.gz"
             url = f"https://github.com/zanza00/what-to-run/releases/download/v1.2.3/{name}"

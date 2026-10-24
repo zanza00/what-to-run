@@ -49,7 +49,9 @@ def render(tag, checksums):
         f'pkgdesc="{DESCRIPTION}"',
         "arch=('x86_64' 'aarch64')",
         f'url="{HOMEPAGE}"',
-        "license=('MIT')",
+        f"license=('MIT')",
+        # The package is what-to-run-bin and provides/conflicts with the
+        # upstream package name; there is no second binary called what-to-run.
         f"provides=('{UPSTREAM}')",
         f"conflicts=('{UPSTREAM}')",
         "options=('!strip')",

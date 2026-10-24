@@ -5,6 +5,9 @@
 #
 # The script imports the repository key, writes the dnf/yum repository, and
 # refreshes the metadata. Install the package with: sudo dnf install what-to-run
+#
+# WTR_REPOSITORY overrides the repository URL; WTR_RPM_KEY and
+# WTR_RPM_REPOSITORY_FILE override the installed paths.
 set -eu
 
 REPOSITORY="${WTR_REPOSITORY:-https://zanza00.github.io/what-to-run}"
@@ -44,12 +47,19 @@ repo_gpgcheck=1
 gpgkey=file://$KEY
 EOF
 
+manager=""
 if command -v dnf >/dev/null 2>&1; then
+    manager=dnf
     dnf -q makecache
 elif command -v yum >/dev/null 2>&1; then
+    manager=yum
     yum -q makecache
 else
     echo "warning: neither dnf nor yum was found; the repository is configured but its metadata was not refreshed" >&2
 fi
 
-printf '\nwhat-to-run repository configured. Install it with:\n  sudo dnf install what-to-run\n'
+if [ -n "$manager" ]; then
+    printf '\nwhat-to-run repository configured. Install it with:\n  sudo %s install what-to-run\n' "$manager"
+else
+    printf '\nwhat-to-run repository configured. Install the package with your distribution package manager.\n'
+fi

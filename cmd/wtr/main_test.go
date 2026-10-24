@@ -51,6 +51,7 @@ func TestProgName(t *testing.T) {
 	}{
 		{"absolute unix path", "linux", "/usr/local/bin/wtr", "wtr"},
 		{"bare name", "linux", "task-picker", "task-picker"},
+		{"former shipped name", "linux", "what-to-run", "what-to-run"},
 		{"relative unix path", "linux", "bin/wtr", "wtr"},
 		{"empty argv0", "linux", "", "wtr"},
 		{"exe suffix survives off windows", "linux", "wtr.exe", "wtr.exe"},

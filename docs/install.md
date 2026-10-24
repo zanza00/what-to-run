@@ -23,7 +23,9 @@ mise use -g github:zanza00/what-to-run
 
 This installs both binaries from the GitHub releases.
 
-## Debian and Ubuntu (apt repository)
+## Debian and Ubuntu
+
+### apt repository
 
 Configure the project's apt repository, signed with the project's GPG key,
 with one command:
@@ -50,7 +52,7 @@ sudo apt update
 sudo apt install what-to-run
 ```
 
-## Debian and Ubuntu (.deb package)
+### .deb package
 
 The `.deb` packages for each version are attached to the
 [releases](https://github.com/zanza00/what-to-run/releases). Download the file
@@ -61,7 +63,9 @@ directly:
 sudo apt install ./what-to-run_<version>_linux_amd64.deb
 ```
 
-## Fedora, RHEL and derivatives (dnf/yum repository)
+## Fedora, RHEL and derivatives
+
+### dnf/yum repository
 
 Configure the project's RPM repository with one command:
 
@@ -93,7 +97,7 @@ EOF
 sudo dnf install what-to-run
 ```
 
-## Fedora, RHEL and derivatives (.rpm package)
+### .rpm package
 
 The `.rpm` packages are attached to the
 [releases](https://github.com/zanza00/what-to-run/releases) starting with the
@@ -103,6 +107,9 @@ release after v0.7.0. Download the file for your architecture (`amd64`, or
 ```sh
 sudo dnf install ./what-to-run_<version>_linux_amd64.rpm
 ```
+
+The file names use the Go architecture names: `amd64` is `x86_64` and `arm64`
+is `aarch64`.
 
 The packages are signed with the project's GPG key, the same one that signs the
 apt repository. To verify a download, import the key and check the signature:
@@ -115,13 +122,18 @@ rpm --checksig what-to-run_<version>_linux_amd64.rpm
 ## Arch Linux
 
 An AUR package (`what-to-run-bin`) is pending. Until it is published, use a
-release tarball.
+[release tarball](#prebuilt-tarballs).
 
 ## Prebuilt tarballs
 
+> [!WARNING]
+> Use this only as a last resort: the CLI has no self-updater, so a tarball
+> installed by hand stays at that version until you replace it. Install through
+> one of the methods above to receive upgrades from your package manager.
+
 Each release attaches tarballs for macOS and Linux on Intel and ARM64, as an
 alternative to the packages above. Every archive contains both binaries.
-Extract it and put them on your `PATH`:
+Extract the archive and put both binaries on your `PATH`:
 
 ```sh
 tar -xzf what-to-run_<version>_linux_amd64.tar.gz

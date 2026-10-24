@@ -39,8 +39,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
 
 - `task all` is the full check (fmt + vet, race tests, build); CI
   (`.github/workflows/checks.yml`, also called by the release workflow) runs
-  the same Go commands plus a gofmt gate on linux and macOS, and its `cross`
-  job builds and vets for Windows, so run `task all` before committing.
+  the same Go commands plus gofmt and dprint gates on linux and macOS, and its
+  `cross` job builds and vets for Windows, so run `task all` before committing.
   `task` is a contributor prerequisite, not a runtime dependency of `wtr`:
   install it with
   `go install github.com/go-task/task/v3/cmd/task@v3.54.0`, which writes the
@@ -48,6 +48,11 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `PATH`; when `task` is missing, run the Go commands in `checks.yml` by hand.
   A single test:
   `go test -race ./internal/tui -run TestViewInlineHeight`.
+- Markdown is formatted by dprint, configured in `dprint.json`; `.agents/` is
+  excluded because those skills are vendored, and tables keep their compact
+  layout. The pinned CLI is downloaded into `bin/tools` by
+  `scripts/install-dprint.go`, which `task fmt-md` and `task check-md` run, so
+  no global dprint install is needed; `task all` includes `fmt-md`.
 - Runtime code is split in three internal packages. `internal/core` is the task
   domain: `task.go` = the Task model and command lines, `shell.go` = the shell
   dialects, their quoting and the platform shell for rc tasks, `discover.go` =

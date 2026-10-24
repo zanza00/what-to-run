@@ -21,10 +21,20 @@ directly.
 Run these commands from the repository root:
 
 ```sh
-task build # build bin/wtr and bin/what-to-run
-task test  # run tests with the race detector and coverage
-task all   # format, vet, test, and build
+task build    # build bin/wtr and bin/what-to-run
+task test     # run tests with the race detector and coverage
+task fmt-md   # format the Markdown files with dprint
+task check-md # check the Markdown formatting
+task all      # format, vet, test, and build
 ```
+
+`task fmt-md` and `task check-md` download the pinned dprint release into
+`bin/tools` on first use, so there is no global dprint install and every
+machine uses the same version. The download needs network access; `task all`
+runs `task fmt-md` as part of its format step. The Markdown under
+`.agents/skills/` is excluded in `dprint.json`: it is vendored and keeps the
+upstream formatting. Tables are kept as written too, because aligning their
+cells would turn the longer rows into very wide lines.
 
 ## Use the local build instead of a release
 

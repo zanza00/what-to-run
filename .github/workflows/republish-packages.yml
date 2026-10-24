@@ -81,7 +81,8 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           # Releases made before RPM support have no .rpm assets.
-          if ! compgen -G "dist/*.rpm" >/dev/null; then
+          assets=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
+          if ! grep -q '\.rpm$' <<<"$assets"; then
             echo "No RPM assets for $RELEASE_TAG; skipping RPM verification."
             exit 0
           fi

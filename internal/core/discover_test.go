@@ -173,7 +173,7 @@ func TestDiscoverTaskfileOfThisRepo(t *testing.T) {
 	if got := byName["build"].Source; got != "Taskfile.yml" {
 		t.Errorf("build source = %q, want Taskfile.yml", got)
 	}
-	const wantDesc = "Build bin/wtr and bin/what-to-run"
+	const wantDesc = "Build bin/wtr"
 	if got := byName["build"].Desc; got != wantDesc {
 		t.Errorf("build description = %q, want %q", got, wantDesc)
 	}

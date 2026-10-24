@@ -12,7 +12,7 @@ import (
 // PowerShell (Windows PowerShell 5.1 or PowerShell 7+, both built on
 // PSReadLine),
 //
-//	what-to-run init powershell | Out-String | Invoke-Expression
+//	wtr init powershell | Out-String | Invoke-Expression
 //
 // which binds key to a PSReadLine key handler opening the inline picker of bin
 // right below the prompt. The widget implements the flow described in Run: it
@@ -25,9 +25,10 @@ import (
 // cursor. No invisible sequences are needed, unlike the bash widget, because
 // PSReadLine exposes the buffer to the key handler directly.
 //
-// prog is the name the binary was invoked as ("wtr" or "what-to-run"): it
-// appears in the script's comments. bin is the command the widget launches —
-// the invoked name, resolved through PATH at press time, or an absolute path.
+// prog is the name the binary was invoked as ("wtr", or whatever it was
+// renamed to): it appears in the script's comments. bin is the command the
+// widget launches — the invoked name, resolved through PATH at press time, or
+// an absolute path.
 // key is a key name ("ctrl-s", "alt-x"): PowerShell has no portable raw key
 // sequences, so nothing else is accepted.
 func PowerShellInit(prog, bin, key string) (string, error) {

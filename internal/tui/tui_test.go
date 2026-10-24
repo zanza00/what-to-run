@@ -432,8 +432,8 @@ func TestViewKeepsCommandOnNarrowTerminals(t *testing.T) {
 }
 
 func TestViewTitleUsesInvokedName(t *testing.T) {
-	got := sized(Options{Prog: "what-to-run"}).View().Content
-	if !strings.Contains(got, "what-to-run") {
+	got := sized(Options{Prog: "task-picker"}).View().Content
+	if !strings.Contains(got, "task-picker") {
 		t.Errorf("View() content does not contain the invoked name:\n%s", got)
 	}
 }

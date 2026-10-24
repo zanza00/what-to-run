@@ -72,10 +72,10 @@ func TestZshInitNamesTheInvokedProgram(t *testing.T) {
 		want []string
 	}{
 		{
-			prog: "what-to-run",
+			prog: "task-picker",
 			want: []string{
-				"# what-to-run: zsh integration, Ctrl-G opens the inline picker.",
-				`eval "$(what-to-run init zsh --key Ctrl-G)"`,
+				"# task-picker: zsh integration, Ctrl-G opens the inline picker.",
+				`eval "$(task-picker init zsh --key Ctrl-G)"`,
 			},
 		},
 		{prog: "wtr", want: []string{"# wtr: zsh integration"}},
@@ -98,7 +98,7 @@ func TestZshInitNamesTheInvokedProgram(t *testing.T) {
 // integration lives in the rc file, and a greeting at every new shell is
 // noise.
 func TestZshInitIsQuiet(t *testing.T) {
-	for _, prog := range []string{"wtr", "what-to-run", ""} {
+	for _, prog := range []string{"wtr", "task-picker", ""} {
 		for _, key := range []string{"ctrl-s", "ctrl-g"} {
 			got, err := ZshInit(prog, "/bin/wtr", key)
 			if err != nil {
@@ -142,7 +142,7 @@ func TestZshInitParsesAsZsh(t *testing.T) {
 	if err != nil {
 		t.Skip("zsh not installed")
 	}
-	for _, prog := range []string{"wtr", "what-to-run"} {
+	for _, prog := range []string{"wtr", "task-picker"} {
 		for _, key := range []string{"ctrl-s", "alt-x", "^[[15~"} {
 			script, err := ZshInit(prog, "/bin/wtr", key)
 			if err != nil {

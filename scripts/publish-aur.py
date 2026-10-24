@@ -62,7 +62,6 @@ def render(tag, checksums):
         "",
         "package() {",
         '  install -Dm755 "${srcdir}/wtr" "${pkgdir}/usr/bin/wtr"',
-        '  install -Dm755 "${srcdir}/what-to-run" "${pkgdir}/usr/bin/what-to-run"',
         "}",
         "",
     ])

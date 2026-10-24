@@ -7,17 +7,16 @@ terminal history.
 ## zsh and bash
 
 Add the line for your shell to its rc file, then start a new shell (or evaluate
-it in the current one). Use `wtr` instead of `what-to-run` if that is the
-command name you installed.
+it in the current one).
 
 ```sh
 # zsh: ~/.zshrc
-eval "$(what-to-run init zsh)"
+eval "$(wtr init zsh)"
 ```
 
 ```sh
 # bash 4.3 or later: ~/.bashrc
-eval "$(what-to-run init bash)"
+eval "$(wtr init bash)"
 ```
 
 ## PowerShell
@@ -26,7 +25,7 @@ Add this to `$PROFILE`:
 
 ```powershell
 # PowerShell 5.1 or 7+
-what-to-run init powershell | Out-String | Invoke-Expression
+wtr init powershell | Out-String | Invoke-Expression
 ```
 
 `Out-String` preserves the newlines and the `#` comments of the generated
@@ -59,7 +58,7 @@ better choice.
 
 ## Running the picker
 
-`wtr` (or `what-to-run`) runs the picker without the shell widget:
+`wtr` runs the picker without the shell widget:
 
 ```sh
 wtr          # full-screen picker

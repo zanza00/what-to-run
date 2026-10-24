@@ -18,7 +18,7 @@ your shell and become part of your normal terminal history.
 
 ### Install
 
-On macOS or Linux with Homebrew (installs both `wtr` and `what-to-run`):
+On macOS or Linux with Homebrew:
 
 ```sh
 brew install zanza00/tap/what-to-run
@@ -36,22 +36,21 @@ For the apt repository, `.deb` packages, release tarballs, Windows or
 ### Set up the widget
 
 Add the line for your shell to its rc file, then start a new shell (or evaluate
-it in the current one). Use `wtr` instead of `what-to-run` if that is the
-command name you installed.
+it in the current one).
 
 ```sh
 # zsh: ~/.zshrc
-eval "$(what-to-run init zsh)"
+eval "$(wtr init zsh)"
 ```
 
 ```sh
 # bash 4.3 or later: ~/.bashrc
-eval "$(what-to-run init bash)"
+eval "$(wtr init bash)"
 ```
 
 ```powershell
 # PowerShell 5.1 or 7+, in $PROFILE
-what-to-run init powershell | Out-String | Invoke-Expression
+wtr init powershell | Out-String | Invoke-Expression
 ```
 
 The widget is bound to **Ctrl-S**. See [Widget setup](docs/widget.md) for other

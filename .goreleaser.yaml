@@ -4,8 +4,8 @@ version: 2
 # checkout directory or remote with another name must not change them.
 project_name: what-to-run
 
-# The same main package is built twice, once per name, and every archive holds
-# both binaries (the invoked name is what the picker shows).
+# One binary, invoked as wtr; the program reads its name from argv[0], so a
+# renamed or symlinked copy shows that name in usage, messages and the picker.
 builds:
   - id: wtr
     main: ./cmd/wtr
@@ -17,19 +17,9 @@ builds:
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
-  - id: what-to-run
-    main: ./cmd/wtr
-    binary: what-to-run
-    env:
-      - CGO_ENABLED=0
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64]
-    ldflags:
-      - -s -w
-      - -X main.version={{.Version}}
 
 # Windows gets them as zip, since .tar.gz is unfamiliar there; every other
-# target keeps tar.gz. GoReleaser appends .exe to both binaries on Windows.
+# target keeps tar.gz. GoReleaser appends .exe to the binary on Windows.
 archives:
   - formats: [tar.gz]
     format_overrides:
@@ -37,7 +27,7 @@ archives:
         formats: [zip]
 
 # Debian packages for Ubuntu/Debian: `apt install ./what-to-run_*.deb` installs
-# both binaries.
+# wtr.
 nfpms:
   - id: deb
     package_name: what-to-run
@@ -52,7 +42,7 @@ nfpms:
     bindir: /usr/bin
     # Same shape as the archives, so every asset name follows one pattern.
     file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    ids: [wtr, what-to-run]
+    ids: [wtr]
 
 checksum:
   name_template: checksums.txt

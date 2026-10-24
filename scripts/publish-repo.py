@@ -18,6 +18,7 @@ DEFAULT_REPO_URL = "https://github.com/zanza00/what-to-run.git"
 DEFAULT_BRANCH = "gh-pages"
 RPM_DIRECTORY = "rpm"
 SCRIPT_DIR = Path(__file__).resolve().parent
+SETUP_SCRIPTS = ("setup.deb.sh", "setup.rpm.sh")
 ARCHITECTURES = ("amd64", "arm64")
 
 DISTRIBUTIONS = """Origin: zanza00
@@ -113,8 +114,7 @@ def _build_rpm_repository(tag, rpms, work, environment, fingerprint=None):
     try:
         subprocess.run(
             # gzip and simple names keep the metadata readable by every
-            # dnf/yum version and by the verification steps; the revision
-            # ties repomd.xml to the tag.
+            # dnf/yum version and by the verification steps.
             ["createrepo_c", "--quiet", "--general-compress-type=gz",
              "--simple-md-filenames", "--revision", tag, str(rpm_dir)],
             check=True, capture_output=True, text=True, env=environment,
@@ -243,12 +243,8 @@ def publish(tag, *args, **kwargs):
             )
     (work / ".nojekyll").write_text("")
     # The one-liners in docs/install.md point at these files on the site, so
-    # every publish keeps the served copies in sync with the checkout. The RPM
-    # script only appears once there is an RPM repository to configure.
-    scripts = ["setup.deb.sh"]
-    if rpms:
-        scripts.append("setup.rpm.sh")
-    for name in scripts:
+    # every publish keeps the served copies in sync with the checkout.
+    for name in SETUP_SCRIPTS:
         shutil.copy2(SCRIPT_DIR / name, work / name)
 
     if dry_run:

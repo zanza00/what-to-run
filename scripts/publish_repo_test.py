@@ -140,7 +140,7 @@ class PublishTest(unittest.TestCase):
         self.assertFalse(any("createrepo_c" in command for command in calls))
         self.assertFalse((dist / "repo" / "rpm").exists())
         self.assertTrue((dist / "repo" / "setup.deb.sh").exists())
-        self.assertFalse((dist / "repo" / "setup.rpm.sh").exists())
+        self.assertTrue((dist / "repo" / "setup.rpm.sh").exists())
 
 
 if __name__ == "__main__":

@@ -14,6 +14,10 @@ vars:
   # Where `task install` puts the binaries (override: PREFIX=/usr/local/bin).
   PREFIX:
     sh: echo "${PREFIX:-$HOME/.local/bin}"
+  # dprint is downloaded here on first use by `task fmt-md`; see
+  # scripts/install-dprint.go.
+  DPRINT_DIR: bin/tools
+  DPRINT: '{{.DPRINT_DIR}}/dprint{{if eq OS "windows"}}.exe{{end}}'
 
 tasks:
   default:
@@ -23,7 +27,7 @@ tasks:
       - '"{{.TASK_EXE}}" --list'
 
   all:
-    desc: Format, vet, test, and build
+    desc: Format (Go and Markdown), vet, test, and build
     # Sequential on purpose: deps run in parallel, and fmt rewrites the files
     # test and build read.
     cmds:
@@ -76,10 +80,29 @@ tasks:
       - '{{.GO}} test -race -coverprofile=coverage.out ./...'
 
   fmt:
-    desc: Format and vet the code
+    desc: Format Go and Markdown, and vet the code
     cmds:
       - '{{.GO}} fmt ./...'
       - '{{.GO}} vet ./...'
+      - task: fmt-md
+
+  install-dprint:
+    desc: Download the pinned dprint binary into bin/tools
+    silent: true
+    cmds:
+      - '{{.GO}} run scripts/install-dprint.go {{.DPRINT}}'
+
+  fmt-md:
+    desc: Format the Markdown files with dprint
+    deps: [install-dprint]
+    cmds:
+      - '{{.DPRINT}} fmt'
+
+  check-md:
+    desc: Check the Markdown formatting with dprint
+    deps: [install-dprint]
+    cmds:
+      - '{{.DPRINT}} check'
 
   lint:
     desc: Run golangci-lint (requires golangci-lint installed)

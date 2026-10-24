@@ -1,15 +1,16 @@
 ---
 name: release
-description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, run the preflight gates, create and push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify the GitHub assets, Homebrew formula, apt repository and AUR package. Use this skill whenever the user wants to release, ship, tag, bump or publish what-to-run, asks in Italian to "fare la release", or asks why a release or one of its package-manager channels did not update — even if they do not say the word "release" explicitly.
+description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, run the preflight gates, create and push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify the GitHub assets, Homebrew formula, apt and RPM repositories and AUR package. Use this skill whenever the user wants to release, ship, tag, bump or publish what-to-run, asks in Italian to "fare la release", or asks why a release or one of its package-manager channels did not update — even if they do not say the word "release" explicitly.
 ---
 
 # Release what-to-run
 
 The version lives only in the tag. Pushing `vX.Y.Z` on a commit in `main`
 starts `.github/workflows/release.yml`, which validates the tag, reruns the CI
-checks, builds six artifacts plus `checksums.txt`, publishes the GitHub
-release, and updates Homebrew, apt and (when configured) the AUR. The work is
-to reach that tag with evidence and then prove that every channel moved.
+checks, builds the archives and Linux packages plus `checksums.txt`, publishes
+the GitHub release, and updates Homebrew, apt, RPM and (when configured) the
+AUR. The work is to reach that tag with evidence and then prove that every
+channel moved.
 
 ## Facts the pipeline depends on
 
@@ -18,10 +19,12 @@ to reach that tag with evidence and then prove that every channel moved.
 | Trigger | `vX.Y.Z` tag on a commit contained in `origin/main` |
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
 | Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY` (missing → channel skipped with a warning) |
-| Release assets | `checksums.txt`, 4 tarballs, 2 Windows zips, 2 `.deb` files (9 total) |
+| Release assets | `checksums.txt`, 4 tarballs, 2 Windows zips, 2 `.deb` files, 2 `.rpm` files (11 total) |
 | Version string | `wtr --version` prints `wtr X.Y.Z` in released binaries, `wtr vX.Y.Z-N-g…` from `task build` |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
+| RPM | `rpm/repodata/primary.xml.gz` and `repomd.xml.asc` on `gh-pages` |
+| Setup scripts | `setup.deb.sh` and `setup.rpm.sh` at the root of `gh-pages` |
 | AUR | `what-to-run-bin` |
 
 The release notes are the commits between the previous tag and this one,
@@ -40,8 +43,9 @@ gh api repos/zanza00/what-to-run/actions/secrets --jq '.secrets[].name'
 ```
 
 The secret list decides what a successful release means: Homebrew is
-mandatory, apt and AUR may legitimately be skipped. A missing AUR secret means
-an AUR-less release is expected, not a failure.
+mandatory, the apt and RPM repositories and the AUR may legitimately be
+skipped. A missing AUR secret means an AUR-less release is expected, not a
+failure.
 
 `git rev-list --left-right --count origin/main...HEAD` prints
 `<behind> <ahead>`. Stop and explain if the tree is dirty or HEAD is not on
@@ -97,8 +101,8 @@ a shim without an installed version, either run it ad hoc
 (`mise x goreleaser@latest -- goreleaser check`) or skip it and say so — CI's
 `cross` job still runs `goreleaser check`.
 
-Touch `scripts/publish-*.py` or the release workflow in this change? Run the
-publisher tests:
+Touch `scripts/publish-*.py`, the setup scripts or the release workflow in
+this change? Run the publisher tests:
 
 ```sh
 python3 -m unittest discover -s scripts -p '*_test.py'
@@ -158,12 +162,14 @@ Run the bundled verifier with the tag:
 .agents/skills/release/scripts/verify-release.sh vX.Y.Z
 ```
 
-It checks the release is public and carries exactly the nine assets, the
-Homebrew formula has the version and download URLs, the apt index on
-`gh-pages` has the version for amd64 and arm64, the AUR package has it when
-that secret is configured, the downloaded archive matches `checksums.txt`, and
-a binary for this platform prints `wtr X.Y.Z`. Missing apt/AUR secrets show as
-`skip`, matching the workflow.
+It checks the release is public and carries exactly the eleven assets, the
+Homebrew formula has the version and download URLs, the apt index and the RPM
+metadata on `gh-pages` have the version for both architectures, the RPM
+metadata signature verifies with the repository key, the setup scripts are
+published, the AUR package has it when that secret is configured, the
+downloaded archive matches `checksums.txt`, and a binary for this platform
+prints `wtr X.Y.Z`. Missing repository/AUR secrets show as `skip`, matching
+the workflow.
 
 Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
 only asserts that the release is public and the asset names are right. For a
@@ -188,8 +194,9 @@ Use `references/recovery.md`. The short version:
 - `validate` or `checks` failed → nothing is published; fix the cause, delete
   the tag, and push it again on the fixed commit.
 - `publish` failed after the GitHub release exists → do not rerun the job;
-  repair the failed channel (apt has a dedicated workflow, Homebrew and AUR
-  run their publisher against the released checksums).
+  repair the failed channel (the package repositories have a dedicated
+  workflow, Homebrew and AUR run their publisher against the released
+  checksums).
 - published artifacts are wrong → prefer a new patch release over replacing a
   version consumers may already have fetched; apt cannot republish the same
   version cleanly.

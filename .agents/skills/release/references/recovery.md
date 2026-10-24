@@ -55,18 +55,18 @@ the `publish` job**: it starts from `goreleaser release --clean` again and
 usually fails with "release already exists" before reaching the publisher.
 Repair the channel directly.
 
-### apt
+### apt and RPM repositories
 
 Documented recovery path, also used when `gh-pages` rejected the push:
 
 ```sh
-gh workflow run republish-apt.yml -f tag=vX.Y.Z
-gh run list --workflow=republish-apt.yml --limit 1
+gh workflow run republish-packages.yml -f tag=vX.Y.Z
+gh run list --workflow=republish-packages.yml --limit 1
 gh run watch <run-id> --exit-status
 ```
 
-It downloads the released `.deb` files and `checksums.txt` and publishes them
-to `gh-pages` without recreating the release. It requires
+It downloads the released `.deb` and `.rpm` files and `checksums.txt` and
+publishes them to `gh-pages` without recreating the release. It requires
 `APT_GPG_PRIVATE_KEY`.
 
 ### Homebrew and AUR
@@ -98,7 +98,7 @@ After any repair, run the verifier again:
 If the binaries are broken, or an asset is missing and cannot be fixed by a
 channel publisher, prefer a **new patch version**. Replacing a published
 version changes hashes for anyone who already downloaded it, and the Homebrew
-formula, apt index and AUR package all key off that version.
+formula, apt and RPM indexes and AUR package all key off that version.
 
 If the release is still fresh and nothing has been fetched, the user may
 decide to redo it. Confirm explicitly, then:
@@ -121,11 +121,11 @@ still published.
 
 ## 5. The workflow succeeded but verification finds a stale channel
 
-The CI "Verify published release" step checks only the asset names, so a
-successful run is not proof that Homebrew, apt or the AUR moved. The bundled
-verifier is the source of truth. For a channel whose secret is set:
+The CI release verification checks the asset names and the repository indexes,
+so a successful run is good evidence, but the bundled verifier is the source
+of truth for every channel. For a channel whose secret is set:
 
-- apt stale → run the `republish apt` workflow above;
+- apt or RPM stale → run the `republish packages` workflow above;
 - Homebrew stale → run `publish-homebrew.py` locally;
 - AUR stale → run `publish-aur.py` locally with the key.
 

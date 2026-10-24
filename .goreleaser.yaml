@@ -18,18 +18,19 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
 
-# Windows gets them as zip, since .tar.gz is unfamiliar there; every other
-# target keeps tar.gz. GoReleaser appends .exe to the binary on Windows.
+# Windows gets a zip, since .tar.gz is unfamiliar there; every other target
+# keeps tar.gz. GoReleaser appends .exe to the binary on Windows.
 archives:
   - formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
 
-# Debian packages for Ubuntu/Debian: `apt install ./what-to-run_*.deb` installs
-# wtr.
+# Linux packages: .deb for Debian/Ubuntu and .rpm for Fedora/RHEL.
+# `apt install ./what-to-run_*.deb` or `dnf install ./what-to-run_*.rpm`
+# installs wtr.
 nfpms:
-  - id: deb
+  - id: linux
     package_name: what-to-run
     vendor: zanza00
     homepage: https://github.com/zanza00/what-to-run
@@ -38,11 +39,19 @@ nfpms:
     license: MIT
     section: utils
     priority: optional
-    formats: [deb]
+    formats: [deb, rpm]
     bindir: /usr/bin
     # Same shape as the archives, so every asset name follows one pattern.
     file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     ids: [wtr]
+    rpm:
+      # The key that signs the apt repository also signs the RPM packages, so
+      # the RPM repository can serve them with gpgcheck=1. Local snapshot
+      # builds without the key produce unsigned packages.
+      signature:
+        # index keeps local snapshot builds working when the variable is
+        # unset: nfpm only signs when the path is not empty.
+        key_file: '{{ index .Env "APT_GPG_KEY_FILE" }}'
 
 checksum:
   name_template: checksums.txt
@@ -60,13 +69,14 @@ publishers:
     cmd: python3 scripts/publish-aur.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
     env:
       - AUR_SSH_KEY_FILE={{ .Env.AUR_SSH_KEY_FILE }}
-  - name: apt
+  - name: packages
     checksum: true
     # The script publishes once for checksums.txt and ignores other artifacts.
-    # It needs a token to push the gh-pages branch: GoReleaser only passes the
-    # env listed here to the publisher, so GITHUB_TOKEN must be forwarded
-    # explicitly or the push goes out unauthenticated.
-    cmd: python3 scripts/publish-apt.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
+    # It writes both the apt and the RPM repository to gh-pages. It needs a
+    # token to push the branch: GoReleaser only passes the env listed here to
+    # the publisher, so GITHUB_TOKEN must be forwarded explicitly or the push
+    # goes out unauthenticated.
+    cmd: python3 scripts/publish-repo.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
     env:
       - APT_GPG_KEY_FILE={{ .Env.APT_GPG_KEY_FILE }}
       - GITHUB_TOKEN={{ .Env.GITHUB_TOKEN }}

@@ -4,14 +4,16 @@
 # Usage: verify-release.sh vX.Y.Z
 #
 # Checks the GitHub release and its exact asset set, the Homebrew formula, the
-# apt index on gh-pages, the AUR package when that channel is configured, and a
-# downloaded binary of this machine's platform. Channels whose Actions secret
-# is unset are reported as skipped, matching the release workflow.
+# apt index and RPM metadata (including its signature) on gh-pages, the AUR
+# package when that channel is configured, and a downloaded binary of this
+# machine's platform. Channels whose Actions secret is unset are reported as
+# skipped, matching the release workflow.
 set -uo pipefail
 
 repo=zanza00/what-to-run
 tap_repo=zanza00/homebrew-tap
 aur_package=what-to-run-bin
+pages_url=https://zanza00.github.io/what-to-run
 
 failures=0
 checks=0
@@ -56,16 +58,43 @@ version=${tag#v}
 need gh
 need tar
 
-# The release workflow skips apt and AUR publication when their secret is
-# unset. Read the names (not the values) to know what this release promised.
+# The release workflow skips the package repositories and the AUR when their
+# secret is unset. Read the names (not the values) to know what this release
+# promised.
 secrets=""
 known_secrets=1
 if ! secrets=$(gh api "repos/$repo/actions/secrets" --jq '.secrets[].name' 2>/dev/null); then
   known_secrets=0
-  warn "cannot read Actions secrets; apt and AUR problems are reported without failing"
+  warn "cannot read Actions secrets; repository and AUR problems are reported without failing"
 fi
 has_secret() {
   [[ $known_secrets == 1 ]] && grep -qx "$1" <<<"$secrets"
+}
+
+bad_or_warn() {
+  if [[ $known_secrets == 1 ]]; then
+    bad "$1"
+  else
+    warn "$1"
+  fi
+}
+
+# rpm_has ARCH VERSION: true when the primary metadata has a what-to-run
+# package for that architecture with that version.
+rpm_has() {
+  local arch=$1 version=$2
+  awk -v arch="$arch" -v version="$version" '
+    /<package / { block = "" }
+    { block = block $0 "\n" }
+    /<\/package>/ {
+      if (block ~ "<name>what-to-run</name>" &&
+          block ~ "<arch>" arch "</arch>" &&
+          block ~ "ver=\"" version "\"") {
+        found = 1
+      }
+    }
+    END { exit !found }
+  ' <<<"$metadata"
 }
 
 # --- GitHub release -------------------------------------------------------
@@ -90,17 +119,19 @@ if [[ $release_found == 1 ]]; then
     "what-to-run_${version}_darwin_amd64.tar.gz" \
     "what-to-run_${version}_darwin_arm64.tar.gz" \
     "what-to-run_${version}_linux_amd64.deb" \
+    "what-to-run_${version}_linux_amd64.rpm" \
     "what-to-run_${version}_linux_amd64.tar.gz" \
     "what-to-run_${version}_linux_arm64.deb" \
+    "what-to-run_${version}_linux_arm64.rpm" \
     "what-to-run_${version}_linux_arm64.tar.gz" \
     "what-to-run_${version}_windows_amd64.zip" \
     "what-to-run_${version}_windows_arm64.zip" | sort)
   actual=$(gh release view "$tag" --repo "$repo" \
     --json assets --jq '.assets[].name' 2>/dev/null | sort)
   if [[ $actual == "$expected" ]]; then
-    ok "release carries exactly the 9 expected assets"
+    ok "release carries exactly the 11 expected assets"
   else
-    bad "release assets differ from the expected 9"
+    bad "release assets differ from the expected 11"
     while IFS= read -r name; do
       [[ -z $name ]] && continue
       grep -qxF "$name" <<<"$actual" ||
@@ -128,33 +159,74 @@ else
   bad "cannot read Formula/what-to-run.rb from $tap_repo"
 fi
 
-# --- apt repository -------------------------------------------------------
+# --- apt and RPM repositories ---------------------------------------------
 
-apt_expected=1
+repositories_expected=1
 if [[ $known_secrets == 1 ]] && ! has_secret APT_GPG_PRIVATE_KEY; then
-  apt_expected=0
-  skip "apt repository: APT_GPG_PRIVATE_KEY is not configured"
+  repositories_expected=0
+  skip "apt and RPM repositories: APT_GPG_PRIVATE_KEY is not configured"
 fi
-if [[ $apt_expected == 1 ]]; then
+if [[ $repositories_expected == 1 ]]; then
   for arch in amd64 arm64; do
     packages=$(gh api \
       "repos/$repo/contents/dists/stable/main/binary-$arch/Packages?ref=gh-pages" \
       -H "Accept: application/vnd.github.raw" 2>/dev/null) || packages=""
     if [[ -z $packages ]]; then
-      if [[ $known_secrets == 1 ]]; then
-        bad "cannot read the apt index for $arch from gh-pages"
-      else
-        warn "cannot read the apt index for $arch from gh-pages"
-      fi
+      bad_or_warn "cannot read the apt index for $arch from gh-pages"
     elif grep -A1 -x "Package: what-to-run" <<<"$packages" |
       grep -qx "Version: $version"; then
       ok "apt index for $arch carries $version"
     else
-      if [[ $known_secrets == 1 ]]; then
-        bad "apt index for $arch does not carry $version"
+      bad_or_warn "apt index for $arch does not carry $version"
+    fi
+  done
+
+  if ! metadata=$(gh api \
+    "repos/$repo/contents/rpm/repodata/primary.xml.gz?ref=gh-pages" \
+    -H "Accept: application/vnd.github.raw" 2>/dev/null | gzip -dc); then
+    metadata=""
+  fi
+  if [[ -z $metadata ]]; then
+    bad_or_warn "cannot read the RPM metadata from gh-pages"
+  else
+    for arch in x86_64 aarch64; do
+      if rpm_has "$arch" "$version"; then
+        ok "RPM metadata carries $version for $arch"
       else
-        warn "apt index for $arch does not carry $version"
+        bad_or_warn "RPM metadata does not carry $version for $arch"
       fi
+    done
+
+    need gpg
+    keyring=$(mktemp -d)
+    signature=$(mktemp)
+    repomd=$(mktemp)
+    if ! gh api "repos/$repo/contents/key.asc?ref=gh-pages" \
+        -H "Accept: application/vnd.github.raw" >"$keyring/key.asc" 2>/dev/null ||
+      ! gh api "repos/$repo/contents/rpm/repodata/repomd.xml.asc?ref=gh-pages" \
+        -H "Accept: application/vnd.github.raw" >"$signature" 2>/dev/null ||
+      ! gh api "repos/$repo/contents/rpm/repodata/repomd.xml?ref=gh-pages" \
+        -H "Accept: application/vnd.github.raw" >"$repomd" 2>/dev/null; then
+      bad_or_warn "cannot read the RPM metadata signature from gh-pages"
+    elif GNUPGHOME="$keyring" gpg --batch --quiet --import "$keyring/key.asc" 2>/dev/null &&
+      GNUPGHOME="$keyring" gpg --batch --quiet --verify "$signature" "$repomd" 2>/dev/null; then
+      ok "RPM metadata signature verifies with the repository key"
+    else
+      bad_or_warn "RPM metadata signature does not verify"
+    fi
+    rm -rf "$keyring" "$signature" "$repomd"
+  fi
+
+  for script in setup.deb.sh setup.rpm.sh; do
+    published=""
+    published=$(gh api "repos/$repo/contents/$script?ref=gh-pages" \
+      -H "Accept: application/vnd.github.raw" 2>/dev/null) || published=""
+    if [[ -z $published ]]; then
+      bad_or_warn "setup script $script is missing from gh-pages"
+    elif ! grep -qF "$pages_url" <<<"$published"; then
+      bad_or_warn "setup script $script does not point at $pages_url"
+    else
+      ok "setup script $script is published on gh-pages"
     fi
   done
 fi

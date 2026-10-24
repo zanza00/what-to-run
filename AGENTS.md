@@ -41,6 +41,9 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   (`.github/workflows/checks.yml`, also called by the release workflow) runs
   the same Go commands plus gofmt and dprint gates on linux and macOS, and its
   `cross` job builds and vets for Windows, so run `task all` before committing.
+  Its first run on a fresh checkout needs network for the dprint binary
+  (`bin/tools`) and its Markdown plugin (user cache); after that it is offline
+  unless `task clean` removes `bin/tools`.
   `task` is a contributor prerequisite, not a runtime dependency of `wtr`:
   install it with
   `go install github.com/go-task/task/v3/cmd/task@v3.54.0`, which writes the

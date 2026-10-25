@@ -71,7 +71,8 @@ scoops:
       name: scoop-bucket
       branch: main
       token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
-    # Pre-releases (vX.Y.Z-rc1) do not reach the bucket.
+    # A local release of a pre-release tag (vX.Y.Z-rc1) does not reach the
+    # bucket; the workflow rejects such tags before publishing.
     skip_upload: auto
 
 publishers:

@@ -104,6 +104,27 @@ git -C "$tmp/bucket" commit -am "what-to-run: add vX.Y.Z"
 git -C "$tmp/bucket" push
 ```
 
+### WinGet
+
+The manifest lives in `microsoft/winget-pkgs` and arrives through a pull
+request from the `zanza00/winget-pkgs` fork, so a failed push leaves the
+channel at the previous version until someone opens that pull request. When
+the automation did not, `komac` opens it from the released assets:
+
+```sh
+GITHUB_TOKEN=… komac update zanza00.WhatToRun --version X.Y.Z --urls \
+  https://github.com/zanza00/what-to-run/releases/download/vX.Y.Z/what-to-run_X.Y.Z_windows_amd64.zip \
+  https://github.com/zanza00/what-to-run/releases/download/vX.Y.Z/what-to-run_X.Y.Z_windows_arm64.zip \
+  --submit
+```
+
+`komac sync` first brings the fork up to date. The pull request still goes
+through the usual review, so the release is not broken while it waits: the
+verifier reports it as a `warn` until the manifest is merged. To fix a merged
+manifest, open a follow-up pull request editing the three files under
+`manifests/z/zanza00/WhatToRun/<version>`; never push to `microsoft/winget-pkgs`
+directly.
+
 After any repair, run the verifier again:
 
 ```sh
@@ -146,7 +167,8 @@ is set:
 - apt or RPM stale → run the `republish packages` workflow above;
 - Homebrew stale → run `publish-homebrew.py` locally;
 - AUR stale → run `publish-aur.py` locally with the key;
-- Scoop stale → update `bucket/what-to-run.json` in the bucket as above.
+- Scoop stale → update `bucket/what-to-run.json` in the bucket as above;
+- WinGet pending → open the update pull request with `komac` as above.
 
 If a secret was rotated or removed, this shows what the workflow will actually
 do next time:

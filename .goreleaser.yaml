@@ -75,6 +75,48 @@ scoops:
     # bucket; the workflow rejects such tags before publishing.
     skip_upload: auto
 
+# Windows also installs through WinGet. GoReleaser writes the manifest into a
+# fork of microsoft/winget-pkgs and opens the update pull request; the first
+# package (0.8.0) was opened by hand and the automation takes over from the
+# next release.
+winget:
+  - name: wtr
+    publisher: zanza00
+    publisher_url: https://github.com/zanza00
+    publisher_support_url: https://github.com/zanza00/what-to-run/issues
+    package_identifier: zanza00.WhatToRun
+    package_name: What to Run
+    short_description: Task picker for the commands you can never remember in a repository
+    description: |-
+      Discovers the tasks a project declares in package.json, Makefile, Taskfile,
+      justfile, Makefile.toml, Cargo aliases, devbox.json, composer.json, deno.json
+      or mise.toml, and runs the one you pick from a filterable list. It works as a
+      shell widget, so the command runs in the current prompt and stays in your
+      shell history.
+    license: MIT
+    license_url: https://github.com/zanza00/what-to-run/blob/main/LICENSE
+    homepage: https://github.com/zanza00/what-to-run
+    author: Simone Picciani
+    tags:
+      - cli
+      - developer-tools
+      - task-runner
+    release_notes_url: https://github.com/zanza00/what-to-run/releases/tag/{{ .Tag }}
+    repository:
+      owner: zanza00
+      name: winget-pkgs
+      branch: what-to-run-{{ .Version }}
+      token: "{{ .Env.WINGET_TOKEN }}"
+      pull_request:
+        enabled: true
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
+    # Pre-release tags stay out of winget-pkgs; the workflow already refuses
+    # to publish them.
+    skip_upload: auto
+
 publishers:
   - name: homebrew-tap
     checksum: true

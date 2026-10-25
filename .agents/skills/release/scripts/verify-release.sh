@@ -164,23 +164,35 @@ fi
 
 if [[ $known_secrets == 1 ]] && ! has_secret SCOOP_BUCKET_TOKEN; then
   skip "Scoop: SCOOP_BUCKET_TOKEN is not configured"
+elif ! command -v python3 >/dev/null 2>&1; then
+  warn "python3 not available: cannot check the Scoop manifest"
 else
+  scoop_tmp=$(mktemp -d)
   manifest=$(gh api "repos/$scoop_repo/contents/bucket/what-to-run.json" \
     -H "Accept: application/vnd.github.raw" 2>/dev/null) || manifest=""
+  repo_root=$(cd "$(dirname "$0")/../../../.." && pwd)
+  checker="$repo_root/scripts/check-scoop-manifest.py"
   if [[ -z $manifest ]]; then
     bad_or_warn "cannot read bucket/what-to-run.json from $scoop_repo"
-  elif ! grep -q "\"version\": \"$version\"" <<<"$manifest"; then
-    bad_or_warn "Scoop manifest in $scoop_repo does not carry $version"
-  elif ! grep -q "/download/$tag/" <<<"$manifest"; then
-    bad_or_warn "Scoop manifest in $scoop_repo does not point at $tag"
-  elif ! grep -q "what-to-run_${version}_windows_amd64.zip" <<<"$manifest" ||
-    ! grep -q "what-to-run_${version}_windows_arm64.zip" <<<"$manifest"; then
-    bad_or_warn "Scoop manifest in $scoop_repo lacks the amd64 or arm64 archive"
-  elif ! grep -q '"bin"' <<<"$manifest"; then
-    bad_or_warn "Scoop manifest in $scoop_repo installs no binary"
+  elif [[ ! -f $checker ]]; then
+    bad_or_warn "cannot find scripts/check-scoop-manifest.py under $repo_root"
+  elif ! gh release download "$tag" --repo "$repo" \
+      --pattern checksums.txt --dir "$scoop_tmp" --clobber >/dev/null 2>&1; then
+    bad_or_warn "cannot download checksums.txt to check the Scoop manifest"
   else
-    ok "Scoop manifest in $scoop_repo points at $tag for amd64 and arm64"
+    printf '%s\n' "$manifest" >"$scoop_tmp/what-to-run.json"
+    if problems=$(python3 "$checker" "$tag" "$scoop_tmp/what-to-run.json" \
+      "$scoop_tmp/checksums.txt" 2>&1); then
+      ok "Scoop manifest in $scoop_repo is at $tag with matching hashes"
+    else
+      bad_or_warn "Scoop manifest in $scoop_repo is wrong"
+      while IFS= read -r problem; do
+        [[ -z $problem ]] && continue
+        printf '        %s\n' "$problem" >&2
+      done <<<"$problems"
+    fi
   fi
+  rm -rf "$scoop_tmp"
 fi
 
 # --- apt and RPM repositories ---------------------------------------------

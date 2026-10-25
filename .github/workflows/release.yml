@@ -46,7 +46,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Require release credentials
+      - name: Prepare release publishing
         id: credentials
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -81,10 +81,8 @@ jobs:
             printf '%s\n' "$APT_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/apt_key"
             echo "APT_GPG_KEY_FILE=$RUNNER_TEMP/apt_key" >> "$GITHUB_ENV"
           fi
-          # Scoop publishing is optional until the bucket token is set. The
-          # GoReleaser pipe has no "do nothing without a token" mode, and its
-          # failure still fails the release after the other publishers ran, so
-          # the channel is skipped explicitly. An empty --skip is ignored.
+          # The scoop pipe has no "do nothing without a token" mode, so the
+          # channel is skipped explicitly. An empty --skip is ignored.
           skips=""
           if [ -z "$SCOOP_BUCKET_TOKEN" ]; then
             skips="scoop"
@@ -141,18 +139,19 @@ jobs:
         if: steps.credentials.outputs.scoop_enabled == 'true'
         shell: bash
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          version="${RELEASE_TAG#v}"
           # The bucket push happens during the release, but the raw CDN can
           # serve the previous commit for a few seconds.
-          manifest="$(curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
-            https://raw.githubusercontent.com/zanza00/scoop-bucket/main/bucket/what-to-run.json)"
-          grep -q "\"version\": \"$version\"" <<<"$manifest"
-          grep -q "/download/$RELEASE_TAG/" <<<"$manifest"
-          grep -q "what-to-run_${version}_windows_amd64.zip" <<<"$manifest"
-          grep -q "what-to-run_${version}_windows_arm64.zip" <<<"$manifest"
-          grep -q '"bin"' <<<"$manifest"
+          tmp=$(mktemp -d)
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+            -o "$tmp/what-to-run.json" \
+            https://raw.githubusercontent.com/zanza00/scoop-bucket/main/bucket/what-to-run.json
+          gh release download "$RELEASE_TAG" --pattern checksums.txt \
+            --dir "$tmp" --clobber
+          python3 scripts/check-scoop-manifest.py "$RELEASE_TAG" \
+            "$tmp/what-to-run.json" "$tmp/checksums.txt"
 
       - name: Verify package repositories
         # Publishing is skipped when the GPG secret is unset, so there is

@@ -42,6 +42,30 @@ func TestRunInitShells(t *testing.T) {
 	}
 }
 
+// TestRunInitDefaultKey pins the binding used when --key is absent, in each
+// shell's own notation.
+func TestRunInitDefaultKey(t *testing.T) {
+	tests := []struct {
+		shell string
+		want  string
+	}{
+		{"zsh", "bindkey '^O' wtr-widget"},
+		{"bash", `WTR_KEY='\C-o'`},
+		{"powershell", "-Chord 'Ctrl+o'"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.shell, func(t *testing.T) {
+			var out bytes.Buffer
+			if err := runInit([]string{tt.shell}, &out); err != nil {
+				t.Fatalf("runInit(%q) error: %v", tt.shell, err)
+			}
+			if !strings.Contains(out.String(), tt.want) {
+				t.Errorf("runInit(%q) output does not contain %q:\n%s", tt.shell, tt.want, out.String())
+			}
+		})
+	}
+}
+
 func TestProgName(t *testing.T) {
 	tests := []struct {
 		name string

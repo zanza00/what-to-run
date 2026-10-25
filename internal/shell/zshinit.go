@@ -8,13 +8,15 @@ import (
 )
 
 // DefaultKey is the key combo bound by the shell integrations (ZshInit,
-// BashInit, PowerShellInit) when --key is not given.
-const DefaultKey = "ctrl-s"
+// BashInit, PowerShellInit) when --key is not given. Ctrl-O, not Ctrl-S:
+// readline and ZLE use Ctrl-S for incremental forward search, and the
+// terminal uses it for XOFF flow control.
+const DefaultKey = "ctrl-o"
 
 // ZshInit returns the zsh integration script, the output of `<prog> init
 // zsh`: a script meant to be evaluated by an interactive zsh,
 //
-//	eval "$(wtr init zsh --key ctrl-s)"
+//	eval "$(wtr init zsh --key ctrl-o)"
 //
 // which binds key to a zle widget opening the inline picker of bin right
 // below the prompt. The widget implements the flow described in Run: it
@@ -25,7 +27,7 @@ const DefaultKey = "ctrl-s"
 // prog is the name the binary was invoked as; it appears in the script's
 // comments. bin is the command the widget launches — the invoked name,
 // resolved through PATH at press time, or an absolute path. key is a combo
-// name ("ctrl-s", "alt-x") or a raw zsh key sequence as bindkey takes it
+// name ("ctrl-o", "alt-x") or a raw zsh key sequence as bindkey takes it
 // ("^[[15~" for F5).
 func ZshInit(prog, bin, key string) (string, error) {
 	if bin == "" {
@@ -102,13 +104,13 @@ zle -N wtr-widget _wtr_widget
 }
 
 // parseBindKey turns a --key value into the sequence bindkey expects and a
-// human-readable name for the script's header comment: "ctrl-s" and "alt-x"
-// are translated ("^S", "^[x"); anything starting with a caret is a raw zsh
+// human-readable name for the script's header comment: "ctrl-o" and "alt-x"
+// are translated ("^O", "^[x"); anything starting with a caret is a raw zsh
 // key sequence and is passed through unchanged.
 func parseBindKey(spec string) (seq, name string, err error) {
 	key := strings.TrimSpace(spec)
 	if key == "" {
-		return "", "", errors.New("empty key: use a combo name like ctrl-s or a raw sequence like ^[x")
+		return "", "", errors.New("empty key: use a combo name like ctrl-o or a raw sequence like ^[x")
 	}
 	if strings.HasPrefix(key, "^") {
 		if len(key) < 2 {
@@ -118,7 +120,7 @@ func parseBindKey(spec string) (seq, name string, err error) {
 	}
 	if rest, ok := cutPrefixFold(key, "ctrl-"); ok {
 		if len(rest) != 1 || !isASCIILetter(rest[0]) {
-			return "", "", fmt.Errorf("invalid key %q: ctrl- takes one letter, e.g. ctrl-s", spec)
+			return "", "", fmt.Errorf("invalid key %q: ctrl- takes one letter, e.g. ctrl-o", spec)
 		}
 		upper := strings.ToUpper(rest)
 		return "^" + upper, "Ctrl-" + upper, nil
@@ -129,7 +131,7 @@ func parseBindKey(spec string) (seq, name string, err error) {
 		}
 		return "^[" + rest, "Alt-" + rest, nil
 	}
-	return "", "", fmt.Errorf("invalid key %q: use a combo name like ctrl-s or alt-x, or a raw sequence like ^[x", spec)
+	return "", "", fmt.Errorf("invalid key %q: use a combo name like ctrl-o or alt-x, or a raw sequence like ^[x", spec)
 }
 
 // cutPrefixFold is strings.CutPrefix with a case-insensitive prefix.

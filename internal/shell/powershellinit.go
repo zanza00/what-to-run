@@ -28,7 +28,7 @@ import (
 // prog is the name the binary was invoked as; it appears in the script's
 // comments. bin is the command the widget launches — the invoked name,
 // resolved through PATH at press time, or an absolute path. key is a key
-// name ("ctrl-s", "alt-x"): PowerShell has no portable raw key sequences, so
+// name ("ctrl-o", "alt-x"): PowerShell has no portable raw key sequences, so
 // nothing else is accepted.
 func PowerShellInit(prog, bin, key string) (string, error) {
 	if bin == "" {
@@ -108,18 +108,18 @@ if (Get-Command Set-PSReadLineKeyHandler -ErrorAction SilentlyContinue) {
 }
 
 // parsePowerShellBindKey turns a --key value into a PSReadLine chord and a
-// human-readable name for the script's header comment: "ctrl-s" and "alt-x"
+// human-readable name for the script's header comment: "ctrl-o" and "alt-x"
 // are translated ("Ctrl+s", "Alt+x"). PowerShell has no portable raw key
 // sequences — PSReadLine names the keys — so only these two forms are
 // accepted.
 func parsePowerShellBindKey(spec string) (chord, name string, err error) {
 	key := strings.TrimSpace(spec)
 	if key == "" {
-		return "", "", errors.New("empty key: PowerShell takes key names like ctrl-s or alt-x, not raw sequences")
+		return "", "", errors.New("empty key: PowerShell takes key names like ctrl-o or alt-x, not raw sequences")
 	}
 	if rest, ok := cutPrefixFold(key, "ctrl-"); ok {
 		if len(rest) != 1 || !isASCIILetter(rest[0]) {
-			return "", "", fmt.Errorf("invalid key %q: ctrl- takes one letter, e.g. ctrl-s", spec)
+			return "", "", fmt.Errorf("invalid key %q: ctrl- takes one letter, e.g. ctrl-o", spec)
 		}
 		return "Ctrl+" + strings.ToLower(rest), "Ctrl-" + strings.ToUpper(rest), nil
 	}
@@ -129,5 +129,5 @@ func parsePowerShellBindKey(spec string) (chord, name string, err error) {
 		}
 		return "Alt+" + rest, "Alt-" + rest, nil
 	}
-	return "", "", fmt.Errorf("invalid key %q: PowerShell takes key names like ctrl-s or alt-x, not raw sequences", spec)
+	return "", "", fmt.Errorf("invalid key %q: PowerShell takes key names like ctrl-o or alt-x, not raw sequences", spec)
 }

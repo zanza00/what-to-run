@@ -207,7 +207,8 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   fullscreen otherwise). Inside a zle widget or a readline keybinding stdin is
   not the tty: both generated widgets redirect `< /dev/tty` and disable
   `stty -ixon` when Ctrl-S or Ctrl-Q is bound, because Ctrl-S is the XOFF
-  flow-control character.
+  flow-control character. The default binding is Ctrl-O (`DefaultKey`), not
+  Ctrl-S: readline and ZLE use Ctrl-S for incremental forward search.
 - No PTY tests: verify inline behavior end-to-end in tmux (zsh + the widget
   from `eval "$(task bind)"`, bash + the one from `eval "$(task bind-bash)"`,
   with `KEY=ctrl-g` to bind another combo); the widget runs `bin/wtr` on every

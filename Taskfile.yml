@@ -5,7 +5,7 @@ vars:
   GO: go
   CMD: ./cmd/wtr
   KEY:
-    sh: echo "${KEY:-ctrl-s}"
+    sh: echo "${KEY:-ctrl-o}"
   # Version shown by --version, injected with ldflags: a git describe string for
   # local builds, the release tag when GoReleaser builds the archives.
   VERSION:

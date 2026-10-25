@@ -50,7 +50,7 @@ func TestParsePowerShellBindKeyExplainsRawSequences(t *testing.T) {
 			t.Fatalf("parsePowerShellBindKey(%q) should fail", in)
 		}
 		if !strings.Contains(err.Error(), "not raw sequences") ||
-			!strings.Contains(err.Error(), "ctrl-s or alt-x") {
+			!strings.Contains(err.Error(), "ctrl-o or alt-x") {
 			t.Errorf("parsePowerShellBindKey(%q) error %q should point at key names", in, err)
 		}
 	}

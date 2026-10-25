@@ -85,8 +85,8 @@ cached, run `hash -r` in bash or `rehash` in zsh. For a one-off,
 checkout:
 
 ```sh
-eval "$(task bind)"                  # zsh, Ctrl-S
-eval "$(task bind-bash)"             # bash, Ctrl-S
+eval "$(task bind)"                  # zsh, Ctrl-O
+eval "$(task bind-bash)"             # bash, Ctrl-O
 eval "$(task bind KEY=ctrl-g)"       # zsh on another key
 eval "$(task bind-bash KEY=ctrl-g)"  # bash on another key
 ```

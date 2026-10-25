@@ -54,7 +54,7 @@ eval "$(wtr init bash)"
 wtr init powershell | Out-String | Invoke-Expression
 ```
 
-The widget is bound to **Ctrl-S**. See [Widget setup](docs/widget.md) for other
+The widget is bound to **Ctrl-O**. See [Widget setup](docs/widget.md) for other
 keys, shell dialects and running the picker without the widget.
 
 ## Task sources

@@ -34,14 +34,18 @@ line and comment out everything after the first `#`.
 
 ## Key binding
 
-The widget is bound to **Ctrl-S**. Pass `--key` to `init` to choose another key,
+The widget is bound to **Ctrl-O**. Pass `--key` to `init` to choose another key,
 for example `--key ctrl-g`. zsh and bash also accept a raw sequence as their
 `bindkey`/`bind` takes it (`^[x` for zsh, `\e[15~` for bash); PowerShell takes
-key names only (`ctrl-s`, `alt-x`), not raw sequences.
+key names only (`ctrl-o`, `alt-x`), not raw sequences.
 
-Ctrl-S and Ctrl-Q are the terminal's flow-control keys. The generated zsh and
-bash integrations run `stty -ixon` when one of them is bound, so the key
-reaches the widget; `stty ixon` restores the default.
+Ctrl-O is a low-cost key: it only shadows `operate-and-get-next` (readline) and
+`accept-line-and-down-history` (ZLE), a convenience few use, and it is unbound
+in PSReadLine's Windows mode (the default on Windows). Ctrl-S is deliberately
+not the default: readline and ZLE use it for incremental forward search, and
+the terminal for XOFF flow control. If you bind Ctrl-S or Ctrl-Q anyway, the
+generated zsh and bash integrations run `stty -ixon` so the key reaches the
+widget; `stty ixon` restores the default.
 
 ## Shell dialect
 

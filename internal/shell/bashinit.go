@@ -10,7 +10,7 @@ import (
 // BashInit returns the bash integration script, the output of `<prog> init
 // bash`: a script meant to be evaluated by an interactive bash,
 //
-//	eval "$(wtr init bash --key ctrl-s)"
+//	eval "$(wtr init bash --key ctrl-o)"
 //
 // which binds key to a readline command opening the inline picker of bin right
 // below the prompt. The widget implements the flow described in Run: it
@@ -31,7 +31,7 @@ import (
 // prog is the name the binary was invoked as; it appears in the script's
 // comments. bin is the command the widget launches — the invoked name,
 // resolved through PATH at press time, or an absolute path. key is a combo
-// name ("ctrl-s", "alt-x") or a raw readline key sequence as bind takes it
+// name ("ctrl-o", "alt-x") or a raw readline key sequence as bind takes it
 // ("\e[15~" for F5).
 func BashInit(prog, bin, key string) (string, error) {
 	if bin == "" {
@@ -149,13 +149,13 @@ fi
 }
 
 // parseBashBindKey turns a --key value into the sequence bind expects and a
-// human-readable name for the script's header comment: "ctrl-s" and "alt-x"
-// are translated ("\C-s", "\ex"); anything starting with a backslash is a raw
+// human-readable name for the script's header comment: "ctrl-o" and "alt-x"
+// are translated ("\C-o", "\ex"); anything starting with a backslash is a raw
 // readline key sequence and is passed through ("\e[15~" for F5).
 func parseBashBindKey(spec string) (seq, name string, err error) {
 	key := strings.TrimSpace(spec)
 	if key == "" {
-		return "", "", errors.New("empty key: use a combo name like ctrl-s or a raw sequence like \\e[15~")
+		return "", "", errors.New("empty key: use a combo name like ctrl-o or a raw sequence like \\e[15~")
 	}
 	if strings.HasPrefix(key, `\`) {
 		if len(key) < 2 {
@@ -165,7 +165,7 @@ func parseBashBindKey(spec string) (seq, name string, err error) {
 	}
 	if rest, ok := cutPrefixFold(key, "ctrl-"); ok {
 		if len(rest) != 1 || !isASCIILetter(rest[0]) {
-			return "", "", fmt.Errorf("invalid key %q: ctrl- takes one letter, e.g. ctrl-s", spec)
+			return "", "", fmt.Errorf("invalid key %q: ctrl- takes one letter, e.g. ctrl-o", spec)
 		}
 		return `\C-` + strings.ToLower(rest), "Ctrl-" + strings.ToUpper(rest), nil
 	}
@@ -175,7 +175,7 @@ func parseBashBindKey(spec string) (seq, name string, err error) {
 		}
 		return `\e` + rest, "Alt-" + rest, nil
 	}
-	return "", "", fmt.Errorf("invalid key %q: use a combo name like ctrl-s or alt-x, or a raw sequence like \\e[15~", spec)
+	return "", "", fmt.Errorf("invalid key %q: use a combo name like ctrl-o or alt-x, or a raw sequence like \\e[15~", spec)
 }
 
 // disablesBashIXON reports whether binding seq needs IXON turned off: Ctrl-S

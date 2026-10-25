@@ -109,20 +109,20 @@ func main() {
 // [--key combo]`: it prints to w the shell integration for the running binary,
 // ready to be evaluated by an interactive shell:
 //
-//	eval "$(wtr init zsh --key ctrl-s)"
+//	eval "$(wtr init zsh)"
 //	eval "$(wtr init bash)"
 //	wtr init powershell | Out-String | Invoke-Expression
 func runInit(args []string, w io.Writer) error {
 	fs := flag.NewFlagSet(prog+" init", flag.ExitOnError)
 	key := fs.String("key", shell.DefaultKey,
-		"combo that opens the picker: a name like ctrl-s or alt-x, or, for zsh\n"+
+		"combo that opens the picker: a name like ctrl-o or alt-x, or, for zsh\n"+
 			"and bash, a raw sequence as they bind keys (^[x for zsh, \\e[15~\n"+
 			"for bash); PowerShell takes key names only")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "usage: %s init zsh|bash|powershell [--key combo]\n\n"+
 			"Print the shell integration to stdout, for eval:\n\n"+
-			"  eval \"$(%s init zsh --key ctrl-s)\"\n"+
-			"  eval \"$(%s init bash --key ctrl-s)\"\n"+
+			"  eval \"$(%s init zsh)\"\n"+
+			"  eval \"$(%s init bash)\"\n"+
 			"  %s init powershell | Out-String | Invoke-Expression\n\nFlags:\n", prog, prog, prog, prog)
 		fs.PrintDefaults()
 	}

@@ -123,6 +123,27 @@ func TestZshInitFlowControlKeyDisablesIXON(t *testing.T) {
 	}
 }
 
+// TestDefaultKeyLeavesFlowControlAlone pins why the default is not Ctrl-S or
+// Ctrl-Q: those are the terminal's XOFF/XON keys, and binding one makes the
+// generated zsh and bash scripts run stty -ixon.
+func TestDefaultKeyLeavesFlowControlAlone(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		init func(prog, bin, key string) (string, error)
+	}{
+		{"zsh", ZshInit},
+		{"bash", BashInit},
+	} {
+		script, err := tt.init("wtr", "/bin/wtr", DefaultKey)
+		if err != nil {
+			t.Fatalf("%s Init(%q) error: %v", tt.name, DefaultKey, err)
+		}
+		if strings.Contains(script, "stty -ixon") {
+			t.Errorf("%s script for the default key must not touch IXON:\n%s", tt.name, script)
+		}
+	}
+}
+
 func TestZshInitErrors(t *testing.T) {
 	for _, tt := range []struct{ bin, key string }{
 		{"/bin/wtr", "bogus"},

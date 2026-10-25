@@ -288,14 +288,17 @@ Read each line by its state: `ok` is a check that passed; `skip` is a channel
 the workflow skipped — expected; `FAIL` is a real problem; and `warn` means
 the script could not decide, and its message says why — provide what it asks
 for and rerun. WinGet has a review step, so a manifest still in an open pull
-request is a `warn` (pending) rather than a `FAIL`.
+request shows as `pending` rather than `ok` or `FAIL`; a `FAIL` means there
+is neither a merged manifest nor an open pull request.
 
 Treat a `FAIL` as a real problem even when the workflow is green: the
 verifier, not the workflow, is the source of truth for every channel. For a
 failing channel, inspect the `publish` step of the run, or the `repo-arch`
 job when the pacman repository is the failing channel, then follow section 5
-of `references/recovery.md`. This step is done when the verifier prints `N
-checks, 0 failed` and no `warn` is left.
+of `references/recovery.md`. When the first WinGet manifest is merged, add
+the WinGet section to `docs/install.md` and the one-liner to `README.md`;
+until then the channel is not advertised. This step is done when the verifier
+prints `N checks, 0 failed` and no `warn` is left.
 
 ## 7. Report
 

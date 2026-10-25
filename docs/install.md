@@ -141,6 +141,24 @@ Use `what-to-run_<version>_darwin_arm64.tar.gz` on Apple silicon, and so on.
 
 ## Windows
 
+### Scoop
+
+With [Scoop](https://scoop.sh/), which installs per user without administrator
+rights and has native ARM64 support:
+
+```powershell
+scoop bucket add zanza00 https://github.com/zanza00/scoop-bucket
+scoop install zanza00/what-to-run
+scoop update what-to-run
+scoop uninstall what-to-run
+```
+
+The manifest installs `wtr` on Intel and ARM64 Windows alike. The bucket
+receives the manifest of every release; if it has no manifest for the version
+you need yet, use the zip below.
+
+### Zip
+
 Each release attaches a zip for Windows on Intel and ARM64:
 
 - `what-to-run_<version>_windows_amd64.zip`

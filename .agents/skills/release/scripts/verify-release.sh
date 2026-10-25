@@ -4,14 +4,15 @@
 # Usage: verify-release.sh vX.Y.Z
 #
 # Checks the GitHub release and its exact asset set, the Homebrew formula, the
-# apt index and RPM metadata (including its signature) on gh-pages, the AUR
-# package when that channel is configured, and a downloaded binary of this
-# machine's platform. Channels whose Actions secret is unset are reported as
-# skipped, matching the release workflow.
+# Scoop manifest in its bucket, the apt index and RPM metadata (including its
+# signature) on gh-pages, the AUR package when that channel is configured, and
+# a downloaded binary of this machine's platform. Channels whose Actions
+# secret is unset are reported as skipped, matching the release workflow.
 set -uo pipefail
 
 repo=zanza00/what-to-run
 tap_repo=zanza00/homebrew-tap
+scoop_repo=zanza00/scoop-bucket
 aur_package=what-to-run-bin
 pages_url=https://zanza00.github.io/what-to-run
 
@@ -157,6 +158,41 @@ if formula=$(gh api "repos/$tap_repo/contents/Formula/what-to-run.rb" \
   fi
 else
   bad "cannot read Formula/what-to-run.rb from $tap_repo"
+fi
+
+# --- Scoop ----------------------------------------------------------------
+
+if [[ $known_secrets == 1 ]] && ! has_secret SCOOP_BUCKET_TOKEN; then
+  skip "Scoop: SCOOP_BUCKET_TOKEN is not configured"
+elif ! command -v python3 >/dev/null 2>&1; then
+  warn "python3 not available: cannot check the Scoop manifest"
+else
+  scoop_tmp=$(mktemp -d)
+  manifest=$(gh api "repos/$scoop_repo/contents/bucket/what-to-run.json" \
+    -H "Accept: application/vnd.github.raw" 2>/dev/null) || manifest=""
+  repo_root=$(cd "$(dirname "$0")/../../../.." && pwd)
+  checker="$repo_root/scripts/check-scoop-manifest.py"
+  if [[ -z $manifest ]]; then
+    bad_or_warn "cannot read bucket/what-to-run.json from $scoop_repo"
+  elif [[ ! -f $checker ]]; then
+    bad_or_warn "cannot find scripts/check-scoop-manifest.py under $repo_root"
+  elif ! gh release download "$tag" --repo "$repo" \
+      --pattern checksums.txt --dir "$scoop_tmp" --clobber >/dev/null 2>&1; then
+    bad_or_warn "cannot download checksums.txt to check the Scoop manifest"
+  else
+    printf '%s\n' "$manifest" >"$scoop_tmp/what-to-run.json"
+    if problems=$(python3 "$checker" "$tag" "$scoop_tmp/what-to-run.json" \
+      "$scoop_tmp/checksums.txt" 2>&1); then
+      ok "Scoop manifest in $scoop_repo is at $tag with matching hashes"
+    else
+      bad_or_warn "Scoop manifest in $scoop_repo is wrong"
+      while IFS= read -r problem; do
+        [[ -z $problem ]] && continue
+        printf '        %s\n' "$problem" >&2
+      done <<<"$problems"
+    fi
+  fi
+  rm -rf "$scoop_tmp"
 fi
 
 # --- apt and RPM repositories ---------------------------------------------

@@ -125,13 +125,23 @@ Releases are automated. Push a `vX.Y.Z` tag on a commit contained in `main`:
 `.github/workflows/release.yml` builds the archives and the `.deb` and `.rpm`
 packages, creates the GitHub release, updates `Formula/what-to-run.rb` in the
 [zanza00/homebrew-tap](https://github.com/zanza00/homebrew-tap) repository,
-and, once the AUR secret below is set, pushes to the
+writes the Scoop manifest into
+[zanza00/scoop-bucket](https://github.com/zanza00/scoop-bucket), and, once the
+AUR secret below is set, pushes to the
 [what-to-run-bin](https://aur.archlinux.org/packages/what-to-run-bin) AUR
 package.
 
 The Homebrew step needs a `HOMEBREW_TAP_TOKEN` repository secret (a token
 with Contents read/write on the tap), the same secret the source-fetch release
 uses. It publishes through `scripts/publish-homebrew.py`.
+
+The Scoop step needs a `SCOOP_BUCKET_TOKEN` repository secret (a token with
+Contents read/write on the bucket). GoReleaser writes
+`bucket/what-to-run.json` there, and the bucket must already exist with a
+commit on `main`, because the publisher creates the file on that branch.
+GoReleaser's scoop pipe has no "do nothing without a token" mode: while the
+secret is unset the workflow passes `--skip=scoop` and warns instead of
+failing.
 
 The AUR step needs an `AUR_SSH_PRIVATE_KEY` repository secret holding an
 unencrypted ed25519 private key whose public half is registered on your
@@ -168,6 +178,12 @@ goreleaser check                                   # validate .goreleaser.yaml
 goreleaser release --snapshot --clean              # build dist/ locally
 python3 -m unittest discover -s scripts -p '*_test.py'
 ```
+
+A snapshot writes `dist/scoop/bucket/what-to-run.json` with a `SNAPSHOT`
+version: the Scoop pipe runs in the build phase, so the manifest is generated
+without being published. The Homebrew formula comes from a custom publisher, so
+only a real release writes it. `goreleaser check` is what catches a broken
+`scoops` block before the tag.
 
 `wtr --version` reports the version injected at build time: the release tag in
 released archives, a `git describe` string in local `task build` binaries.

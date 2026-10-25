@@ -87,6 +87,23 @@ have write access to `zanza00/homebrew-tap`. The AUR script needs the private
 key whose public half is on the AUR account. Without the local key, the AUR
 path cannot be repaired from a workstation.
 
+### Scoop
+
+The manifest is a file in `zanza00/scoop-bucket` and every release rewrites it,
+so a failed push only delays the channel until the next one. To publish the
+version immediately, clone the bucket, update `version`, the two URLs and the
+two hashes in `bucket/what-to-run.json` from the released `checksums.txt`, and
+push:
+
+```sh
+tmp=$(mktemp -d)
+gh repo clone zanza00/scoop-bucket "$tmp/bucket"
+gh release download vX.Y.Z --pattern checksums.txt --dir "$tmp" --clobber
+"$EDITOR" "$tmp/bucket/bucket/what-to-run.json"
+git -C "$tmp/bucket" commit -am "what-to-run: add vX.Y.Z"
+git -C "$tmp/bucket" push
+```
+
 After any repair, run the verifier again:
 
 ```sh
@@ -121,13 +138,15 @@ still published.
 
 ## 5. The workflow succeeded but verification finds a stale channel
 
-The CI release verification checks the asset names and the repository indexes,
-so a successful run is good evidence, but the bundled verifier is the source
-of truth for every channel. For a channel whose secret is set:
+The CI release verification checks the asset names, the Scoop bucket and the
+repository indexes, so a successful run is good evidence, but the bundled
+verifier is the source of truth for every channel. For a channel whose secret
+is set:
 
 - apt or RPM stale → run the `republish packages` workflow above;
 - Homebrew stale → run `publish-homebrew.py` locally;
-- AUR stale → run `publish-aur.py` locally with the key.
+- AUR stale → run `publish-aur.py` locally with the key;
+- Scoop stale → update `bucket/what-to-run.json` in the bucket as above.
 
 If a secret was rotated or removed, this shows what the workflow will actually
 do next time:

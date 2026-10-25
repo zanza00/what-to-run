@@ -4,7 +4,7 @@
 
 A task picker for the commands you can never remember.
 
-![what-to-run running in a terminal](docs/images/what-to-run.png)
+![Pressing Ctrl-O opens the task picker, typing build filters the list, and Enter runs make build](docs/images/what-to-run.gif)
 
 </div>
 

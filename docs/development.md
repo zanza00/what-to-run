@@ -39,6 +39,25 @@ The Markdown under `.agents/skills/` is excluded in `dprint.json`: it is
 vendored and keeps the upstream formatting. Tables are kept as written too,
 because aligning their cells would turn the longer rows into very wide lines.
 
+## README demo
+
+The README demo is generated from `docs/demo/demo.tape`:
+
+```sh
+task demo
+```
+
+The tape drives `docs/demo/fixture` through the zsh widget: Ctrl-O opens the
+inline picker, the `build` filter narrows the list, and Enter runs `make build`.
+`docs/demo/make-demo.sh` records the tape with VHS, draws the keycaps with
+ImageMagick, composites them under the terminal and encodes the GIF with gifski.
+
+`task demo` needs `vhs` (with its `ttyd` and ffmpeg dependencies), ImageMagick 7
+(`magick`), gifski and the JetBrainsMono Nerd Font (`DEMO_FONT` overrides the
+font file). VHS downloads a headless Chromium on first use. The GIF is committed
+and the target is not part of `task all` or CI, so these tools are only needed
+when changing the demo.
+
 ## Use the local build instead of a release
 
 `wtr` is found through `PATH`, and the first match wins. If you installed a

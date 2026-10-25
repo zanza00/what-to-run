@@ -5,44 +5,44 @@ Origin: zanza00
 Label: what-to-run
 Suite: stable
 Codename: stable
-Date: Sat, 24 Oct 2026 21:58:29 UTC
+Date: Sun, 25 Oct 2026 22:58:51 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Task picker for the commands you can never remember in a repository
 MD5Sum:
- dea41ddd2c8fb14dcdf72cc8846faa71 536 main/binary-amd64/Packages
- a66ddc729bd15eb8869b92864b1b7f91 391 main/binary-amd64/Packages.gz
+ 739288262833d33ea95925b821043957 536 main/binary-amd64/Packages
+ 8c863ed364f80c8071a2a9bad00b45fe 392 main/binary-amd64/Packages.gz
  37b7f57f6ca83a3dc715e5fb4e8ef6cd 168 main/binary-amd64/Release
- 0ef1df3951e2dc571166a437707f0f4b 536 main/binary-arm64/Packages
- ad10ebedab6c53d1dab014728aa298f3 394 main/binary-arm64/Packages.gz
+ 91128f4688d95f42a87a8edcd9fa6656 536 main/binary-arm64/Packages
+ 904fb38bf5f1fcbc8edebf2ce5f98eb1 392 main/binary-arm64/Packages.gz
  a51b4691ab2137c0d93307e8c60fbe09 168 main/binary-arm64/Release
 SHA1:
- 5ace5bc30629fd44a14acbaf23ba38232358b503 536 main/binary-amd64/Packages
- 805e5ab24e5bfa0e3c9251c3863bd5bcd747140b 391 main/binary-amd64/Packages.gz
+ d99543a3787f85958a8ba99dc29cb7be5d7e6807 536 main/binary-amd64/Packages
+ b52614ef64b7a248501d96820880feaeef220184 392 main/binary-amd64/Packages.gz
  84fc2c48e3254f4cd35f4b49f8d0c587b8a9c248 168 main/binary-amd64/Release
- 725edc6592bc9ba0d9e0a28e4c31044d8bc38471 536 main/binary-arm64/Packages
- d09f54138261bd2eaa4a69dccf99a59f2ef584e8 394 main/binary-arm64/Packages.gz
+ f170d225c866bcc0e44a2a88936aa4e99549522f 536 main/binary-arm64/Packages
+ 258b0b83cec2727d485e9ae3036433090546dba3 392 main/binary-arm64/Packages.gz
  37828536ba91ca1d63bcd07e708e0680e6a064a7 168 main/binary-arm64/Release
 SHA256:
- cd1919dbc9ff944202b8f9eacb117d96605f99ec3b8247e33c299e3805192542 536 main/binary-amd64/Packages
- d117ffe0c24af9d0d25b70d8f3f0637999bfd9154336ded34e1b69248368dd0b 391 main/binary-amd64/Packages.gz
+ fc52254bb9b54ea31aa813765728fca4473ed07fa6523f59b1c5333529841331 536 main/binary-amd64/Packages
+ 18e50a9648326595c8ea6ef8cb26ff17b84e009f053fab00921a2d9ba42f15b9 392 main/binary-amd64/Packages.gz
  5d365fff681f83bf7571adb23a6e4212af867353dd28274efb9681172ece579d 168 main/binary-amd64/Release
- 724e0b0add36b33c28297affc0f075b9482519d026c4bfca106951d766d6b093 536 main/binary-arm64/Packages
- 8516640318f1130934275e17924abf787b05b86cd79c6dcf954da9de9ca9f870 394 main/binary-arm64/Packages.gz
+ 4ff13edf044ca1ae158d4c02c644c1733eb5a51b0d228411f8bb4488b601a9c4 536 main/binary-arm64/Packages
+ 72b788e8043cd506d390c898648bb7479a6415f8e2856e2320872cb8cc395a32 392 main/binary-arm64/Packages.gz
  d94c0fb34f28fcbad47cda156adecf4bfb22ebdb66e63ebbec88984508015736 168 main/binary-arm64/Release
 -----BEGIN PGP SIGNATURE-----
 
-iQIzBAEBCgAdFiEE/0MtZAvqpeF0KApU+/Zx8N4HAwcFAmrdKgUACgkQ+/Zx8N4H
-AwfMIhAAtbxBDbDZ2LXv+zXtvaZYqUs5/tEQyv6EiZmXQtZ+phTiXH4p8QkWHsJW
-4kdqNsJ9ew3nD8+W2+gpfC0TLQFtcXakSEmlknD12VlNvAztCv9OMmKdNCSyGVih
-Rn/4Nie9/jNvjaCXkJDjMXgMvXJS9b9/6SKMjyjAo+VJgvPmY+Y/KpimlDHf+5xS
-eckV4+LGKSpg7D9bdgqnsnzU/t8/hc0Ot4JzOKkO351BQkHuslqSd/0zZkTI5ZkV
-5zjFTDTJ87np+nPMSKOuIztAYURYgaW8YurzS6h/5SGg/8aHZLH26RUKahBo8lx2
-BA0g3C7hRtazBSYFQGKy79i3S26JMk0fIVjNw72MjG0+CiAbx++50vpIBpM5ThpZ
-/5kKWlVZdSWpAPFpFLLvgv/rcIxo16Z06CP+mkNmtrwjupOvFH1cKauGVNWUYfXm
-w7RsOLmlmNBDqAH35wOfxfPTkeLYO+X809lNrZ3CVcjNOvLaVHDCGIOI3EK2yKNf
-fDZitFzFblu+swB+CB4p6knJ/i2rf4aRTmLm5HA/7N9ROtkAtfwDZA8ODeLH6Qtf
-+eY6iDRw44xC8bnxvtFpnqGN38xRtzZu//d3vJrLLaQtAxWjy0nD+RzlirAa14S/
-9wRFKtx9/6ikB5SFSdi8eo8WLZyspsUv/AdpZO7/NGExJcaNxe8=
-=1ErK
+iQIzBAEBCgAdFiEE/0MtZAvqpeF0KApU+/Zx8N4HAwcFAmreiasACgkQ+/Zx8N4H
+Awey5Q//SiKKkNTzfpE6lIeVCZfKk6t9h1K+9ygPXqFodtQ8XO68IUZ18O2UZhzP
+cSZDUOp7jLz8hMkxWg+FIS5EQuDGMEaNb37xL0rt/EE4vM8W58gihbJZ1btq0WfE
+lus1L9iHMe9gSe79ZvfDrqmwZP2ZfFAl7ti8AsWpbTbHJt17DPLUgdVBL92+5nBx
+XfAF5rJCvIJB1ioV7KqCg4adWsNhjLWCecC2uiSYKq0vyvZCg8gLcvOThHrwSW1V
++L4qo44Y2IseuscwpCX9pFpi8fKX6w2Or32jt1/GHvOj4u0J1MFjgtFSB/ExaTAX
+4+R5lIdcI0ny0afDf2d8IjPrMaLLlzAIGzj0vZC0R2UTQL6QPRXq66R4jfTfiCc+
+JuZpUFOBq8g5gPr5bxEG2Rf0UTJpHGEFW0IWF8oc9I+O/6CwpIu+jHEZwaNl4Wky
+v6StpMvBW0RbDoFPMzkePj6FAtXewGXq8ZdSxRSIrCMbDZUEl4Io+YiF1q7sVWIb
+FVfKXAe/LPRNVDwhQal44KudgYsiN4BM9Lm2uG9yDJbXUjUwtY44Ce3mnvh26WCY
+7SKBSR/jr8D3zr6SqaIQ+IWU83yfH3rWD410Jevd2QteVvnTP/cVBykN76L2OJD7
+ccCzVVvYJl+Y7BsdiX0AOVdU6Bo8Qx3or9hrXfoRpt2vX/hDXCk=
+=AXED
 -----END PGP SIGNATURE-----

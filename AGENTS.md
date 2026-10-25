@@ -97,7 +97,10 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   secret is unset, and `scripts/publish-repo.py` updates the apt and RPM
   repositories on the `gh-pages` branch (served via GitHub Pages) using the
   `APT_GPG_PRIVATE_KEY` secret, skipped with a warning while that secret is
-  unset; the same key signs the RPM packages at build time. The publisher also
+  unset; the same key signs the RPM packages at build time. The `scoops:`
+  block writes `bucket/what-to-run.json` to `zanza00/scoop-bucket` using the
+  `SCOOP_BUCKET_TOKEN` secret, skipped with `--skip=scoop` while that secret is
+  unset. The repository publisher also
   copies `scripts/setup.deb.sh` and `scripts/setup.rpm.sh` to the root of
   `gh-pages`, where the one-liners in `docs/install.md` fetch them from; the
   apt repository stays at the site root and the RPM repository lives under

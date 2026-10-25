@@ -47,10 +47,12 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Require release credentials
+        id: credentials
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
         run: |
           if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
             echo 'Configure the HOMEBREW_TAP_TOKEN Actions secret before releasing.' >&2
@@ -79,6 +81,18 @@ jobs:
             printf '%s\n' "$APT_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/apt_key"
             echo "APT_GPG_KEY_FILE=$RUNNER_TEMP/apt_key" >> "$GITHUB_ENV"
           fi
+          # Scoop publishing is optional until the bucket token is set. The
+          # GoReleaser pipe has no "do nothing without a token" mode, and its
+          # failure still fails the release after the other publishers ran, so
+          # the channel is skipped explicitly. An empty --skip is ignored.
+          skips=""
+          if [ -z "$SCOOP_BUCKET_TOKEN" ]; then
+            skips="scoop"
+            echo '::warning title=Scoop publishing skipped::Set the SCOOP_BUCKET_TOKEN secret to publish the manifest into zanza00/scoop-bucket.'
+          fi
+          echo "GORELEASER_SKIP=$skips" >> "$GITHUB_ENV"
+          echo "scoop_enabled=$([ -n "$SCOOP_BUCKET_TOKEN" ] && echo true || echo false)" \
+            >> "$GITHUB_OUTPUT"
 
       - name: Install repository tools
         # The publisher shells out to reprepro and createrepo_c, which the
@@ -88,11 +102,12 @@ jobs:
         uses: goreleaser/goreleaser-action@v7
         with:
           version: '~> v2'
-          args: release --clean
+          args: release --clean --skip=${{ env.GORELEASER_SKIP }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           APT_GPG_KEY_FILE: ${{ env.APT_GPG_KEY_FILE }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
       - name: Verify published release
         shell: bash
         env:
@@ -119,6 +134,25 @@ jobs:
 
           actual="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | sort)"
           diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual")
+
+      - name: Verify Scoop bucket
+        # Publishing is skipped when the token is unset, so there is nothing
+        # to check in that case.
+        if: steps.credentials.outputs.scoop_enabled == 'true'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          # The bucket push happens during the release, but the raw CDN can
+          # serve the previous commit for a few seconds.
+          manifest="$(curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+            https://raw.githubusercontent.com/zanza00/scoop-bucket/main/bucket/what-to-run.json)"
+          grep -q "\"version\": \"$version\"" <<<"$manifest"
+          grep -q "/download/$RELEASE_TAG/" <<<"$manifest"
+          grep -q "what-to-run_${version}_windows_amd64.zip" <<<"$manifest"
+          grep -q "what-to-run_${version}_windows_arm64.zip" <<<"$manifest"
+          grep -q '"bin"' <<<"$manifest"
 
       - name: Verify package repositories
         # Publishing is skipped when the GPG secret is unset, so there is

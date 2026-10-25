@@ -56,6 +56,24 @@ nfpms:
 checksum:
   name_template: checksums.txt
 
+# Windows installs through Scoop: the manifest goes into the personal bucket,
+# which needs no review, so `scoop install zanza00/what-to-run` works as soon
+# as the release is up. The bucket keeps the manifests in bucket/ because that
+# is the directory `scoop bucket list` counts.
+scoops:
+  - name: what-to-run
+    homepage: https://github.com/zanza00/what-to-run
+    description: Task picker for the commands you can never remember in a repository
+    license: MIT
+    directory: bucket
+    repository:
+      owner: zanza00
+      name: scoop-bucket
+      branch: main
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    # Pre-releases (vX.Y.Z-rc1) do not reach the bucket.
+    skip_upload: auto
+
 publishers:
   - name: homebrew-tap
     checksum: true

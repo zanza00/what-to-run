@@ -4,14 +4,15 @@
 # Usage: verify-release.sh vX.Y.Z
 #
 # Checks the GitHub release and its exact asset set, the Homebrew formula, the
-# apt index and RPM metadata (including its signature) on gh-pages, the AUR
-# package when that channel is configured, and a downloaded binary of this
-# machine's platform. Channels whose Actions secret is unset are reported as
-# skipped, matching the release workflow.
+# Scoop manifest in its bucket, the apt index and RPM metadata (including its
+# signature) on gh-pages, the AUR package when that channel is configured, and
+# a downloaded binary of this machine's platform. Channels whose Actions
+# secret is unset are reported as skipped, matching the release workflow.
 set -uo pipefail
 
 repo=zanza00/what-to-run
 tap_repo=zanza00/homebrew-tap
+scoop_repo=zanza00/scoop-bucket
 aur_package=what-to-run-bin
 pages_url=https://zanza00.github.io/what-to-run
 
@@ -157,6 +158,29 @@ if formula=$(gh api "repos/$tap_repo/contents/Formula/what-to-run.rb" \
   fi
 else
   bad "cannot read Formula/what-to-run.rb from $tap_repo"
+fi
+
+# --- Scoop ----------------------------------------------------------------
+
+if [[ $known_secrets == 1 ]] && ! has_secret SCOOP_BUCKET_TOKEN; then
+  skip "Scoop: SCOOP_BUCKET_TOKEN is not configured"
+else
+  manifest=$(gh api "repos/$scoop_repo/contents/bucket/what-to-run.json" \
+    -H "Accept: application/vnd.github.raw" 2>/dev/null) || manifest=""
+  if [[ -z $manifest ]]; then
+    bad_or_warn "cannot read bucket/what-to-run.json from $scoop_repo"
+  elif ! grep -q "\"version\": \"$version\"" <<<"$manifest"; then
+    bad_or_warn "Scoop manifest in $scoop_repo does not carry $version"
+  elif ! grep -q "/download/$tag/" <<<"$manifest"; then
+    bad_or_warn "Scoop manifest in $scoop_repo does not point at $tag"
+  elif ! grep -q "what-to-run_${version}_windows_amd64.zip" <<<"$manifest" ||
+    ! grep -q "what-to-run_${version}_windows_arm64.zip" <<<"$manifest"; then
+    bad_or_warn "Scoop manifest in $scoop_repo lacks the amd64 or arm64 archive"
+  elif ! grep -q '"bin"' <<<"$manifest"; then
+    bad_or_warn "Scoop manifest in $scoop_repo installs no binary"
+  else
+    ok "Scoop manifest in $scoop_repo points at $tag for amd64 and arm64"
+  fi
 fi
 
 # --- apt and RPM repositories ---------------------------------------------

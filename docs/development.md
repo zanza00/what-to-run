@@ -52,11 +52,13 @@ inline picker, the `buld` filter narrows the list to `make build` (a
 subsequence match, so the GIF shows the fuzzy finder at work), and Enter runs
 it.
 VHS draws the window chrome (`Set WindowBar Colorful`, so the frame has its
-close/minimize/maximize dots) over the wallpaper in `docs/demo/background.jpg`,
+close/minimize/maximize dots) over the wallpaper in `docs/demo/background.webp`,
 a crop of [andreas kretschmer's photo on
 Unsplash](https://unsplash.com/photos/brown-mountain-during-daytime-4VXCQjiyVyc)
 cropped to the recording size: VHS stretches `MarginFill` to the canvas, so the
-image has to match its aspect ratio. The keycaps drawn by
+image has to match its aspect ratio. It is WebP rather than JPEG because ffmpeg
+decodes JPEG as full-range while VHS fills `Padding` with a limited-range
+color, which shows as a lighter band around the terminal. The keycaps drawn by
 `docs/demo/make-keys.sh` are overlaid inside the window near its bottom edge,
 and `docs/demo/make-demo.sh` composites them and encodes the GIF with gifski.
 

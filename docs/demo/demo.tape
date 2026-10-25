@@ -5,9 +5,9 @@ Set FontFamily "JetBrainsMono Nerd Font"
 Set FontSize 20
 Set Columns 100
 Set Rows 26
-Set Padding 0
+Set Padding 8
 Set Margin 32
-Set MarginFill docs/demo/background.jpg
+Set MarginFill docs/demo/background.webp
 Set BorderRadius 14
 Set WindowBar Colorful
 Set WindowBarSize 40

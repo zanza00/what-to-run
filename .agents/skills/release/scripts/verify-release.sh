@@ -40,6 +40,10 @@ skip() {
   printf 'skip  %s\n' "$*"
 }
 
+pending() {
+  printf 'pending  %s\n' "$*"
+}
+
 warn() {
   printf 'warn  %s\n' "$*" >&2
 }
@@ -212,19 +216,19 @@ else
   checker="$repo_root/scripts/check-winget-manifest.py"
   if gh api "repos/$winget_repo/contents/$winget_path" \
       --jq '.[].name' >"$winget_tmp/files" 2>/dev/null; then
-    failed=0
     if [[ ! -f $checker ]]; then
       bad_or_warn "cannot find scripts/check-winget-manifest.py under $repo_root"
     elif ! gh release download "$tag" --repo "$repo" \
         --pattern checksums.txt --dir "$winget_tmp" --clobber >/dev/null 2>&1; then
       bad_or_warn "cannot download checksums.txt to check the WinGet manifest"
     else
+      manifest_read_failed=0
       while read -r file; do
         gh api "repos/$winget_repo/contents/$winget_path/$file" \
           -H "Accept: application/vnd.github.raw" >"$winget_tmp/$file" ||
-          failed=1
+          manifest_read_failed=1
       done <"$winget_tmp/files"
-      if [[ $failed == 1 ]]; then
+      if [[ $manifest_read_failed == 1 ]]; then
         bad_or_warn "cannot read the WinGet manifest for $tag from $winget_repo"
       elif problems=$(python3 "$checker" "$tag" "$winget_tmp" \
         "$winget_tmp/checksums.txt" 2>&1); then
@@ -237,15 +241,13 @@ else
         done <<<"$problems"
       fi
     fi
+  elif ! open_prs=$(gh pr list --repo "$winget_repo" --state open \
+      --head "zanza00:what-to-run-$version" --json number --jq 'length'); then
+    bad_or_warn "cannot list the open pull requests in $winget_repo"
+  elif [[ $open_prs != 0 ]]; then
+    pending "WinGet: the manifest for $tag is waiting in an open pull request"
   else
-    pending=$(gh pr list --repo "$winget_repo" --state open \
-      --head "zanza00:what-to-run-$version" --json number \
-      --jq 'length' 2>/dev/null) || pending=0
-    if [[ $pending != 0 ]]; then
-      warn "WinGet: the manifest for $tag is waiting in an open pull request"
-    else
-      bad_or_warn "no WinGet manifest for $tag in $winget_repo and no open pull request"
-    fi
+    bad_or_warn "no WinGet manifest for $tag in $winget_repo and no open pull request"
   fi
   rm -rf "$winget_tmp"
 fi

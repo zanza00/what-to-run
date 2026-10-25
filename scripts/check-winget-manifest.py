@@ -101,10 +101,11 @@ def check(tag, manifests, sums):
 
     version_fields = dict(read_fields(manifests["version"]))
     installer_fields = read_fields(manifests["installer"])
+    installer_scalars = dict(installer_fields)
     locale_fields = dict(read_fields(manifests["locale"]))
     for name, fields in (
         ("version", version_fields),
-        ("installer", dict(installer_fields)),
+        ("installer", installer_scalars),
         ("locale", locale_fields),
     ):
         if fields.get("PackageIdentifier") != IDENTIFIER:
@@ -116,10 +117,11 @@ def check(tag, manifests, sums):
                 f"{name} manifest carries version "
                 f"{fields.get('PackageVersion')!r}, expected {version!r}")
 
-    if dict(installer_fields).get("InstallerType") != "zip":
+    installer_type = installer_scalars.get("InstallerType")
+    if installer_type != "zip":
         problems.append(
-            f"installer manifest has InstallerType "
-            f"{dict(installer_fields).get('InstallerType')!r}, expected 'zip'")
+            f"installer manifest has InstallerType {installer_type!r}, "
+            "expected 'zip'")
 
     installers = parse_installers(installer_fields)
     for arch in sorted(set(installers) - set(ARCHIVES)):

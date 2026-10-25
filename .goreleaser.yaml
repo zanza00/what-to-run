@@ -105,6 +105,8 @@ winget:
     repository:
       owner: zanza00
       name: winget-pkgs
+      # The workflow and verify-release.sh look for this branch name when the
+      # manifest is still in review: change it in all three places.
       branch: what-to-run-{{ .Version }}
       token: "{{ .Env.WINGET_TOKEN }}"
       pull_request:

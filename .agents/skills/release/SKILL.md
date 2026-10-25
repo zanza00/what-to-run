@@ -193,16 +193,18 @@ repository/AUR/Scoop/WinGet secrets show as `skip`, matching the workflow.
 Scoop has no review step — the manifest is written during the release — so a
 stale or missing one is a `FAIL` while the secret list is readable, and a
 `warn` when it is not. WinGet does have a review step, so a manifest that is
-still in an open pull request is a `warn` (pending) rather than a `FAIL`; a
+still in an open pull request shows as `pending` rather than `ok` or `FAIL`; a
 `FAIL` means there is neither a merged manifest nor an open pull request.
 
 Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
 checks the release, the asset names, the Scoop bucket, the WinGet manifest and
 the package repositories, but the verifier is the source of truth for every
-channel. For a
-failing channel, inspect the `publish` step of the run before repairing it.
-When the AUR package is published for the first time, update the Arch Linux
-section of `docs/install.md`, which currently says the package is pending.
+channel. For a failing channel, inspect the `publish` step of the run before
+repairing it. When the AUR package is published for the first time, update the
+Arch Linux section of `docs/install.md`, which currently says the package is
+pending. When the first WinGet manifest is merged, add the WinGet section to
+`docs/install.md` and the one-liner to `README.md`; until then the channel is
+not advertised.
 
 ## 6. Report
 

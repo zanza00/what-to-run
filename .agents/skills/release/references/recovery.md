@@ -138,9 +138,10 @@ still published.
 
 ## 5. The workflow succeeded but verification finds a stale channel
 
-The CI release verification checks the asset names and the repository indexes,
-so a successful run is good evidence, but the bundled verifier is the source
-of truth for every channel. For a channel whose secret is set:
+The CI release verification checks the asset names, the Scoop bucket and the
+repository indexes, so a successful run is good evidence, but the bundled
+verifier is the source of truth for every channel. For a channel whose secret
+is set:
 
 - apt or RPM stale → run the `republish packages` workflow above;
 - Homebrew stale → run `publish-homebrew.py` locally;

@@ -153,7 +153,9 @@ scoop update what-to-run
 scoop uninstall what-to-run
 ```
 
-The manifest installs `wtr` on Intel and ARM64 Windows alike.
+The manifest installs `wtr` on Intel and ARM64 Windows alike. The bucket
+receives the manifest of every release; if it has no manifest for the version
+you need yet, use the zip below.
 
 ### Zip
 

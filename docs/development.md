@@ -179,9 +179,11 @@ goreleaser release --snapshot --clean              # build dist/ locally
 python3 -m unittest discover -s scripts -p '*_test.py'
 ```
 
-The snapshot skips the publish phase, so it does not produce the Homebrew
-formula or the Scoop manifest; only a real release writes them, and `goreleaser
-check` is what catches a broken `scoops` block before the tag.
+A snapshot writes `dist/scoop/bucket/what-to-run.json` with a `SNAPSHOT`
+version: the Scoop pipe runs in the build phase, so the manifest is generated
+without being published. The Homebrew formula comes from a custom publisher, so
+only a real release writes it. `goreleaser check` is what catches a broken
+`scoops` block before the tag.
 
 `wtr --version` reports the version injected at build time: the release tag in
 released archives, a `git describe` string in local `task build` binaries.

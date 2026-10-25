@@ -46,9 +46,9 @@ gh api repos/zanza00/what-to-run/actions/secrets --jq '.secrets[].name'
 ```
 
 The secret list decides what a successful release means: Homebrew is
-mandatory, the apt and RPM repositories and the AUR may legitimately be
-skipped. A missing AUR secret means an AUR-less release is expected, not a
-failure.
+mandatory, the apt and RPM repositories, the AUR and the Scoop bucket may
+legitimately be skipped. A missing optional secret means that channel-less
+release is expected, not a failure.
 
 `git rev-list --left-right --count origin/main...HEAD` prints
 `<behind> <ahead>`. Stop and explain if the tree is dirty or HEAD is not on
@@ -174,18 +174,20 @@ Run the bundled verifier with the tag:
 ```
 
 It checks the release is public and carries exactly the eleven assets, the
-Homebrew formula has the version and download URLs, the Scoop manifest has the
-version, both Windows archives and a `bin`, the apt index and the RPM metadata
-on `gh-pages` have the version for both architectures, the RPM metadata
-signature verifies with the repository key, the setup scripts are published,
-the AUR package has it when that secret is configured, the downloaded archive
-matches `checksums.txt`, and a binary for this platform prints `wtr X.Y.Z`.
-Missing repository/AUR/Scoop secrets show as `skip`, matching the workflow.
-Unlike WinGet or Chocolatey, Scoop has no review step: the manifest is written
-during the release, so a stale or missing one is a `FAIL`, not a `pending`.
+Homebrew formula has the version and download URLs, the Scoop manifest installs
+the right zip on amd64 and arm64 with the hashes from `checksums.txt`, the apt
+index and the RPM metadata on `gh-pages` have the version for both
+architectures, the RPM metadata signature verifies with the repository key, the
+setup scripts are published, the AUR package has it when that secret is
+configured, the downloaded archive matches `checksums.txt`, and a binary for
+this platform prints `wtr X.Y.Z`. Missing repository/AUR/Scoop secrets show as
+`skip`, matching the workflow. Scoop has no review step — the manifest is
+written during the release — so a stale or missing one is a `FAIL` while the
+secret list is readable, and a `warn` when it is not.
 
 Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
-only asserts that the release is public and the asset names are right. For a
+checks the release, the asset names, the Scoop bucket and the package
+repositories, but the verifier is the source of truth for every channel. For a
 failing channel, inspect the `publish` step of the run before repairing it.
 When the AUR package is published for the first time, update the Arch Linux
 section of `docs/install.md`, which currently says the package is pending.

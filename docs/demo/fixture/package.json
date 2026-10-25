@@ -1,0 +1,13 @@
+{
+  "name": "demo-site",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "echo \"building site…\"",
+    "build:docs": "echo \"building docs…\"",
+    "dev": "echo \"starting dev server…\"",
+    "format": "echo \"formatting…\"",
+    "lint": "echo \"linting…\"",
+    "test": "echo \"running tests…\""
+  }
+}

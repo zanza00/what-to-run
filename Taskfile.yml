@@ -41,6 +41,12 @@ tasks:
     cmds:
       - '{{.GO}} build -ldflags "{{.LDFLAGS}}" -o bin/{{.BINARY_NAME}} {{.CMD}}'
 
+  demo:
+    desc: Regenerate the README demo GIF (requires vhs, gifski and ImageMagick)
+    deps: [build]
+    cmds:
+      - docs/demo/make-demo.sh
+
   bind:
     desc: Build and print the zsh integration for eval (task bind KEY=combo)
     silent: true

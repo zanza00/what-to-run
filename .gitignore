@@ -6,6 +6,7 @@
 *.dylib
 bin/
 dist/
+docs/demo/.build/
 
 # Python bytecode from the release publisher's tests
 __pycache__/

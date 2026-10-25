@@ -39,6 +39,35 @@ The Markdown under `.agents/skills/` is excluded in `dprint.json`: it is
 vendored and keeps the upstream formatting. Tables are kept as written too,
 because aligning their cells would turn the longer rows into very wide lines.
 
+## README demo
+
+The README demo is generated from `docs/demo/demo.tape`:
+
+```sh
+task demo
+```
+
+The tape drives `docs/demo/fixture` through the zsh widget: Ctrl-O opens the
+inline picker, the `buld` filter narrows the list to `make build` (a
+subsequence match, so the GIF shows the fuzzy finder at work), and Enter runs
+it.
+VHS draws the window chrome (`Set WindowBar Colorful`, so the frame has its
+close/minimize/maximize dots) over the wallpaper in `docs/demo/background.webp`,
+a crop of [andreas kretschmer's photo on
+Unsplash](https://unsplash.com/photos/brown-mountain-during-daytime-4VXCQjiyVyc)
+cropped to the recording size: VHS stretches `MarginFill` to the canvas, so the
+image has to match its aspect ratio. It is WebP rather than JPEG because ffmpeg
+decodes JPEG as full-range while VHS fills `Padding` with a limited-range
+color, which shows as a lighter band around the terminal. The keycaps drawn by
+`docs/demo/make-keys.sh` are overlaid inside the window near its bottom edge,
+and `docs/demo/make-demo.sh` composites them and encodes the GIF with gifski.
+
+`task demo` needs `vhs` (with its `ttyd` and ffmpeg dependencies), ImageMagick 7
+(`magick`), gifski and the JetBrainsMono Nerd Font (`DEMO_FONT` overrides the
+font file). VHS downloads a headless Chromium on first use. The GIF is committed
+and the target is not part of `task all` or CI, so these tools are only needed
+when changing the demo.
+
 ## Use the local build instead of a release
 
 `wtr` is found through `PATH`, and the first match wins. If you installed a

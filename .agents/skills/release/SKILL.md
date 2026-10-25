@@ -18,11 +18,14 @@ moved; step 4 marks the point of no return.
 | Trigger | `vX.Y.Z` tag on a commit contained in `origin/main` |
 | Branch protection | `main-guard` ruleset: `main` takes changes only through a merged pull request |
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
-| Optional secrets | `APT_GPG_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` |
+| Optional secrets | `APT_GPG_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN`, `WINGET_TOKEN` |
+| Release assets | `checksums.txt`, 4 tarballs, 2 Windows zips, 2 `.deb` files, 2 `.rpm` files, 2 `.pkg.tar.zst` files (13 total) |
+| Version string | `wtr --version` prints `wtr X.Y.Z` in released binaries, `wtr vX.Y.Z-N-g…` from `task build` |
 | Nix | the `version` attribute in `flake.nix`, bumped with the tag and checked by the validate job; the flake builds the default branch; the `nix install` workflow proves the user install path on Linux and Apple silicon, on the cut head before the tag (step 4) |
 | Darwin test | the darwin leg of the `test` matrix runs only on the cut pull request and on a `ci` dispatch with `darwin=true`; the macOS arm64 pool can queue the leg for tens of minutes and cancel it before a runner takes it (step 4) |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | Scoop | `bucket/what-to-run.json` in `zanza00/scoop-bucket` |
+| WinGet | `manifests/z/zanza00/WhatToRun/<version>` in `microsoft/winget-pkgs`, through a pull request from `zanza00/winget-pkgs` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
 | RPM | `rpm/repodata/primary.xml.gz` and `repomd.xml.asc` on `gh-pages` |
 | pacman | `arch/{x86_64,aarch64}/what-to-run.db` on `gh-pages`; the database lists the newest release only, while the directories keep every published package |
@@ -284,7 +287,8 @@ The script prints one line per check, and its header lists what it checks.
 Read each line by its state: `ok` is a check that passed; `skip` is a channel
 the workflow skipped — expected; `FAIL` is a real problem; and `warn` means
 the script could not decide, and its message says why — provide what it asks
-for and rerun.
+for and rerun. WinGet has a review step, so a manifest still in an open pull
+request is a `warn` (pending) rather than a `FAIL`.
 
 Treat a `FAIL` as a real problem even when the workflow is green: the
 verifier, not the workflow, is the source of truth for every channel. For a

@@ -48,9 +48,17 @@ task demo
 ```
 
 The tape drives `docs/demo/fixture` through the zsh widget: Ctrl-O opens the
-inline picker, the `build` filter narrows the list, and Enter runs `make build`.
-`docs/demo/make-demo.sh` records the tape with VHS, draws the keycaps with
-ImageMagick, composites them under the terminal and encodes the GIF with gifski.
+inline picker, the `buld` filter narrows the list to `make build` (a
+subsequence match, so the GIF shows the fuzzy finder at work), and Enter runs
+it.
+VHS draws the window chrome (`Set WindowBar Colorful`, so the frame has its
+close/minimize/maximize dots) over the wallpaper in `docs/demo/background.jpg`,
+a crop of [andreas kretschmer's photo on
+Unsplash](https://unsplash.com/photos/brown-mountain-during-daytime-4VXCQjiyVyc)
+cropped to the recording size: VHS stretches `MarginFill` to the canvas, so the
+image has to match its aspect ratio. The keycaps drawn by
+`docs/demo/make-keys.sh` are overlaid inside the window near its bottom edge,
+and `docs/demo/make-demo.sh` composites them and encodes the GIF with gifski.
 
 `task demo` needs `vhs` (with its `ttyd` and ffmpeg dependencies), ImageMagick 7
 (`magick`), gifski and the JetBrainsMono Nerd Font (`DEMO_FONT` overrides the

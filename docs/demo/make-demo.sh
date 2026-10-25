@@ -33,12 +33,12 @@ vhs docs/demo/demo.tape
 IFS=, read -r width height <<< "$(ffprobe -v error -select_streams v:0 \
   -show_entries stream=width,height -of csv=p=0 "$build/demo.mp4")"
 
+# The keycaps are an overlay inside the window: 32px above its bottom edge
+# (Margin 32 in demo.tape), 48px tall.
 # These times mirror the Sleeps in demo.tape: Ctrl-O at 0.8s and Enter at 3.1s.
 # Each keycap appears 0.25s before the key and stays for under a second after it.
-hud_y=$((height + 24))
-canvas_h=$((height + 96))
-filter="[0:v]pad=${width}:${canvas_h}:0:0:color=0x11111b[bg];"
-filter+="[bg][1:v]overlay=x=(W-w)/2:y=${hud_y}:enable='between(t,0.55,1.75)'[v1];"
+hud_y=$((height - 112))
+filter="[0:v][1:v]overlay=x=(W-w)/2:y=${hud_y}:enable='between(t,0.55,1.75)'[v1];"
 filter+="[v1][2:v]overlay=x=(W-w)/2:y=${hud_y}:enable='between(t,2.85,4.0)'[out]"
 ffmpeg -y -v error -i "$build/demo.mp4" \
   -i "$build/keys/ctrl-overlay.png" -i "$build/keys/enter-overlay.png" \
@@ -51,7 +51,7 @@ mkdir "$build/frames"
 ffmpeg -v error -i "$build/demo-hud.mp4" -vf fps=15 "$build/frames/%04d.png"
 
 mkdir -p docs/images
-gifski --fps 15 --width "$width" --quality 90 \
+gifski --fps 15 --width "$width" --quality 85 \
   -o docs/images/what-to-run.gif "$build/frames"/*.png >/dev/null
 
 ls -lh docs/images/what-to-run.gif

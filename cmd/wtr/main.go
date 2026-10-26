@@ -1,8 +1,6 @@
 // Command wtr is a TUI for running the tasks declared in a project's files
-// (package.json, Makefile, Taskfile.yml, justfile, Makefile.toml,
-// .cargo/config, devbox.json, composer.json, deno.json, mise.toml, and the rc
-// file). The invoked name is the one shown in usage, messages and the picker
-// title.
+// (see docs/task-sources.md) and the rc file. The invoked name is the one
+// shown in usage, messages and the picker title.
 package main
 
 import (

@@ -28,9 +28,7 @@ theme = "dracula"
 # Global default package manager override ("npm", "pnpm", "yarn", "bun").
 package_manager = "npm"
 
-# Sources disabled globally, by any of their file names (package.json,
-# Makefile, Taskfile.yml, justfile, Makefile.toml, .cargo/config, devbox.json,
-# composer.json, deno.json, mise.toml).
+# Sources disabled globally, by file name (see Task sources).
 disable = ["Makefile.toml"]
 
 # Global custom tasks, available in every project unless shadowed.

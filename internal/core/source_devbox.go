@@ -11,7 +11,10 @@ import (
 // devboxSource returns the source for the project's devbox.json.
 func devboxSource() source {
 	return source{
-		Files: []string{"devbox.json"},
+		SourceInfo: SourceInfo{
+			Label: "devbox.json",
+			Files: []string{"devbox.json"},
+		},
 		Parse: parseDevbox,
 	}
 }

@@ -13,7 +13,10 @@ import (
 // runnerOverride is the rc file's package_manager setting, empty when unset.
 func packageJSONSource(runnerOverride string, files Files) source {
 	return source{
-		Files: []string{"package.json"},
+		SourceInfo: SourceInfo{
+			Label: "package.json",
+			Files: []string{"package.json"},
+		},
 		Parse: func(dir string, data []byte) ([]Task, error) {
 			return parsePackageScripts(files, dir, data, runnerOverride)
 		},

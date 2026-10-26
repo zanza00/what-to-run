@@ -1,9 +1,12 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -52,39 +55,172 @@ func TestDiscoverSourceDoesNotSearchParentsForPackageJSON(t *testing.T) {
 	}
 }
 
-// TestSourceSearchParents pins the flag per built-in source: only the justfile
-// and Taskfile sources walk up, since only just and task do.
-func TestSourceSearchParents(t *testing.T) {
-	tests := []struct {
-		firstFile     string
-		searchParents bool
-	}{
-		{"package.json", false},
-		{"GNUmakefile", false},
-		{"Taskfile.yml", true},
-		{"justfile", true},
-		{"Makefile.toml", false},
-		{".cargo/config", false},
-		{"devbox.json", false},
-		{"composer.json", false},
-		{"deno.json", false},
-		{"mise.toml", false},
+// TestRegistryInvariants pins the metadata every built-in source carries:
+// labels, display files, candidate order, parse functions and parent search.
+// It also runs the checks against broken registries, so the failure messages
+// are part of the test.
+func TestRegistryInvariants(t *testing.T) {
+	if errs := checkRegistry(defaultSources(Settings{}, osFiles{})); len(errs) != 0 {
+		t.Fatalf("defaultSources() invariants = %v, want none", errs)
 	}
 
-	sources := defaultSources(Settings{}, osFiles{})
-	if len(sources) != len(tests) {
-		t.Fatalf("defaultSources() has %d sources, want %d", len(sources), len(tests))
+	tests := []struct {
+		name   string
+		mutate func([]source)
+		want   string
+	}{
+		{
+			name:   "duplicate label",
+			mutate: func(srcs []source) { srcs[1].Label = srcs[0].Label },
+			want:   "duplicate label",
+		},
+		{
+			name:   "display override outside files",
+			mutate: func(srcs []source) { srcs[0].DisplayFileOverride = "nope" },
+			want:   "DisplayFileOverride",
+		},
+		{
+			name:   "wrong first file",
+			mutate: func(srcs []source) { srcs[2].Files[0] = "nope" },
+			want:   "first file",
+		},
+		{
+			name:   "shared file name",
+			mutate: func(srcs []source) { srcs[1].Files = append(srcs[1].Files, srcs[0].Files[0]) },
+			want:   "belongs to",
+		},
+		{
+			name:   "nil parser",
+			mutate: func(srcs []source) { srcs[0].Parse = nil },
+			want:   "parser",
+		},
+		{
+			name:   "wrong parent search",
+			mutate: func(srcs []source) { srcs[0].SearchParents = true },
+			want:   "SearchParents",
+		},
 	}
-	for i, tt := range tests {
-		src := sources[i]
-		if len(src.Files) == 0 || src.Files[0] != tt.firstFile {
-			t.Errorf("source %d = %v, want %q first", i, src.Files, tt.firstFile)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srcs := cloneSources(defaultSources(Settings{}, osFiles{}))
+			tt.mutate(srcs)
+
+			errs := checkRegistry(srcs)
+			if len(errs) == 0 {
+				t.Fatal("checkRegistry() = nil, want an error")
+			}
+			var got strings.Builder
+			for _, err := range errs {
+				got.WriteString(err.Error())
+				got.WriteByte('\n')
+			}
+			if !strings.Contains(got.String(), tt.want) {
+				t.Errorf("checkRegistry() = %q, want it to mention %q", got.String(), tt.want)
+			}
+		})
+	}
+}
+
+// TestSourcesReturnsCopies: the read-only registry view must not expose the
+// slices discovery uses.
+func TestSourcesReturnsCopies(t *testing.T) {
+	first := Sources()
+	if len(first) == 0 {
+		t.Fatal("Sources() = empty, want the built-in registry")
+	}
+
+	first[0].Label = "mutated"
+	first[0].Files[0] = "mutated"
+
+	second := Sources()
+	if second[0].Label != "package.json" || second[0].Files[0] != "package.json" {
+		t.Errorf("Sources() shares state with a previous call: %+v", second[0])
+	}
+}
+
+// firstFiles is the candidate order each built-in source must keep. The keys
+// are labels until plan 2 introduces the stable IDs.
+var firstFiles = map[string]string{
+	"package.json":  "package.json",
+	"Makefile":      "GNUmakefile",
+	"Taskfile.yml":  "Taskfile.yml",
+	"justfile":      "justfile",
+	"Makefile.toml": "Makefile.toml",
+	"Cargo aliases": ".cargo/config",
+	"devbox.json":   "devbox.json",
+	"composer.json": "composer.json",
+	"deno.json":     "deno.json",
+	"mise.toml":     "mise.toml",
+}
+
+// parentSources are the only sources that walk up the directory tree.
+var parentSources = map[string]bool{
+	"justfile":     true,
+	"Taskfile.yml": true,
+}
+
+// checkRegistry reports the metadata invariants a registry must satisfy.
+func checkRegistry(srcs []source) []error {
+	var errs []error
+	labels := make(map[string]bool, len(srcs))
+	files := make(map[string]string, len(srcs)*2)
+
+	for i, src := range srcs {
+		if src.Label == "" {
+			errs = append(errs, fmt.Errorf("source %d: empty label", i))
 			continue
 		}
-		if src.SearchParents != tt.searchParents {
-			t.Errorf("%s SearchParents = %v, want %v", tt.firstFile, src.SearchParents, tt.searchParents)
+		if labels[src.Label] {
+			errs = append(errs, fmt.Errorf("source %q: duplicate label", src.Label))
+		}
+		labels[src.Label] = true
+
+		if len(src.Files) == 0 {
+			errs = append(errs, fmt.Errorf("source %q: no candidate files", src.Label))
+		} else if want, ok := firstFiles[src.Label]; !ok {
+			errs = append(errs, fmt.Errorf("source %q: no expected first file", src.Label))
+		} else if src.Files[0] != want {
+			errs = append(errs, fmt.Errorf("source %q: first file %q, want %q", src.Label, src.Files[0], want))
+		}
+
+		if src.DisplayFileOverride != "" && !slices.Contains(src.Files, src.DisplayFileOverride) {
+			errs = append(errs, fmt.Errorf("source %q: DisplayFileOverride %q is not a candidate", src.Label, src.DisplayFileOverride))
+		}
+		if display := src.DisplayFile(); display == "" || !slices.Contains(src.Files, display) {
+			errs = append(errs, fmt.Errorf("source %q: display file %q is not a candidate", src.Label, display))
+		}
+
+		for _, name := range src.Files {
+			if owner, ok := files[name]; ok && owner != src.Label {
+				errs = append(errs, fmt.Errorf("file %q belongs to %q and %q", name, owner, src.Label))
+			}
+			files[name] = src.Label
+		}
+
+		if src.Parse == nil {
+			errs = append(errs, fmt.Errorf("source %q: nil parser", src.Label))
+		}
+		if src.SearchParents != parentSources[src.Label] {
+			errs = append(errs, fmt.Errorf("source %q: SearchParents = %v", src.Label, src.SearchParents))
 		}
 	}
+
+	if len(srcs) != len(firstFiles) {
+		errs = append(errs, fmt.Errorf("registry has %d sources, want %d", len(srcs), len(firstFiles)))
+	}
+	return errs
+}
+
+// cloneSources deep-copies the registry so a broken fixture cannot mutate the
+// slices the real sources share.
+func cloneSources(srcs []source) []source {
+	out := make([]source, len(srcs))
+	for i, src := range srcs {
+		out[i] = src
+		out[i].Files = slices.Clone(src.Files)
+	}
+	return out
 }
 
 // TestDiscoverSourceNearestDirectoryWins: the file in the nearest ancestor

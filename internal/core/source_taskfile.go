@@ -25,8 +25,11 @@ var taskfileNames = []string{
 // Like task, it also looks in the parent directories of the project directory.
 func taskfileSource(files Files) source {
 	return source{
-		Files:         slices.Clone(taskfileNames),
-		SearchParents: true,
+		SourceInfo: SourceInfo{
+			Label:         "Taskfile.yml",
+			Files:         slices.Clone(taskfileNames),
+			SearchParents: true,
+		},
 		Parse: func(dir string, data []byte) ([]Task, error) {
 			return parseTaskfile(files, dir, data)
 		},

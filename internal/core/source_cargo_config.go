@@ -16,7 +16,11 @@ import (
 // (and warns about it), so it is the first candidate.
 func cargoAliasSource() source {
 	return source{
-		Files: []string{".cargo/config", ".cargo/config.toml"},
+		SourceInfo: SourceInfo{
+			Label:               "Cargo aliases",
+			DisplayFileOverride: ".cargo/config.toml",
+			Files:               []string{".cargo/config", ".cargo/config.toml"},
+		},
 		Parse: parseCargoConfig,
 	}
 }

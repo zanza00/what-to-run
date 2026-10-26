@@ -1258,21 +1258,50 @@ func (m model) filterLine() string {
 	return m.styles.filter.Render("» ") + m.filter + m.styles.filter.Render("▏")
 }
 
+// sourceInfos is the registry metadata, read once: the empty screen renders
+// on every frame.
+var sourceInfos = core.Sources()
+
 // emptyStateLines explains a directory with nothing to run.
-func (m model) emptyStateLines() []string {
-	return []string{
-		"  " + m.styles.title.Render("no tasks found here"),
-		"  " + m.styles.dim.Render("looked for task files: package.json, Makefile, Taskfile.yml, justfile,"),
-		"  " + m.styles.dim.Render("Makefile.toml, .cargo/config.toml, devbox.json, composer.json,"),
-		"  " + m.styles.dim.Render("deno.json and mise.toml"),
-		"  " + m.styles.dim.Render("add [[tasks]] to .what-to-run.toml for custom commands"),
+func (m model) emptyStateLines(w int) []string {
+	var files []string
+	seen := make(map[string]bool, len(sourceInfos))
+	for _, src := range sourceInfos {
+		file := src.DisplayFile()
+		if file != "" && !seen[file] {
+			seen[file] = true
+			files = append(files, file)
+		}
+	}
+
+	text := "looked for task files: " + joinAnd(files)
+	lines := []string{"  " + m.styles.title.Render("no tasks found here")}
+	for _, line := range strings.Split(ansi.Wrap(text, max(w-2, 20), ""), "\n") {
+		lines = append(lines, "  "+m.styles.dim.Render(line))
+	}
+	return append(lines, "  "+m.styles.dim.Render(
+		"add [[tasks]] to .what-to-run.toml for custom commands"))
+}
+
+// joinAnd joins names the way the empty-state sentence reads: "a", "a and b",
+// "a, b and c".
+func joinAnd(items []string) string {
+	switch len(items) {
+	case 0:
+		return ""
+	case 1:
+		return items[0]
+	case 2:
+		return items[0] + " and " + items[1]
+	default:
+		return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
 	}
 }
 
 // listLines renders the visible window of the filtered task list.
 func (m model) listLines(w int) []string {
 	if len(m.tasks) == 0 {
-		return m.emptyStateLines()
+		return m.emptyStateLines(w)
 	}
 
 	vis := m.visible()

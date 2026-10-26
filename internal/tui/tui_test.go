@@ -748,24 +748,58 @@ func TestViewNoTasksShowsPersistentEmptyState(t *testing.T) {
 	got := m.View().Content
 	for _, want := range []string{
 		"no tasks found here",
-		"package.json",
-		"Makefile.toml",
-		"Taskfile.yml",
-		"justfile",
-		".cargo/config.toml",
-		"devbox.json",
-		"composer.json",
-		"deno.json",
-		"mise.toml",
 		".what-to-run.toml",
 		"enter/esc close",
+		"Makefile,",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("View() does not contain %q:\n%s", want, got)
 		}
 	}
+	for _, src := range sourceInfos {
+		if file := src.DisplayFile(); file != "" && !strings.Contains(got, file) {
+			t.Errorf("View() does not contain display file %q:\n%s", file, got)
+		}
+	}
 	if strings.Contains(got, "type to filter") {
 		t.Errorf("View() invites filtering with no tasks:\n%s", got)
+	}
+}
+
+func TestViewNoTasksNarrowWidth(t *testing.T) {
+	m := update(newModel(Options{Inline: true}, nil, nil), tea.WindowSizeMsg{Width: 40, Height: 30})
+	m = update(m, tea.CursorPositionMsg{Y: 5})
+
+	got := m.View().Content
+	for _, src := range sourceInfos {
+		if file := src.DisplayFile(); file != "" && !strings.Contains(got, file) {
+			t.Errorf("View() at 40 columns does not contain display file %q:\n%s", file, got)
+		}
+	}
+	for _, line := range strings.Split(got, "\n") {
+		if width := lipgloss.Width(line); width > 40 {
+			t.Errorf("View() line is %d columns wide, want at most 40: %q", width, line)
+		}
+	}
+}
+
+func TestJoinAnd(t *testing.T) {
+	tests := []struct {
+		name  string
+		items []string
+		want  string
+	}{
+		{"empty", nil, ""},
+		{"one", []string{"a"}, "a"},
+		{"two", []string{"a", "b"}, "a and b"},
+		{"three", []string{"a", "b", "c"}, "a, b and c"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := joinAnd(tt.items); got != tt.want {
+				t.Errorf("joinAnd(%v) = %q, want %q", tt.items, got, tt.want)
+			}
+		})
 	}
 }
 

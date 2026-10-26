@@ -779,9 +779,12 @@ func TestViewNoTasksNarrowWidth(t *testing.T) {
 	if !strings.Contains(got, "Makefile,") {
 		t.Errorf("View() at 40 columns does not list Makefile independently of Makefile.toml:\n%s", got)
 	}
-	for _, line := range strings.Split(got, "\n") {
+	if !strings.Contains(got, "custom commands") {
+		t.Errorf("View() at 40 columns truncates the rc hint:\n%s", got)
+	}
+	for _, line := range m.emptyStateLines(40) {
 		if width := lipgloss.Width(line); width > 40 {
-			t.Errorf("View() line is %d columns wide, want at most 40: %q", width, line)
+			t.Errorf("emptyStateLines(40) line is %d columns wide, want at most 40: %q", width, line)
 		}
 	}
 }

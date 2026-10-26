@@ -1274,13 +1274,16 @@ func (m model) emptyStateLines(w int) []string {
 		}
 	}
 
-	text := "looked for task files: " + joinAnd(files)
 	lines := []string{"  " + m.styles.title.Render("no tasks found here")}
-	for _, line := range strings.Split(ansi.Wrap(text, max(w-2, 20), ""), "\n") {
-		lines = append(lines, "  "+m.styles.dim.Render(line))
+	for _, text := range []string{
+		"looked for task files: " + joinAnd(files),
+		"add [[tasks]] to .what-to-run.toml for custom commands",
+	} {
+		for _, line := range strings.Split(ansi.Wrap(text, max(w-2, 20), ""), "\n") {
+			lines = append(lines, "  "+m.styles.dim.Render(line))
+		}
 	}
-	return append(lines, "  "+m.styles.dim.Render(
-		"add [[tasks]] to .what-to-run.toml for custom commands"))
+	return lines
 }
 
 // joinAnd joins names the way the empty-state sentence reads: "a", "a and b",

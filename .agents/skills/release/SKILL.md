@@ -113,7 +113,9 @@ python3 -m unittest discover -s scripts -p '*_test.py'
 
 A release is the last cheap documentation checkpoint: if the change added a
 task source, flag, theme or install method, confirm `AGENTS.md`, `README.md`
-and `docs/` describe it now.
+and `docs/` describe it now. The task-source table in `docs/task-sources.md`
+and the README bullet are checked by `cmd/wtr/docs_test.go`; a new source
+fails the test until both are updated.
 
 ## 3. Tag and push — confirm first
 

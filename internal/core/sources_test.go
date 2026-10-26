@@ -85,6 +85,11 @@ func TestRegistryInvariants(t *testing.T) {
 			want:   "first file",
 		},
 		{
+			name:   "no candidate files",
+			mutate: func(srcs []source) { srcs[0].Files = nil },
+			want:   "display file",
+		},
+		{
 			name:   "shared file name",
 			mutate: func(srcs []source) { srcs[1].Files = append(srcs[1].Files, srcs[0].Files[0]) },
 			want:   "belongs to",

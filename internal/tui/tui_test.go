@@ -776,6 +776,9 @@ func TestViewNoTasksNarrowWidth(t *testing.T) {
 			t.Errorf("View() at 40 columns does not contain display file %q:\n%s", file, got)
 		}
 	}
+	if !strings.Contains(got, "Makefile,") {
+		t.Errorf("View() at 40 columns does not list Makefile independently of Makefile.toml:\n%s", got)
+	}
 	for _, line := range strings.Split(got, "\n") {
 		if width := lipgloss.Width(line); width > 40 {
 			t.Errorf("View() line is %d columns wide, want at most 40: %q", width, line)

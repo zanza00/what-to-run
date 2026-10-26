@@ -63,10 +63,12 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `Files`, `SearchParents`, plus `DisplayFileOverride` when the empty screen
   must show a file other than `Files[0]`) and its parser in a new
   `internal/core/source_<name>.go`, one line in the `defaultSources` registry,
-  table-driven tests next to the parser, one row in `docs/task-sources.md` and
-  one bullet in `README.md`. `TestRegistryInvariants` and
-  `cmd/wtr/docs_test.go` enforce the metadata and the docs. Unknown
-  `package.json` shapes etc. belong in the matching `source_*.go`.
+  the `firstFiles` entry in `internal/core/sources_test.go` (and
+  `parentSources` if it searches parents), table-driven tests next to the
+  parser, one row in `docs/task-sources.md` and one bullet in `README.md`.
+  `TestRegistryInvariants` and `cmd/wtr/docs_test.go` enforce the metadata and
+  the docs. Unknown `package.json` shapes etc. belong in the matching
+  `source_*.go`.
   `internal/core` itself has no direct filesystem access — its only OS access
   is `os/exec`, for `Task.Command`, plus the Windows-only
   `syscall.SysProcAttr` that hands cmd.exe a raw command line

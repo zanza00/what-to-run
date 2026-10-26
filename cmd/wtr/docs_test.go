@@ -21,12 +21,12 @@ var backtickedName = regexp.MustCompile("`([^`]+)`")
 // TestTaskSourcesTableMatchesRegistry: every built-in source has one row, in
 // registry order, and the row lists exactly the source's candidate files.
 func TestTaskSourcesTableMatchesRegistry(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join(taskSourcesDoc))
+	data, err := os.ReadFile(filepath.FromSlash(taskSourcesDoc))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	rows := tableRows(t, string(data), "File")
+	rows := tableRows(t, string(data), "docs/task-sources.md", "File")
 	sources := core.Sources()
 	if len(rows) != len(sources) {
 		t.Fatalf("docs/task-sources.md: %d rows, want %d (one per source)", len(rows), len(sources))
@@ -45,7 +45,7 @@ func TestTaskSourcesTableMatchesRegistry(t *testing.T) {
 // TestReadmeTaskSourcesMatchRegistry: the README names every source label and
 // has one bullet per source, so a removed source cannot leave a stale bullet.
 func TestReadmeTaskSourcesMatchRegistry(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join(readmeDoc))
+	data, err := os.ReadFile(filepath.FromSlash(readmeDoc))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,15 +67,44 @@ func TestReadmeTaskSourcesMatchRegistry(t *testing.T) {
 	}
 
 	for _, src := range sources {
-		if !strings.Contains(section, src.Label) {
-			t.Errorf("README.md: no text for source %q (label %q)", src.Label, src.Label)
+		if !containsLabel(section, src.Label) {
+			t.Errorf("README.md: no bullet for source %q", src.Label)
 		}
 	}
 }
 
+func TestContainsLabel(t *testing.T) {
+	tests := []struct {
+		name  string
+		text  string
+		label string
+		want  bool
+	}{
+		{"plain label", "Cargo aliases (`.cargo/config`)", "Cargo aliases", true},
+		{"backticked label", "- `Makefile`", "Makefile", true},
+		{"longer file name", "- `Makefile.toml`", "Makefile", false},
+		{"suffix only", "not-a-Makefile", "Makefile", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := containsLabel(tt.text, tt.label); got != tt.want {
+				t.Errorf("containsLabel(%q, %q) = %v, want %v", tt.text, tt.label, got, tt.want)
+			}
+		})
+	}
+}
+
+// containsLabel reports whether text contains label as a whole name: a label
+// is not a prefix or suffix of a longer file name.
+func containsLabel(text, label string) bool {
+	pattern := `(^|[^A-Za-z0-9_.-])` + regexp.QuoteMeta(label) + `([^A-Za-z0-9_.-]|$)`
+	return regexp.MustCompile(pattern).MatchString(text)
+}
+
 // tableRows returns the data rows of the first Markdown table whose header has
-// the named column, extracting the backticked names from that column.
-func tableRows(t *testing.T, doc, column string) []tableRow {
+// the named column, extracting the backticked names from that column. docName
+// is the path used in failure messages.
+func tableRows(t *testing.T, doc, docName, column string) []tableRow {
 	t.Helper()
 
 	lines := strings.Split(doc, "\n")
@@ -93,7 +122,7 @@ func tableRows(t *testing.T, doc, column string) []tableRow {
 		}
 	}
 	if header < 0 {
-		t.Fatalf("docs/task-sources.md: no table header with a %q column", column)
+		t.Fatalf("%s: no table header with a %q column", docName, column)
 	}
 
 	var rows []tableRow
@@ -106,7 +135,7 @@ func tableRows(t *testing.T, doc, column string) []tableRow {
 		}
 		cells := tableCells(line)
 		if columnIndex >= len(cells) {
-			t.Fatalf("docs/task-sources.md: row %q has no %q cell", line, column)
+			t.Fatalf("%s: row %q has no %q cell", docName, line, column)
 		}
 		rows = append(rows, tableRow{files: backtickedNames(cells[columnIndex])})
 	}

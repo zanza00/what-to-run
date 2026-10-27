@@ -41,9 +41,20 @@ import (
 	"slices"
 )
 
-// source is one family of project files. Adding a source is a literal in
-// defaultSources plus a parser function; the framework does the rest.
-type source struct {
+// SourceInfo describes a built-in task source: the read-only view of the
+// registry that the TUI and the docs test use.
+type SourceInfo struct {
+	// Label is the human name shown in the README and the docs ("Cargo
+	// aliases", "Makefile"). It is unique and need not be a file name.
+	Label string
+
+	// DisplayFileOverride overrides the file shown in the empty screen;
+	// empty means Files[0]. Make sets it to Makefile because it prefers
+	// GNUmakefile but displays Makefile; cargo-alias sets it to
+	// .cargo/config.toml because Cargo recommends that name while the
+	// parser prefers .cargo/config.
+	DisplayFileOverride string
+
 	// Files are candidate paths in preference order, relative to the
 	// directory being searched: the first that exists is parsed. Its path
 	// relative to the project directory becomes the badge of the tasks the
@@ -54,6 +65,24 @@ type source struct {
 	// ancestors after the directory itself, as just and task do. It is
 	// false for every other source: their files are directory-local.
 	SearchParents bool
+}
+
+// DisplayFile is the file the empty screen shows: DisplayFileOverride when
+// set, otherwise the first candidate.
+func (s SourceInfo) DisplayFile() string {
+	if s.DisplayFileOverride != "" {
+		return s.DisplayFileOverride
+	}
+	if len(s.Files) == 0 {
+		return ""
+	}
+	return s.Files[0]
+}
+
+// source is one family of project files. Adding a source is a literal in
+// defaultSources plus a parser function; the framework does the rest.
+type source struct {
+	SourceInfo
 
 	// Parse turns the winning file's content into tasks: it receives the
 	// directory containing the file for sibling lookups (lock files,
@@ -99,6 +128,27 @@ func defaultSources(settings Settings, files Files) []source {
 		miseSource(),
 	}
 }
+
+// Sources returns the built-in sources in display order. The result is a
+// copy: changing it does not affect discovery.
+func Sources() []SourceInfo {
+	srcs := defaultSources(Settings{}, missingFiles{})
+	infos := make([]SourceInfo, len(srcs))
+	for i, src := range srcs {
+		infos[i] = src.SourceInfo
+		infos[i].Files = slices.Clone(src.Files)
+	}
+	return infos
+}
+
+// missingFiles is the Files used to build metadata: every path is missing.
+type missingFiles struct{}
+
+var _ Files = missingFiles{}
+
+func (missingFiles) ReadFile(string) ([]byte, error)    { return nil, fs.ErrNotExist }
+func (missingFiles) Exists(string) bool                 { return false }
+func (missingFiles) ReadDir(string) ([]DirEntry, error) { return nil, fs.ErrNotExist }
 
 // discoverSource runs one source over dir, and over its ancestors when the
 // source searches parents: in each directory the first candidate file that

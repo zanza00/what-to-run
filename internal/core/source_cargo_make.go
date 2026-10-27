@@ -12,7 +12,10 @@ import (
 // cargoMakeSource returns the source for the project's Makefile.toml.
 func cargoMakeSource() source {
 	return source{
-		Files: []string{"Makefile.toml"},
+		SourceInfo: SourceInfo{
+			Label: "Makefile.toml",
+			Files: []string{"Makefile.toml"},
+		},
 		Parse: parseCargoMakefile,
 	}
 }

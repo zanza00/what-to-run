@@ -12,18 +12,8 @@
 // nearest directory holding a candidate wins, and a file found above the
 // project directory is badged with the relative path, such as ../justfile.
 //
-// The built-in sources, in this fixed order:
-//
-//	package.json   npm/pnpm/yarn/bun scripts
-//	Makefile       make targets (also makefile, GNUmakefile)
-//	Taskfile.yml   go-task tasks (also taskfile.yml, Taskfile.dist.yml)
-//	justfile       just recipes (also Justfile, .justfile)
-//	Makefile.toml  cargo-make tasks
-//	.cargo/config  cargo aliases (also .cargo/config.toml)
-//	devbox.json    devbox shell scripts
-//	composer.json  Composer custom scripts
-//	deno.json      Deno tasks (also deno.jsonc)
-//	mise.toml      mise tasks (also .mise.toml)
+// The built-in sources and their order are the defaultSources registry;
+// Sources exposes them and docs/task-sources.md documents them.
 //
 // The rc file (decoded by the caller) sits on top: its tasks are shown
 // first and shadow same-named tasks of the sources, and a source can be
@@ -79,8 +69,10 @@ func (s SourceInfo) DisplayFile() string {
 	return s.Files[0]
 }
 
-// source is one family of project files. Adding a source is a literal in
-// defaultSources plus a parser function; the framework does the rest.
+// source is one family of project files. Adding a source is a SourceInfo
+// literal in defaultSources plus a parser function; the framework does the
+// rest. Sources are discovered in registry order, and each parser decides the
+// order of the tasks it returns.
 type source struct {
 	SourceInfo
 
@@ -267,15 +259,11 @@ func rcTasks(settings Settings, dir string) []Task {
 	return tasks
 }
 
-// Discover scans dir for the tasks of the rc file and the built-in
-// sources, in display order: rc tasks first, then package.json, Makefile,
-// Taskfile.yml, justfile, Makefile.toml, .cargo/config, devbox.json,
-// composer.json, deno.json/deno.jsonc and mise.toml/.mise.toml. Package
-// scripts, Taskfile tasks, just recipes, cargo-make tasks, cargo aliases,
-// devbox scripts, Composer scripts, Deno tasks and mise tasks are sorted by
-// name; Makefile targets keep the order they appear in the file. A source that
-// fails to parse is reported in errs and skipped (a disabled source is not read
-// at all), and rc tasks shadow same-named tasks of the built-in sources.
+// Discover scans dir for the tasks of the rc file and the built-in sources,
+// in display order: rc tasks first, then each enabled source in registry
+// order; each parser decides the order of its own tasks. A source that fails
+// to parse is reported in errs and skipped (a disabled source is not read at
+// all), and rc tasks shadow same-named tasks of the built-in sources.
 func Discover(files Files, dir string, settings Settings) ([]Task, []error) {
 	sources, errs := enabledSources(defaultSources(settings, files), settings.Disable)
 

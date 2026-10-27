@@ -29,6 +29,8 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 )
 
 // SourceInfo describes a built-in task source: the read-only view of the
@@ -148,6 +150,53 @@ var _ Files = missingFiles{}
 func (missingFiles) ReadFile(string) ([]byte, error)    { return nil, fs.ErrNotExist }
 func (missingFiles) Exists(string) bool                 { return false }
 func (missingFiles) ReadDir(string) ([]DirEntry, error) { return nil, fs.ErrNotExist }
+
+// CheckSourceID returns nil when name is the ID of a built-in source. The
+// error explains why it is not one: a file name a source reads (with the ID
+// to use instead), a package manager name (to disable package.json scripts
+// use "npm"), a near miss in case (with the ID), or an unknown name (with the
+// list of valid IDs).
+func CheckSourceID(name string) error {
+	return checkSourceID(defaultSources(Settings{}, missingFiles{}), name)
+}
+
+// checkSourceID validates name against the given registry. It takes the
+// sources as a parameter so tests can check a shared file name with synthetic
+// sources.
+func checkSourceID(sources []source, name string) error {
+	var byFile []string
+	for _, src := range sources {
+		if src.ID == name {
+			return nil
+		}
+		if slices.Contains(src.Files, name) {
+			byFile = append(byFile, strconv.Quote(src.ID))
+		}
+	}
+	switch {
+	case len(byFile) == 1:
+		return fmt.Errorf("%q is a file name; use %s", name, byFile[0])
+	case len(byFile) > 1:
+		return fmt.Errorf("%q is a file name; use one of %s", name, strings.Join(byFile, ", "))
+	}
+	if _, ok := PackageManagerName(name); ok {
+		return fmt.Errorf(
+			"%q is a package manager, not a source ID; to disable package.json scripts use \"npm\"",
+			name,
+		)
+	}
+	// IDs are unique and lowercase, so an EqualFold match is unique.
+	for _, src := range sources {
+		if strings.EqualFold(src.ID, name) {
+			return fmt.Errorf("unknown source %q; did you mean %q?", name, src.ID)
+		}
+	}
+	ids := make([]string, len(sources))
+	for i, src := range sources {
+		ids[i] = src.ID
+	}
+	return fmt.Errorf("unknown source %q; known sources: %s", name, strings.Join(ids, ", "))
+}
 
 // discoverSource runs one source over dir, and over its ancestors when the
 // source searches parents: in each directory the first candidate file that

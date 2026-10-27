@@ -28,8 +28,8 @@ theme = "dracula"
 # Global default package manager override ("npm", "pnpm", "yarn", "bun").
 package_manager = "npm"
 
-# Sources disabled globally, by file name (see Task sources).
-disable = ["Makefile.toml"]
+# Sources disabled globally, by ID (see Task sources).
+disable = ["cargo-make"]
 
 # Global custom tasks, available in every project unless shadowed.
 [[tasks]]
@@ -44,7 +44,7 @@ package_manager = "pnpm"
 
 [projects."~/work/legacy-service"]
 package_manager = "yarn"
-disable = ["Makefile"]
+disable = ["make"]
 
 [[projects."~/work/legacy-service".tasks]]
 name = "dev"
@@ -59,7 +59,7 @@ The project file supports `package_manager`, `disable`, and `[[tasks]]`:
 
 ```toml
 package_manager = "bun"
-disable = ["Makefile"]
+disable = ["make"]
 
 [[tasks]]
 name = "deploy"
@@ -73,9 +73,11 @@ User-only keys (`theme` and `projects`) are not allowed in a project
 
 ### Built-in task sources
 
-The supported task files, their commands, and how each source is discovered
-and parsed are documented in [Task sources](task-sources.md). The `disable`
-setting above accepts any of their file names.
+The supported task files, their commands, how each source is discovered and
+parsed, and the stable ID that `disable` uses are documented in
+[Task sources](task-sources.md). `disable` takes those IDs (`npm`, `make`,
+`cargo-make`), not file names: see [Source IDs](task-sources.md#source-ids). A
+file name is ignored with a warning naming the ID to use.
 
 ### Themes
 
@@ -151,7 +153,7 @@ How each field merges across layers:
 | --- | --- |
 | `theme` | Read only from the global top-level config (overridden for a single run by `--theme`). |
 | `package_manager` | Later (more specific) non-empty layer wins. |
-| `disable` | Additive union across all active layers. |
+| `disable` | Additive union of source IDs across all active layers. |
 | `tasks` | Higher-precedence layers come first and shadow same-named tasks from lower layers (and discovered sources). Within a layer, tasks keep their declaration order. |
 
 ---
@@ -169,11 +171,14 @@ version of `wtr`:
    or inside `[projects."<path>"]` produces a specific warning naming the key
    (e.g. `unknown key "packge_manager"`), and **all other valid keys and
    sections in the same file are still applied**.
-3. **Wrong types:** A field with the wrong TOML type (e.g. `disable = "Makefile"`
+3. **Wrong types:** A field with the wrong TOML type (e.g. `disable = "make"`
    instead of an array, or `theme = 123`) drops only that field with a warning;
    the rest of the file and section is preserved.
 4. **Invalid entries:**
    - An unknown `package_manager` or `theme` is dropped with a warning.
+   - A `disable` entry that is not a source ID (a file name or an unknown
+     name) is dropped with a warning naming the ID to use; the other entries
+     stay.
    - An invalid task in `[[tasks]]` (empty `name`, empty `command`, duplicate
      `name`, or `cwd` escaping the project with `..`) is dropped individually;
      sibling tasks in the same `[[tasks]]` list still load.

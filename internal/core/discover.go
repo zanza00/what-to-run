@@ -17,7 +17,7 @@
 //
 // The rc file (decoded by the caller) sits on top: its tasks are shown
 // first and shadow same-named tasks of the sources, and a source can be
-// disabled by the names of the files it looks for. A source that is missing
+// disabled by its ID ("make", "cargo-make"). A source that is missing
 // contributes nothing; a source that exists but fails to parse is reported in
 // errs and skipped, so one broken file does not hide the tasks of the others.
 
@@ -36,11 +36,11 @@ import (
 // SourceInfo describes a built-in task source: the read-only view of the
 // registry that the TUI and the docs test use.
 type SourceInfo struct {
-	// ID is the stable name of the source, named after the tool it reads
-	// rather than after one of its files ("npm", "make", "cargo-make"). It
-	// is lowercase kebab-case, unique, and never one of the file names of
-	// any source, so it can key the rc file's disable list and, later, its
-	// [sources.<id>] tables. Nothing reads it yet.
+	// ID is the stable name of the source in the rc file, named after the
+	// tool it reads rather than after one of its files ("npm", "make",
+	// "cargo-make"). It is lowercase kebab-case, unique, and never one of
+	// the file names of any source, so it keys the disable list and, later,
+	// the [sources.<id>] tables.
 	ID string
 
 	// Label is the human name shown in the README and the docs ("Cargo
@@ -98,7 +98,7 @@ type Settings struct {
 	// (npm, pnpm, yarn, bun); empty means autodetect.
 	PackageManager string
 
-	// Disable names the sources to skip, by the file names they look for.
+	// Disable names the sources to skip, by ID ("make", "cargo-make").
 	Disable []string
 
 	// Tasks are the rc file's custom tasks, shown above the discovered ones.
@@ -260,33 +260,24 @@ func readSourceFile(files Files, src source, dir, prefix string) (tasks []Task, 
 	return nil, false, nil
 }
 
-// enabledSources drops the sources named in disable and reports the entries
-// that match no source file (a typo in the rc file). An entry disables a
-// source when it matches any of the file names the source looks for.
+// enabledSources drops the sources named in disable, by ID, and reports the
+// entries that are not IDs (a typo in the rc file). The rc decoder validates
+// entries before they get here, so this warning is a safety net for callers
+// that build Settings by hand; sources must be the full registry, or a valid
+// ID missing from it warns as unknown.
 func enabledSources(sources []source, disable []string) ([]source, []error) {
-	if len(disable) == 0 {
-		return sources, nil
-	}
-
 	var errs []error
-	known := make(map[string]bool)
-	for _, src := range sources {
-		for _, name := range src.Files {
-			known[name] = true
-		}
-	}
 	for _, name := range disable {
-		if !known[name] {
-			errs = append(errs, fmt.Errorf("rc file: unknown source %q in the disable list", name))
+		if err := checkSourceID(sources, name); err != nil {
+			errs = append(errs, fmt.Errorf("disable: %w", err))
 		}
 	}
 
 	kept := make([]source, 0, len(sources))
 	for _, src := range sources {
-		if slices.ContainsFunc(src.Files, func(name string) bool { return slices.Contains(disable, name) }) {
-			continue
+		if !slices.Contains(disable, src.ID) {
+			kept = append(kept, src)
 		}
-		kept = append(kept, src)
 	}
 	return kept, errs
 }

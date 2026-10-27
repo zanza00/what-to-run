@@ -353,7 +353,7 @@ func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 	writeFile(t, dir, "Makefile.toml", "[tasks\n") // broken, but disabled
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"Makefile.toml"}})
+	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo-make"}})
 	if len(errs) != 0 {
 		t.Fatalf("Discover() errors = %v, want none from the disabled source", errs)
 	}
@@ -363,14 +363,32 @@ func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 }
 
 // TestDiscoverTasksUnknownDisableEntry: a disable entry that names no source
-// is reported, and no source is disabled.
+// is reported with the known IDs, and no source is disabled.
 func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
 	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo"}})
-	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "cargo") {
-		t.Errorf("Discover() errors = %v, want one warning about %q", errs, "cargo")
+	want := `disable: unknown source "cargo"; known sources: ` +
+		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise"
+	if len(errs) != 1 || errs[0].Error() != want {
+		t.Errorf("Discover() errors = %v, want exactly %q", errs, want)
+	}
+	if len(tasks) != 1 || tasks[0].Name != "build" {
+		t.Errorf("Discover() = %+v, want the Makefile build task", tasks)
+	}
+}
+
+// TestDiscoverTasksFileNameDoesNotDisable: disable takes IDs, so a file name
+// warns with the ID to use and the source still runs.
+func TestDiscoverTasksFileNameDoesNotDisable(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
+
+	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"Makefile"}})
+	want := `disable: "Makefile" is a file name; use "make"`
+	if len(errs) != 1 || errs[0].Error() != want {
+		t.Errorf("Discover() errors = %v, want exactly %q", errs, want)
 	}
 	if len(tasks) != 1 || tasks[0].Name != "build" {
 		t.Errorf("Discover() = %+v, want the Makefile build task", tasks)

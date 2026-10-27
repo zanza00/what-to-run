@@ -8,21 +8,42 @@ current directory (for example `../../justfile`).
 Each row shows the task's description and source file. A source that cannot be
 parsed only warns and does not hide the tasks of the other sources.
 
-| File | Discovered tasks | Command |
-| --- | --- | --- |
-| `package.json` | `scripts` | `<package-manager> run <name>` |
-| `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
-| `Taskfile.yml`, `taskfile.yml`, `Taskfile.yaml`, `taskfile.yaml`, `Taskfile.dist.yml`, `taskfile.dist.yml`, `Taskfile.dist.yaml`, `taskfile.dist.yaml` | `tasks` and local `includes` (internal tasks and internal includes hidden) | `task <name>` |
-| `justfile`, `Justfile`, `.justfile` | Recipes, local `import`s and modules (private recipes hidden) | `just <name>` |
-| `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
-| `.cargo/config`, `.cargo/config.toml` | `[alias]` (chains resolved for the description) | `cargo <name>` |
-| `devbox.json` | `shell.scripts` | `devbox run <name>` |
-| `composer.json` | custom `scripts` (lifecycle events excluded) | `composer run-script <name>` |
-| `deno.json`, `deno.jsonc` | `tasks` | `deno task <name>` |
-| `mise.toml`, `.mise.toml` | `[tasks]` | `mise run <name>` |
+| ID | File | Discovered tasks | Command |
+| --- | --- | --- | --- |
+| `npm` | `package.json` | `scripts` | `<package-manager> run <name>` |
+| `make` | `Makefile`, `makefile`, `GNUmakefile` | Targets | `make <name>` |
+| `task` | `Taskfile.yml`, `taskfile.yml`, `Taskfile.yaml`, `taskfile.yaml`, `Taskfile.dist.yml`, `taskfile.dist.yml`, `Taskfile.dist.yaml`, `taskfile.dist.yaml` | `tasks` and local `includes` (internal tasks and internal includes hidden) | `task <name>` |
+| `just` | `justfile`, `Justfile`, `.justfile` | Recipes, local `import`s and modules (private recipes hidden) | `just <name>` |
+| `cargo-make` | `Makefile.toml` | cargo-make `[tasks]` | `cargo make <name>` |
+| `cargo-alias` | `.cargo/config`, `.cargo/config.toml` | `[alias]` (chains resolved for the description) | `cargo <name>` |
+| `devbox` | `devbox.json` | `shell.scripts` | `devbox run <name>` |
+| `composer` | `composer.json` | custom `scripts` (lifecycle events excluded) | `composer run-script <name>` |
+| `deno` | `deno.json`, `deno.jsonc` | `tasks` | `deno task <name>` |
+| `mise` | `mise.toml`, `.mise.toml` | `[tasks]` | `mise run <name>` |
 
 `devbox.json`, `deno.jsonc` and the other JSON-with-comments files are parsed
 as JSONC, so comments and trailing commas are accepted.
+
+## Source IDs
+
+`disable` names a source by its ID. IDs are part of the configuration format,
+so a new source chooses one by these rules:
+
+1. **Lowercase kebab-case** (`npm`, `cargo-make`): it is also a valid bare
+   TOML key, so a future `[sources.cargo-make]` table needs no quotes.
+2. **Named after the tool, not the file** (`make`, `just`, `mise`, `deno`),
+   with a kebab-case suffix when one tool has several families
+   (`cargo-make`, `cargo-alias`). `npm` is the family name for `package.json`
+   scripts whatever package manager runs them.
+3. **Never a file name**: no ID equals a file any source reads, so a file
+   name in `disable` is never ambiguous with a valid ID.
+4. **Unique** across the registry.
+5. **Stable**: renaming an ID breaks existing configuration like renaming a
+   key, so a source keeps its ID instead of following a new file name.
+
+A file name in `disable` warns with the ID to use and disables nothing.
+`TestRegistryInvariants` in `internal/core` enforces the machine-checkable
+rules.
 
 ## package.json
 

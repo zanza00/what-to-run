@@ -25,17 +25,24 @@ var backtickedName = regexp.MustCompile("`([^`]+)`")
 var bulletFileSuffix = regexp.MustCompile(" \\(`[^`]+`\\)$")
 
 // TestTaskSourcesTableMatchesRegistry checks that docs/task-sources.md has one
-// row per source, in registry order, listing exactly the source's files.
+// row per source, in registry order, listing exactly the source's ID and files.
 func TestTaskSourcesTableMatchesRegistry(t *testing.T) {
 	const docName = "docs/task-sources.md"
 
-	rows := sourceTableRows(t, readDoc(t, taskSourcesDocPath, docName), docName, "File")
+	doc := readDoc(t, taskSourcesDocPath, docName)
+	ids := sourceTableRows(t, doc, docName, "ID")
+	rows := sourceTableRows(t, doc, docName, "File")
 	sources := core.Sources()
 
 	for i, src := range sources {
 		if i >= len(rows) {
 			t.Errorf("%s: no row for source %q (files %v); add one", docName, src.Label, src.Files)
 			continue
+		}
+		if i >= len(ids) {
+			t.Errorf("%s: row %d for source %q has no ID cell; add one", docName, i+1, src.Label)
+		} else if len(ids[i]) != 1 || ids[i][0] != src.ID {
+			t.Errorf("%s: row %d ID = %v, want %q; edit that row", docName, i+1, ids[i], src.ID)
 		}
 		if !sameNames(rows[i], src.Files) {
 			t.Errorf("%s: row %d for source %q lists %v, want %v; edit that row", docName, i+1, src.Label, rows[i], src.Files)

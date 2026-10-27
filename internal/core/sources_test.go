@@ -150,11 +150,6 @@ func TestRegistryInvariants(t *testing.T) {
 			want:   "first file",
 		},
 		{
-			name:   "file name shared by two sources",
-			mutate: func(srcs []source) []source { srcs[1].Files = append(srcs[1].Files, srcs[0].Files[0]); return srcs },
-			want:   "belongs to",
-		},
-		{
 			name:   "wrong parent search",
 			mutate: func(srcs []source) []source { srcs[0].SearchParents = true; return srcs },
 			want:   "SearchParents",
@@ -372,7 +367,8 @@ func checkSourceIDs(srcs []source) []error {
 
 // checkRegistry reports the invariants a built-in registry must satisfy: the
 // IDs, order, labels, first files, display files and parent search in
-// registryOrder; unique labels and file names; and a parser.
+// registryOrder; unique labels; and a parser. Two sources may read the same
+// file, so file names are not unique.
 func checkRegistry(srcs []source) []error {
 	errs := checkSourceIDs(srcs)
 	if len(srcs) != len(registryOrder) {
@@ -380,7 +376,6 @@ func checkRegistry(srcs []source) []error {
 	}
 
 	labels := make(map[string]bool, len(srcs))
-	files := make(map[string]string, len(srcs)*2)
 	for i, src := range srcs {
 		if src.Label == "" {
 			errs = append(errs, fmt.Errorf("source %d: empty label", i))
@@ -434,13 +429,6 @@ func checkRegistry(srcs []source) []error {
 		}
 		if display := src.DisplayFile(); display == "" || !slices.Contains(src.Files, display) {
 			errs = append(errs, fmt.Errorf("source %q: display file %q is not a candidate", src.Label, display))
-		}
-
-		for _, name := range src.Files {
-			if owner, ok := files[name]; ok && owner != src.Label {
-				errs = append(errs, fmt.Errorf("file %q belongs to %q and %q", name, owner, src.Label))
-			}
-			files[name] = src.Label
 		}
 
 		if src.Parse == nil {

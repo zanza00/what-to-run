@@ -59,9 +59,10 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `powershellinit.go` = the shell widgets printed by `init zsh`, `init bash`
   and `init powershell`). `cmd/wtr` only parses flags/subcommands and calls
   `tui.Run` / `tui.Preview` / `shell.ZshInit` / `shell.BashInit` /
-  `shell.PowerShellInit`. Adding a source: a `SourceInfo` literal (`Label`,
-  `Files`, `SearchParents`, plus `DisplayFileOverride` when the empty screen
-  must show a file other than `Files[0]`) and its parser in a new
+  `shell.PowerShellInit`. Adding a source: a `SourceInfo` literal with an `ID`
+  chosen by the rules in [Source IDs](docs/task-sources.md#source-ids), plus
+  `Label`, `Files`, `SearchParents`, and `DisplayFileOverride` when the empty
+  screen must show a file other than `Files[0]`, and its parser in a new
   `internal/core/source_<name>.go`, one line in the `defaultSources` registry,
   table-driven tests next to the parser, one row in `docs/task-sources.md` and
   one bullet in `README.md`. `TestRegistryInvariants` and
@@ -107,7 +108,7 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `.what-to-run.toml` in the project,
   `$XDG_CONFIG_HOME/what-to-run/config.toml` globally,
   `%AppData%\what-to-run\config.toml` on Windows) adds `[[tasks]]`,
-  overrides `package_manager`, disables sources, and supports per-project
+  overrides `package_manager`, disables sources by ID, and supports per-project
   overrides (`[projects."<path>"]`) in the user file. It is parsed in
   best-effort mode so unknown keys, wrong types, or invalid entries warn and
   drop only the offending item while keeping the rest of the file. Warnings open

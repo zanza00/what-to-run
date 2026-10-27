@@ -34,6 +34,13 @@ import (
 // SourceInfo describes a built-in task source: the read-only view of the
 // registry that the TUI and the docs test use.
 type SourceInfo struct {
+	// ID is the stable name of the source, named after the tool it reads
+	// rather than after one of its files ("npm", "make", "cargo-make"). It
+	// is lowercase kebab-case, unique, and never one of the file names of
+	// any source, so it can key the rc file's disable list and, later, its
+	// [sources.<id>] tables. Nothing reads it yet.
+	ID string
+
 	// Label is the human name shown in the README and the docs ("Cargo
 	// aliases", "Makefile"). It is unique and need not be a file name.
 	Label string

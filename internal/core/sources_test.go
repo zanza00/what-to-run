@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -56,10 +57,10 @@ func TestDiscoverSourceDoesNotSearchParentsForPackageJSON(t *testing.T) {
 }
 
 // TestRegistryInvariants pins the metadata every built-in source carries:
-// labels, display files, candidate order, parse functions and parent search.
-// It builds the registry through missingFiles, proving metadata needs no disk,
-// and runs the checks against broken fixtures, so the failure messages are
-// part of the test.
+// IDs, labels, display files, candidate order, parse functions and parent
+// search. It builds the registry through missingFiles, proving metadata needs
+// no disk, and runs the checks against broken fixtures, so the failure
+// messages are part of the test.
 func TestRegistryInvariants(t *testing.T) {
 	if errs := checkRegistry(defaultSources(Settings{}, missingFiles{})); len(errs) != 0 {
 		t.Fatalf("defaultSources() invariants = %v, want none", errs)
@@ -70,6 +71,49 @@ func TestRegistryInvariants(t *testing.T) {
 		mutate func([]source) []source
 		want   string
 	}{
+		{
+			name:   "empty id",
+			mutate: func(srcs []source) []source { srcs[0].ID = ""; return srcs },
+			want:   "empty ID",
+		},
+		{
+			name:   "wrong-case id",
+			mutate: func(srcs []source) []source { srcs[0].ID = "NPM"; return srcs },
+			want:   "lowercase kebab-case",
+		},
+		{
+			name:   "malformed id",
+			mutate: func(srcs []source) []source { srcs[4].ID = "cargo_make"; return srcs },
+			want:   "lowercase kebab-case",
+		},
+		{
+			name:   "duplicate id",
+			mutate: func(srcs []source) []source { srcs[1].ID = srcs[0].ID; return srcs },
+			want:   "duplicate ID",
+		},
+		{
+			name:   "id equal to a file name",
+			mutate: func(srcs []source) []source { srcs[0].ID = srcs[1].Files[1]; return srcs },
+			want:   "is a file name",
+		},
+		{
+			name: "id out of registry order",
+			mutate: func(srcs []source) []source {
+				srcs[4].ID, srcs[5].ID = "cargo-alias", "cargo-make"
+				return srcs
+			},
+			want: `ID "cargo-alias", want "cargo-make" in registry order`,
+		},
+		{
+			name: "extra id",
+			mutate: func(srcs []source) []source {
+				extra := srcs[0]
+				extra.Label, extra.ID = "extra", "extra"
+				extra.Files = []string{"extra.toml"}
+				return append(srcs, extra)
+			},
+			want: "extra ID",
+		},
 		{
 			name:   "empty label",
 			mutate: func(srcs []source) []source { srcs[0].Label = ""; return srcs },
@@ -167,6 +211,9 @@ func TestSourcesMatchesRegistry(t *testing.T) {
 	}
 	for i, info := range infos {
 		want := registryOrder[i]
+		if info.ID != want.id {
+			t.Errorf("Sources()[%d].ID = %q, want %q", i, info.ID, want.id)
+		}
 		if info.Label != want.label {
 			t.Errorf("Sources()[%d].Label = %q, want %q", i, info.Label, want.label)
 		}
@@ -202,6 +249,7 @@ func TestSourcesReturnsCopies(t *testing.T) {
 	}
 
 	for i := range first {
+		first[i].ID = "mutated"
 		first[i].Label = "mutated"
 		first[i].DisplayFileOverride = "mutated"
 		first[i].SearchParents = !first[i].SearchParents
@@ -217,40 +265,116 @@ func TestSourcesReturnsCopies(t *testing.T) {
 }
 
 // registryOrder is the display order of the built-in sources: each entry has
-// the label, the first candidate file the source must prefer, the display
-// override it must declare, the file the empty screen must show and whether it
-// searches parent directories. Until plan 2 gives the sources stable IDs, the
-// label identifies the entry. The table pins the order itself, so a reordered,
-// missing or extra source fails checkRegistry.
+// the stable ID, the label, the first candidate file the source must prefer,
+// the display override it must declare, the file the empty screen must show
+// and whether it searches parent directories. The ID names the tool, not the
+// file: package.json scripts are "npm" whatever package manager runs them.
+// The table pins the order itself, so a reordered, missing or extra source
+// fails checkRegistry.
 var registryOrder = []struct {
+	id              string
 	label           string
 	firstFile       string
 	displayOverride string
 	displayFile     string
 	searchParents   bool
 }{
-	{label: "package.json", firstFile: "package.json", displayFile: "package.json"},
-	{label: "Makefile", firstFile: "GNUmakefile", displayOverride: "Makefile", displayFile: "Makefile"},
-	{label: "Taskfile.yml", firstFile: "Taskfile.yml", displayFile: "Taskfile.yml", searchParents: true},
-	{label: "justfile", firstFile: "justfile", displayFile: "justfile", searchParents: true},
-	{label: "Makefile.toml", firstFile: "Makefile.toml", displayFile: "Makefile.toml"},
+	{id: "npm", label: "package.json", firstFile: "package.json", displayFile: "package.json"},
 	{
+		id:              "make",
+		label:           "Makefile",
+		firstFile:       "GNUmakefile",
+		displayOverride: "Makefile",
+		displayFile:     "Makefile",
+	},
+	{
+		id:            "task",
+		label:         "Taskfile.yml",
+		firstFile:     "Taskfile.yml",
+		displayFile:   "Taskfile.yml",
+		searchParents: true,
+	},
+	{
+		id:            "just",
+		label:         "justfile",
+		firstFile:     "justfile",
+		displayFile:   "justfile",
+		searchParents: true,
+	},
+	{id: "cargo-make", label: "Makefile.toml", firstFile: "Makefile.toml", displayFile: "Makefile.toml"},
+	{
+		id:              "cargo-alias",
 		label:           "Cargo aliases",
 		firstFile:       ".cargo/config",
 		displayOverride: ".cargo/config.toml",
 		displayFile:     ".cargo/config.toml",
 	},
-	{label: "devbox.json", firstFile: "devbox.json", displayFile: "devbox.json"},
-	{label: "composer.json", firstFile: "composer.json", displayFile: "composer.json"},
-	{label: "deno.json", firstFile: "deno.json", displayFile: "deno.json"},
-	{label: "mise.toml", firstFile: "mise.toml", displayFile: "mise.toml"},
+	{id: "devbox", label: "devbox.json", firstFile: "devbox.json", displayFile: "devbox.json"},
+	{id: "composer", label: "composer.json", firstFile: "composer.json", displayFile: "composer.json"},
+	{id: "deno", label: "deno.json", firstFile: "deno.json", displayFile: "deno.json"},
+	{id: "mise", label: "mise.toml", firstFile: "mise.toml", displayFile: "mise.toml"},
+}
+
+// sourceIDPattern is the shape of a source ID: lowercase kebab-case, which is
+// also a valid bare TOML key, so [sources.cargo-make] needs no quotes.
+var sourceIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+
+// checkSourceIDs reports the ID invariants a built-in registry must satisfy:
+// every source declares an ID in registry order, the ID is lowercase
+// kebab-case, IDs are unique, and no ID is one of the file names any source
+// reads.
+func checkSourceIDs(srcs []source) []error {
+	var errs []error
+
+	files := make(map[string]bool, len(srcs)*2)
+	for _, src := range srcs {
+		for _, name := range src.Files {
+			files[name] = true
+		}
+	}
+
+	seen := make(map[string]bool, len(srcs))
+	for i, src := range srcs {
+		switch {
+		case src.ID == "":
+			errs = append(errs, fmt.Errorf("source %q: empty ID", src.Label))
+			continue
+		case !sourceIDPattern.MatchString(src.ID):
+			errs = append(errs, fmt.Errorf(
+				"source %q: ID %q is not lowercase kebab-case",
+				src.Label, src.ID,
+			))
+			continue
+		}
+		if seen[src.ID] {
+			errs = append(errs, fmt.Errorf("source %q: duplicate ID %q", src.Label, src.ID))
+		}
+		seen[src.ID] = true
+
+		switch {
+		case i >= len(registryOrder):
+			errs = append(errs, fmt.Errorf(
+				"source %q: extra ID %q after the %d expected",
+				src.Label, src.ID, len(registryOrder),
+			))
+		case src.ID != registryOrder[i].id:
+			errs = append(errs, fmt.Errorf(
+				"source %q: ID %q, want %q in registry order",
+				src.Label, src.ID, registryOrder[i].id,
+			))
+		}
+		if files[src.ID] {
+			errs = append(errs, fmt.Errorf("source %q: ID %q is a file name", src.Label, src.ID))
+		}
+	}
+	return errs
 }
 
 // checkRegistry reports the invariants a built-in registry must satisfy: the
-// order, labels, first files, display files and parent search in registryOrder;
-// unique labels and file names; and a parser.
+// IDs, order, labels, first files, display files and parent search in
+// registryOrder; unique labels and file names; and a parser.
 func checkRegistry(srcs []source) []error {
-	var errs []error
+	errs := checkSourceIDs(srcs)
 	if len(srcs) != len(registryOrder) {
 		errs = append(errs, fmt.Errorf("registry has %d sources, want %d", len(srcs), len(registryOrder)))
 	}

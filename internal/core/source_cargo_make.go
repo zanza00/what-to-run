@@ -13,6 +13,7 @@ import (
 func cargoMakeSource() source {
 	return source{
 		SourceInfo: SourceInfo{
+			ID:    "cargo-make",
 			Label: "Makefile.toml",
 			Files: []string{"Makefile.toml"},
 		},

@@ -26,6 +26,7 @@ var taskfileNames = []string{
 func taskfileSource(files Files) source {
 	return source{
 		SourceInfo: SourceInfo{
+			ID:            "task",
 			Label:         "Taskfile.yml",
 			Files:         slices.Clone(taskfileNames),
 			SearchParents: true,

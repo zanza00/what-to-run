@@ -12,6 +12,7 @@ import (
 func denoSource() source {
 	return source{
 		SourceInfo: SourceInfo{
+			ID:    "deno",
 			Label: "deno.json",
 			Files: []string{"deno.json", "deno.jsonc"},
 		},

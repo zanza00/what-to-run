@@ -12,6 +12,7 @@ import (
 func composerSource() source {
 	return source{
 		SourceInfo: SourceInfo{
+			ID:    "composer",
 			Label: "composer.json",
 			Files: []string{"composer.json"},
 		},

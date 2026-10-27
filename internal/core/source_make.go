@@ -11,6 +11,7 @@ import (
 func makeSource() source {
 	return source{
 		SourceInfo: SourceInfo{
+			ID:                  "make",
 			Label:               "Makefile",
 			DisplayFileOverride: "Makefile",
 			Files:               []string{"GNUmakefile", "makefile", "Makefile"},

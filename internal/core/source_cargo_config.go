@@ -17,6 +17,7 @@ import (
 func cargoAliasSource() source {
 	return source{
 		SourceInfo: SourceInfo{
+			ID:                  "cargo-alias",
 			Label:               "Cargo aliases",
 			DisplayFileOverride: ".cargo/config.toml",
 			Files:               []string{".cargo/config", ".cargo/config.toml"},

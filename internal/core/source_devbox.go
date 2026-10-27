@@ -12,6 +12,7 @@ import (
 func devboxSource() source {
 	return source{
 		SourceInfo: SourceInfo{
+			ID:    "devbox",
 			Label: "devbox.json",
 			Files: []string{"devbox.json"},
 		},

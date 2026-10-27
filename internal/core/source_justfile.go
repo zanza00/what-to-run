@@ -18,6 +18,7 @@ import (
 func justfileSource(files Files) source {
 	return source{
 		SourceInfo: SourceInfo{
+			ID:            "just",
 			Label:         "justfile",
 			Files:         []string{"justfile", "Justfile", ".justfile"},
 			SearchParents: true,

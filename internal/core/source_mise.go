@@ -15,6 +15,7 @@ import (
 func miseSource() source {
 	return source{
 		SourceInfo: SourceInfo{
+			ID:    "mise",
 			Label: "mise.toml",
 			Files: []string{"mise.toml", ".mise.toml"},
 		},

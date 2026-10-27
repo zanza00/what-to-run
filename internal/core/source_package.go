@@ -14,6 +14,7 @@ import (
 func packageJSONSource(runnerOverride string, files Files) source {
 	return source{
 		SourceInfo: SourceInfo{
+			ID:    "npm",
 			Label: "package.json",
 			Files: []string{"package.json"},
 		},

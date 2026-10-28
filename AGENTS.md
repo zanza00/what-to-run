@@ -184,10 +184,23 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   widget) `Run` executes the task itself after `restoreCursor`, and `tab` just
   prints the command line.
 - `.agents/skills/` is committed on purpose (see `skills-lock.json`);
-  `release/` is this repository's own skill (not vendored, so it has no lock
-  entry) and walks the tag-to-verification release flow; `bubbletea-tfe` is a
-  manual rename of `ggprompts/tfe` to avoid an id collision with `bubbletea` —
-  don't reinstall it unrenamed.
+  `release/` and `docs-writing/` are this repository's own skills (not
+  vendored, so they have no lock entry): the first walks the
+  tag-to-verification release flow, the second holds the documentation map,
+  glossary and style; `bubbletea-tfe` is a manual rename of `ggprompts/tfe` to
+  avoid an id collision with `bubbletea` — don't reinstall it unrenamed.
+
+## Comments
+
+Comments follow the principles of Simplified Technical English
+([ASD-STE100](https://www.asd-ste100.org/), Issue 9), but not its controlled
+dictionary:
+
+- Inside a function, explain why the code is there, not what it does.
+- Write short sentences, with one idea in each sentence.
+- Use the active voice.
+- Keep the articles and the full sentence: no telegraphic English.
+- Use one term for one thing, and prefer the term the codebase already uses.
 
 ## Charm v2 gotchas
 

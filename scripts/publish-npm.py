@@ -60,6 +60,10 @@ def package_name(goos, goarch):
     return f"{NAME}-{goos}-{NPM_CPU[goarch]}"
 
 
+# The reverse lookup `stage` needs, built once instead of scanned per package.
+BY_PACKAGE = {package_name(goos, goarch): (goos, goarch) for goos, goarch in TARGETS}
+
+
 def asset_name(goos, goarch, version):
     extension = "zip" if goos == "windows" else "tar.gz"
     return f"{NAME}_{version}_{goos}_{goarch}.{extension}"
@@ -131,14 +135,6 @@ def extract_binary(archive, binary):
     raise ValueError(f"{archive} does not contain {binary}")
 
 
-def target_of(name):
-    """The goos/goarch pair whose manifest a platform package name describes."""
-    for goos, goarch in TARGETS:
-        if package_name(goos, goarch) == name:
-            return goos, goarch
-    raise KeyError(name)
-
-
 def stage(directory, packages, assets):
     """Write one publishable directory per package under `directory`."""
     staged = []
@@ -149,8 +145,11 @@ def stage(directory, packages, assets):
         shutil.copy(LICENSE, package / "LICENSE")
         if name == NAME:
             shutil.copy(LAUNCHER, package / "bin" / "wtr.js")
+            # npm renders the package README on the registry, and always
+            # includes it regardless of `files`.
+            shutil.copy(ROOT / "README.md", package / "README.md")
         else:
-            goos, goarch = target_of(name)
+            goos, goarch = BY_PACKAGE[name]
             binary = "wtr.exe" if goos == "windows" else "wtr"
             content = extract_binary(assets / asset_name(goos, goarch, manifest["version"]), binary)
             path = package / "bin" / binary
@@ -179,14 +178,23 @@ def publish(packages, directory, provenance):
         if provenance:
             # The runner's OIDC token also proves the tarball was built here.
             command.append("--provenance")
-        subprocess.run(command, check=True)
+        result = subprocess.run(command)
+        if result.returncode != 0:
+            raise SystemExit(
+                f"npm publish {name}@{version} failed with exit code {result.returncode}"
+            )
         print(f"Published {name} {version}")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=True)
-    parser.add_argument("--artifact", type=Path, required=True)
+    parser.add_argument(
+        "--artifact",
+        type=Path,
+        required=True,
+        help="checksums.txt of the release; the archives are read from its directory",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     version = version_of(args.tag)
@@ -197,7 +205,9 @@ def main():
     if args.dry_run:
         print(destination)
     else:
-        publish(packages, destination, os.environ.get("GITHUB_ACTIONS") == "true")
+        publish(
+            packages, destination, provenance=os.environ.get("GITHUB_ACTIONS") == "true"
+        )
 
 
 if __name__ == "__main__":

@@ -1,11 +1,13 @@
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import re
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import zipfile
 
 
@@ -123,26 +125,73 @@ class PublisherTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             publisher.stage(self.directory / "npm", publisher.render("v1.2.3"), self.directory)
 
+    def test_the_root_package_ships_the_readme(self):
+        publisher.stage(self.directory / "npm", publisher.render("v1.2.3"), self.directory)
+        readme = Path(__file__).resolve().parent.parent / "README.md"
+        root = self.directory / "npm" / publisher.NAME / "README.md"
+        self.assertEqual(root.read_bytes(), readme.read_bytes())
+        self.assertFalse((self.directory / "npm" / "what-to-run-linux-x64" / "README.md").exists())
+
+    def test_the_platform_matrix_matches_goreleaser(self):
+        config = (Path(__file__).resolve().parent.parent / ".goreleaser.yaml").read_text()
+        # Only the builds block lists the matrix in brackets: the archives block
+        # spells a bare `goos: windows`, which this pattern must not pick up.
+        lists = re.findall(r"^\s+go(?:os|arch): \[([^\]]*)\]", config, re.MULTILINE)
+        self.assertEqual(len(lists), 2)
+        platforms = [value.strip() for value in lists[0].split(",")]
+        architectures = [value.strip() for value in lists[1].split(",")]
+        self.assertEqual(
+            {(platform, architecture) for platform in platforms for architecture in architectures},
+            set(publisher.TARGETS),
+        )
+
     def test_publish_skips_versions_already_on_the_registry(self):
         packages = publisher.render("v1.2.3")
         with patch.object(publisher, "published", side_effect=[True, False, False, False, False, False, False]), \
-                patch.object(publisher.subprocess, "run") as run:
+                patch.object(
+                    publisher.subprocess, "run", return_value=MagicMock(returncode=0)
+                ) as run:
             publisher.publish(packages, self.directory / "npm", provenance=False)
         self.assertEqual(run.call_count, len(publisher.TARGETS))
         command = run.call_args.args[0]
         self.assertEqual(command[:2], ["npm", "publish"])
         self.assertIn("--access", command)
         self.assertNotIn("--provenance", command)
-        self.assertTrue(run.call_args.kwargs["check"])
 
-    def test_provenance_is_only_requested_on_github(self):
+    def test_a_failed_publish_names_the_package(self):
         packages = {publisher.NAME: publisher.render("v1.2.3")[publisher.NAME]}
         with patch.object(publisher, "published", return_value=False), \
-                patch.object(publisher.subprocess, "run") as run:
-            publisher.publish(packages, self.directory / "npm", provenance=True)
-        self.assertIn("--provenance", run.call_args.args[0])
+                patch.object(
+                    publisher.subprocess, "run", return_value=MagicMock(returncode=1)
+                ):
+            with self.assertRaises(SystemExit) as raised:
+                publisher.publish(packages, self.directory / "npm", provenance=False)
+        self.assertIn("what-to-run@1.2.3", str(raised.exception))
+        self.assertIn("exit code 1", str(raised.exception))
 
-    def test_checksums_invocations_only_and_dry_run_does_not_publish(self):
+    def test_main_requests_provenance_only_on_github(self):
+        checksums = self.directory / "checksums.txt"
+        checksums.write_text(self.checksums)
+        packages = {publisher.NAME: publisher.render("v1.2.3")[publisher.NAME]}
+        arguments = ["publisher", "--tag", "v1.2.3", "--artifact", str(checksums)]
+
+        def provenance_seen(environment, absent):
+            with patch.object(publisher, "verify_checksums"), \
+                    patch.object(publisher, "render", return_value=packages), \
+                    patch.object(publisher, "stage", return_value=[]), \
+                    patch.object(publisher, "publish") as publish, \
+                    patch("sys.argv", arguments), \
+                    patch.dict(os.environ, environment, clear=False):
+                if absent:
+                    os.environ.pop("GITHUB_ACTIONS", None)
+                publisher.main()
+            publish.assert_called_once()
+            return publish.call_args.kwargs["provenance"]
+
+        self.assertIs(provenance_seen({"GITHUB_ACTIONS": "true"}, False), True)
+        self.assertIs(provenance_seen({}, True), False)
+
+    def test_dry_run_stages_without_publishing(self):
         checksums = self.directory / "checksums.txt"
         checksums.write_text(self.checksums)
         arguments = ["publisher", "--tag", "v1.2.3", "--artifact", str(checksums)]

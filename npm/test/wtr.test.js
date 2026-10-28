@@ -22,7 +22,7 @@ const posix = { skip: process.platform === "win32" ? "needs a POSIX shell" : fal
 // A global install of what-to-run as npm lays it out: the package with the
 // launcher, and next to it the platform package with the binary. `binary`
 // omitted leaves the optional dependency out, the way `--omit=optional` does.
-function stage(binary) {
+function stage(binary, mode = 0o755) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "wtr-npm-"));
   const entry = path.join(root, "bin", "wtr.js");
   fs.mkdirSync(path.dirname(entry), { recursive: true });
@@ -32,7 +32,7 @@ function stage(binary) {
     const directory = path.join(root, "node_modules", pkg);
     fs.mkdirSync(path.join(directory, "bin"), { recursive: true });
     fs.writeFileSync(path.join(directory, "package.json"), JSON.stringify({ name: pkg, version: "1.2.3" }));
-    fs.writeFileSync(path.join(directory, "bin", "wtr"), binary, { mode: 0o755 });
+    fs.writeFileSync(path.join(directory, "bin", "wtr"), binary, { mode });
   }
   return entry;
 }
@@ -97,4 +97,26 @@ test("the launcher fails with a message when the platform package is missing", p
   const result = spawnSync(process.execPath, [entry, "--version"], { encoding: "utf8" });
   assert.equal(result.status, 1);
   assert.match(result.stderr, new RegExp(`what-to-run: ${packageName()} is not installed`));
+});
+
+test("the launcher leaves stdin attached", posix, () => {
+  const entry = stage('#!/bin/sh\nread line\nprintf "stdin=%s\\n" "$line"\n');
+  const result = spawnSync(process.execPath, [entry], { encoding: "utf8", input: "hello\n" });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, "stdin=hello\n");
+});
+
+test("a binary that cannot be executed is reported, not thrown", posix, () => {
+  const entry = stage('#!/bin/sh\nexit 0\n', 0o644);
+  const result = spawnSync(process.execPath, [entry], { encoding: "utf8" });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /^what-to-run: cannot run /);
+  assert.doesNotMatch(result.stderr, /\n\s+at /);
+});
+
+test("the launcher dies of the same signal as the task", posix, () => {
+  const entry = stage("#!/bin/sh\nkill -TERM $$\n");
+  const result = spawnSync(process.execPath, [entry], { encoding: "utf8" });
+  assert.equal(result.signal, "SIGTERM");
+  assert.equal(result.status, null);
 });

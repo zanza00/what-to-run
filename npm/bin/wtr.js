@@ -91,6 +91,8 @@ function run(argv) {
   if (result.signal) {
     // Dying of the same signal keeps the shell's view of the task intact
     // (Ctrl-C, a closed terminal) instead of turning it into exit code 1.
+    // Windows has no POSIX signals, so spawnSync reports none there and the
+    // exit-code path below is what runs.
     process.kill(process.pid, result.signal);
     return 1;
   }

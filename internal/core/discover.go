@@ -12,22 +12,12 @@
 // nearest directory holding a candidate wins, and a file found above the
 // project directory is badged with the relative path, such as ../justfile.
 //
-// The built-in sources, in this fixed order:
-//
-//	package.json   npm/pnpm/yarn/bun scripts
-//	Makefile       make targets (also makefile, GNUmakefile)
-//	Taskfile.yml   go-task tasks (also taskfile.yml, Taskfile.dist.yml)
-//	justfile       just recipes (also Justfile, .justfile)
-//	Makefile.toml  cargo-make tasks
-//	.cargo/config  cargo aliases (also .cargo/config.toml)
-//	devbox.json    devbox shell scripts
-//	composer.json  Composer custom scripts
-//	deno.json      Deno tasks (also deno.jsonc)
-//	mise.toml      mise tasks (also .mise.toml)
+// The built-in sources and their order are the defaultSources registry;
+// Sources exposes them and docs/task-sources.md documents them.
 //
 // The rc file (decoded by the caller) sits on top: its tasks are shown
 // first and shadow same-named tasks of the sources, and a source can be
-// disabled by the names of the files it looks for. A source that is missing
+// disabled by its ID ("make", "cargo-make"). A source that is missing
 // contributes nothing; a source that exists but fails to parse is reported in
 // errs and skipped, so one broken file does not hide the tasks of the others.
 
@@ -39,11 +29,31 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 )
 
-// source is one family of project files. Adding a source is a literal in
-// defaultSources plus a parser function; the framework does the rest.
-type source struct {
+// SourceInfo describes a built-in task source: the read-only view of the
+// registry that the TUI and the docs test use.
+type SourceInfo struct {
+	// ID is the stable name of the source in the rc file, named after the
+	// tool it reads rather than after one of its files ("npm", "make",
+	// "cargo-make"). It is lowercase kebab-case, unique, and never one of
+	// the file names of any source, so it keys the disable list and, later,
+	// the [sources.<id>] tables.
+	ID string
+
+	// Label is the human name shown in the README and the docs ("Cargo
+	// aliases", "Makefile"). It is unique and need not be a file name.
+	Label string
+
+	// DisplayFileOverride overrides the file shown in the empty screen;
+	// empty means Files[0]. Make sets it to Makefile because it prefers
+	// GNUmakefile but displays Makefile; cargo-alias sets it to
+	// .cargo/config.toml because Cargo recommends that name while the
+	// parser prefers .cargo/config.
+	DisplayFileOverride string
+
 	// Files are candidate paths in preference order, relative to the
 	// directory being searched: the first that exists is parsed. Its path
 	// relative to the project directory becomes the badge of the tasks the
@@ -54,6 +64,26 @@ type source struct {
 	// ancestors after the directory itself, as just and task do. It is
 	// false for every other source: their files are directory-local.
 	SearchParents bool
+}
+
+// DisplayFile is the file the empty screen shows: DisplayFileOverride when
+// set, otherwise the first candidate.
+func (s SourceInfo) DisplayFile() string {
+	if s.DisplayFileOverride != "" {
+		return s.DisplayFileOverride
+	}
+	if len(s.Files) == 0 {
+		return ""
+	}
+	return s.Files[0]
+}
+
+// source is one family of project files. Adding a source is a SourceInfo
+// literal in defaultSources plus a parser function; the framework does the
+// rest. Sources are discovered in registry order, and each parser decides the
+// order of the tasks it returns.
+type source struct {
+	SourceInfo
 
 	// Parse turns the winning file's content into tasks: it receives the
 	// directory containing the file for sibling lookups (lock files,
@@ -68,7 +98,7 @@ type Settings struct {
 	// (npm, pnpm, yarn, bun); empty means autodetect.
 	PackageManager string
 
-	// Disable names the sources to skip, by the file names they look for.
+	// Disable names the sources to skip, by ID ("make", "cargo-make").
 	Disable []string
 
 	// Tasks are the rc file's custom tasks, shown above the discovered ones.
@@ -98,6 +128,74 @@ func defaultSources(settings Settings, files Files) []source {
 		denoSource(),
 		miseSource(),
 	}
+}
+
+// Sources returns the built-in sources in display order. The result is a
+// copy: changing it does not affect discovery.
+func Sources() []SourceInfo {
+	srcs := defaultSources(Settings{}, missingFiles{})
+	infos := make([]SourceInfo, len(srcs))
+	for i, src := range srcs {
+		infos[i] = src.SourceInfo
+		infos[i].Files = slices.Clone(src.Files)
+	}
+	return infos
+}
+
+// missingFiles is the Files used to build metadata: every path is missing.
+type missingFiles struct{}
+
+var _ Files = missingFiles{}
+
+func (missingFiles) ReadFile(string) ([]byte, error)    { return nil, fs.ErrNotExist }
+func (missingFiles) Exists(string) bool                 { return false }
+func (missingFiles) ReadDir(string) ([]DirEntry, error) { return nil, fs.ErrNotExist }
+
+// CheckSourceID returns nil when name is the ID of a built-in source. The
+// error explains why it is not one: a file name a source reads (with the ID
+// to use instead), a package manager name (to disable package.json scripts
+// use "npm"), a near miss in case (with the ID), or an unknown name (with the
+// list of valid IDs).
+func CheckSourceID(name string) error {
+	return checkSourceID(defaultSources(Settings{}, missingFiles{}), name)
+}
+
+// checkSourceID validates name against the given registry. It takes the
+// sources as a parameter so tests can check a shared file name with synthetic
+// sources.
+func checkSourceID(sources []source, name string) error {
+	var byFile []string
+	for _, src := range sources {
+		if src.ID == name {
+			return nil
+		}
+		if slices.Contains(src.Files, name) {
+			byFile = append(byFile, strconv.Quote(src.ID))
+		}
+	}
+	switch {
+	case len(byFile) == 1:
+		return fmt.Errorf("%q is a file name; use %s", name, byFile[0])
+	case len(byFile) > 1:
+		return fmt.Errorf("%q is a file name; use one of %s", name, strings.Join(byFile, ", "))
+	}
+	if _, ok := PackageManagerName(name); ok {
+		return fmt.Errorf(
+			"%q is a package manager, not a source ID; to disable package.json scripts use \"npm\"",
+			name,
+		)
+	}
+	// IDs are unique and lowercase, so an EqualFold match is unique.
+	for _, src := range sources {
+		if strings.EqualFold(src.ID, name) {
+			return fmt.Errorf("unknown source %q; did you mean %q?", name, src.ID)
+		}
+	}
+	ids := make([]string, len(sources))
+	for i, src := range sources {
+		ids[i] = src.ID
+	}
+	return fmt.Errorf("unknown source %q; known sources: %s", name, strings.Join(ids, ", "))
 }
 
 // discoverSource runs one source over dir, and over its ancestors when the
@@ -162,33 +260,24 @@ func readSourceFile(files Files, src source, dir, prefix string) (tasks []Task, 
 	return nil, false, nil
 }
 
-// enabledSources drops the sources named in disable and reports the entries
-// that match no source file (a typo in the rc file). An entry disables a
-// source when it matches any of the file names the source looks for.
+// enabledSources drops the sources named in disable, by ID, and reports the
+// entries that are not IDs (a typo in the rc file). The rc decoder validates
+// entries before they get here, so this warning is a safety net for callers
+// that build Settings by hand; sources must be the full registry, or a valid
+// ID missing from it warns as unknown.
 func enabledSources(sources []source, disable []string) ([]source, []error) {
-	if len(disable) == 0 {
-		return sources, nil
-	}
-
 	var errs []error
-	known := make(map[string]bool)
-	for _, src := range sources {
-		for _, name := range src.Files {
-			known[name] = true
-		}
-	}
 	for _, name := range disable {
-		if !known[name] {
-			errs = append(errs, fmt.Errorf("rc file: unknown source %q in the disable list", name))
+		if err := checkSourceID(sources, name); err != nil {
+			errs = append(errs, fmt.Errorf("disable: %w", err))
 		}
 	}
 
 	kept := make([]source, 0, len(sources))
 	for _, src := range sources {
-		if slices.ContainsFunc(src.Files, func(name string) bool { return slices.Contains(disable, name) }) {
-			continue
+		if !slices.Contains(disable, src.ID) {
+			kept = append(kept, src)
 		}
-		kept = append(kept, src)
 	}
 	return kept, errs
 }
@@ -217,15 +306,11 @@ func rcTasks(settings Settings, dir string) []Task {
 	return tasks
 }
 
-// Discover scans dir for the tasks of the rc file and the built-in
-// sources, in display order: rc tasks first, then package.json, Makefile,
-// Taskfile.yml, justfile, Makefile.toml, .cargo/config, devbox.json,
-// composer.json, deno.json/deno.jsonc and mise.toml/.mise.toml. Package
-// scripts, Taskfile tasks, just recipes, cargo-make tasks, cargo aliases,
-// devbox scripts, Composer scripts, Deno tasks and mise tasks are sorted by
-// name; Makefile targets keep the order they appear in the file. A source that
-// fails to parse is reported in errs and skipped (a disabled source is not read
-// at all), and rc tasks shadow same-named tasks of the built-in sources.
+// Discover scans dir for the tasks of the rc file and the built-in sources,
+// in display order: rc tasks first, then each enabled source in registry
+// order; each parser decides the order of its own tasks. A source that fails
+// to parse is reported in errs and skipped (a disabled source is not read at
+// all), and rc tasks shadow same-named tasks of the built-in sources.
 func Discover(files Files, dir string, settings Settings) ([]Task, []error) {
 	sources, errs := enabledSources(defaultSources(settings, files), settings.Disable)
 

@@ -11,7 +11,11 @@ import (
 // composerSource returns the source for the project's composer.json.
 func composerSource() source {
 	return source{
-		Files: []string{"composer.json"},
+		SourceInfo: SourceInfo{
+			ID:    "composer",
+			Label: "composer.json",
+			Files: []string{"composer.json"},
+		},
 		Parse: parseComposer,
 	}
 }

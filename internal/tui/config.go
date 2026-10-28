@@ -49,10 +49,8 @@ type config struct {
 	// it. Empty means the default; --theme overrides it for a single run.
 	Theme string `toml:"theme"`
 
-	// Disable names the sources to skip, by the file names they look for
-	// (any of "package.json", "Makefile", "Taskfile.yml", "justfile",
-	// "Makefile.toml", "devbox.json", "composer.json", "deno.json",
-	// "mise.toml", and so on).
+	// Disable names the sources to skip, by ID ("make", "cargo-make"); see
+	// core.Sources for the built-in registry.
 	Disable []string `toml:"disable"`
 
 	// Tasks are custom tasks, shown above the discovered ones.
@@ -245,8 +243,8 @@ func decodePackageManager(val any, disp, scope string, errs *[]error) (string, b
 	return name, true
 }
 
-// decodeDisable validates a disable array, keeping every valid string entry
-// even if another element in the array has the wrong type.
+// decodeDisable validates a disable array, keeping every valid source ID even
+// if another element in the array has the wrong type or names no source.
 func decodeDisable(val any, disp, scope string, errs *[]error) []string {
 	items, ok := val.([]any)
 	if !ok {
@@ -260,9 +258,14 @@ func decodeDisable(val any, disp, scope string, errs *[]error) []string {
 			*errs = append(*errs, fmt.Errorf("rc file %s: %sdisable entries must be strings", disp, scope))
 			continue
 		}
-		if s != "" {
-			out = append(out, s)
+		if s == "" {
+			continue
 		}
+		if err := core.CheckSourceID(s); err != nil {
+			*errs = append(*errs, fmt.Errorf("rc file %s: %sdisable: %w", disp, scope, err))
+			continue
+		}
+		out = append(out, s)
 	}
 	return out
 }

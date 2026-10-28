@@ -10,7 +10,12 @@ import (
 // makefile, Makefile that exists, which is the order make itself uses.
 func makeSource() source {
 	return source{
-		Files: []string{"GNUmakefile", "makefile", "Makefile"},
+		SourceInfo: SourceInfo{
+			ID:                  "make",
+			Label:               "Makefile",
+			DisplayFileOverride: "Makefile",
+			Files:               []string{"GNUmakefile", "makefile", "Makefile"},
+		},
 		Parse: parseMakeFile,
 	}
 }

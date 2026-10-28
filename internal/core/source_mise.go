@@ -14,7 +14,11 @@ import (
 // in that order: mise looks for mise.toml first, so it wins when both exist.
 func miseSource() source {
 	return source{
-		Files: []string{"mise.toml", ".mise.toml"},
+		SourceInfo: SourceInfo{
+			ID:    "mise",
+			Label: "mise.toml",
+			Files: []string{"mise.toml", ".mise.toml"},
+		},
 		Parse: parseMise,
 	}
 }

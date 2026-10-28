@@ -1,21 +1,9 @@
 # what-to-run
 
 TUI in Go (Bubble Tea v2 + Lip Gloss v2) to run the scripts declared in a
-project. Supported task files:
-
-- `package.json`
-- `Makefile`, `makefile`, `GNUmakefile`
-- `Taskfile.yml` and the other go-task default names (`taskfile.yml`,
-  `Taskfile.yaml`, `taskfile.yaml`, `Taskfile.dist.yml`, `taskfile.dist.yml`,
-  `Taskfile.dist.yaml`, `taskfile.dist.yaml`)
-- `justfile`, `Justfile`, `.justfile`
-- `Makefile.toml`
-- `.cargo/config`, `.cargo/config.toml`
-- `devbox.json`
-- `composer.json`
-- `deno.json`, `deno.jsonc`
-- `mise.toml`, `.mise.toml`
-- `[[tasks]]` in `.what-to-run.toml` and the user config
+project. The supported task files are the `defaultSources` registry in
+`internal/core`, documented in [docs/task-sources.md](docs/task-sources.md);
+the rc file adds `[[tasks]]` on top.
 
 Discovery and execution are implemented: a filterable list runs the selected
 task, in place in fullscreen (tea.ExecProcess) or at the prompt after quitting
@@ -71,10 +59,15 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `powershellinit.go` = the shell widgets printed by `init zsh`, `init bash`
   and `init powershell`). `cmd/wtr` only parses flags/subcommands and calls
   `tui.Run` / `tui.Preview` / `shell.ZshInit` / `shell.BashInit` /
-  `shell.PowerShellInit`. Adding a source: a `source` literal and its parser in
-  a new `internal/core/source_<name>.go`, one line in the `defaultSources`
-  registry in `internal/core`, and table-driven tests next to the parser.
-  Unknown `package.json` shapes etc. belong in the matching `source_*.go`.
+  `shell.PowerShellInit`. Adding a source: a `SourceInfo` literal with an `ID`
+  chosen by the rules in [Source IDs](docs/task-sources.md#source-ids), plus
+  `Label`, `Files`, `SearchParents`, and `DisplayFileOverride` when the empty
+  screen must show a file other than `Files[0]`, and its parser in a new
+  `internal/core/source_<name>.go`, one line in the `defaultSources` registry,
+  table-driven tests next to the parser, one row in `docs/task-sources.md` and
+  one bullet in `README.md`. `TestRegistryInvariants` and
+  `cmd/wtr/docs_test.go` enforce the metadata and the docs. Unknown
+  `package.json` shapes etc. belong in the matching `source_*.go`.
   `internal/core` itself has no direct filesystem access — its only OS access
   is `os/exec`, for `Task.Command`, plus the Windows-only
   `syscall.SysProcAttr` that hands cmd.exe a raw command line
@@ -115,7 +108,7 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   `.what-to-run.toml` in the project,
   `$XDG_CONFIG_HOME/what-to-run/config.toml` globally,
   `%AppData%\what-to-run\config.toml` on Windows) adds `[[tasks]]`,
-  overrides `package_manager`, disables sources, and supports per-project
+  overrides `package_manager`, disables sources by ID, and supports per-project
   overrides (`[projects."<path>"]`) in the user file. It is parsed in
   best-effort mode so unknown keys, wrong types, or invalid entries warn and
   drop only the offending item while keeping the rest of the file. Warnings open

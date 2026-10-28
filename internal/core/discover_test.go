@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -352,7 +353,7 @@ func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 	writeFile(t, dir, "Makefile.toml", "[tasks\n") // broken, but disabled
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"Makefile.toml"}})
+	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo-make"}})
 	if len(errs) != 0 {
 		t.Fatalf("Discover() errors = %v, want none from the disabled source", errs)
 	}
@@ -362,16 +363,141 @@ func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 }
 
 // TestDiscoverTasksUnknownDisableEntry: a disable entry that names no source
-// is reported, and no source is disabled.
+// is reported with the known IDs, and no source is disabled.
 func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
 	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo"}})
-	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "cargo") {
-		t.Errorf("Discover() errors = %v, want one warning about %q", errs, "cargo")
+	want := `disable: unknown source "cargo"; known sources: ` +
+		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise"
+	if len(errs) != 1 || errs[0].Error() != want {
+		t.Errorf("Discover() errors = %v, want exactly %q", errs, want)
 	}
 	if len(tasks) != 1 || tasks[0].Name != "build" {
 		t.Errorf("Discover() = %+v, want the Makefile build task", tasks)
+	}
+}
+
+// TestDiscoverTasksFileNameDoesNotDisable: disable takes IDs, so a file name
+// warns with the ID to use and the source still runs.
+func TestDiscoverTasksFileNameDoesNotDisable(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
+
+	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"Makefile"}})
+	want := `disable: "Makefile" is a file name; use "make"`
+	if len(errs) != 1 || errs[0].Error() != want {
+		t.Errorf("Discover() errors = %v, want exactly %q", errs, want)
+	}
+	if len(tasks) != 1 || tasks[0].Name != "build" {
+		t.Errorf("Discover() = %+v, want the Makefile build task", tasks)
+	}
+}
+
+// TestCheckSourceID pins the registry-aware validation of source IDs: every ID
+// passes; every file name of every source, generated from the registry,
+// suggests that source's ID; a package manager points at npm; a near miss in
+// case suggests the exact ID; an unknown name lists the known IDs; and two
+// sources sharing a file name list both IDs. The real registry is built through
+// missingFiles, so validation needs no filesystem.
+func TestCheckSourceID(t *testing.T) {
+	registry := defaultSources(Settings{}, missingFiles{})
+
+	t.Run("every ID is valid", func(t *testing.T) {
+		for _, src := range registry {
+			if err := checkSourceID(registry, src.ID); err != nil {
+				t.Errorf("checkSourceID(%q) = %v, want nil", src.ID, err)
+			}
+		}
+	})
+
+	t.Run("every file name suggests its source", func(t *testing.T) {
+		for _, src := range registry {
+			for _, name := range src.Files {
+				want := fmt.Sprintf("%q is a file name; use %q", name, src.ID)
+				if err := checkSourceID(registry, name); err == nil || err.Error() != want {
+					t.Errorf("checkSourceID(%q) = %v, want %q", name, err, want)
+				}
+			}
+		}
+	})
+
+	// Two sources may read the same file (a future pyproject.toml split by
+	// tool), so the suggestion lists every matching ID.
+	sharedFile := []source{
+		{SourceInfo: SourceInfo{ID: "pdm", Files: []string{"pyproject.toml"}}},
+		{SourceInfo: SourceInfo{ID: "poe", Files: []string{"pyproject.toml"}}},
+	}
+
+	tests := []struct {
+		name      string
+		sources   []source // nil: the real registry
+		candidate string
+		want      string
+	}{
+		{
+			name:      "pnpm is a package manager",
+			candidate: "pnpm",
+			want:      `"pnpm" is a package manager, not a source ID; to disable package.json scripts use "npm"`,
+		},
+		{
+			name:      "yarn is a package manager",
+			candidate: "yarn",
+			want:      `"yarn" is a package manager, not a source ID; to disable package.json scripts use "npm"`,
+		},
+		{
+			name:      "bun is a package manager",
+			candidate: "bun",
+			want:      `"bun" is a package manager, not a source ID; to disable package.json scripts use "npm"`,
+		},
+		{
+			name:      "case near miss suggests the ID",
+			candidate: "Just",
+			want:      `unknown source "Just"; did you mean "just"?`,
+		},
+		{
+			name:      "unknown name lists the known sources",
+			candidate: "cargo",
+			want: "unknown source \"cargo\"; known sources: " +
+				"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise",
+		},
+		{
+			name:      "a file name shared by two sources lists both",
+			sources:   sharedFile,
+			candidate: "pyproject.toml",
+			want:      `"pyproject.toml" is a file name; use one of "pdm", "poe"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sources := tt.sources
+			if sources == nil {
+				sources = registry
+			}
+			got := checkSourceID(sources, tt.candidate)
+			if got == nil || got.Error() != tt.want {
+				t.Errorf("checkSourceID(%q) = %v, want %q", tt.candidate, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestCheckSourceIDNeedsNoFiles: the exported wrapper builds the real registry
+// through missingFiles, so it validates from a directory without any project
+// file.
+func TestCheckSourceIDNeedsNoFiles(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	for _, info := range Sources() {
+		if err := CheckSourceID(info.ID); err != nil {
+			t.Errorf("CheckSourceID(%q) = %v, want nil", info.ID, err)
+		}
+	}
+	got := CheckSourceID("Makefile.toml")
+	want := `"Makefile.toml" is a file name; use "cargo-make"`
+	if got == nil || got.Error() != want {
+		t.Errorf("CheckSourceID(%q) = %v, want %q", "Makefile.toml", got, want)
 	}
 }

@@ -52,7 +52,7 @@ func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "global.toml", `
 package_manager = "yarn"
-disable = ["Makefile.toml"]
+disable = ["cargo-make"]
 
 [[tasks]]
 name = "build"
@@ -64,7 +64,7 @@ command = "git status"
 `)
 	writeFile(t, dir, "project.toml", `
 package_manager = "bun"
-disable = ["Makefile"]
+disable = ["make"]
 
 [[tasks]]
 name = "build"
@@ -77,7 +77,7 @@ command = "project build"
 	}
 	want := config{
 		PackageManager: "bun",
-		Disable:        []string{"Makefile.toml", "Makefile"},
+		Disable:        []string{"cargo-make", "make"},
 		Tasks: []configTask{
 			{Name: "build", Command: "project build"},
 			{Name: "status", Command: "git status"},
@@ -93,7 +93,7 @@ func TestLoadConfigUnknownField(t *testing.T) {
 	writeFile(t, dir, "project.toml", `
 packge_manager = "bun"
 package_manager = "pnpm"
-disable = ["Makefile", 42]
+disable = ["make", 42]
 
 [[tasks]]
 name = "ok"
@@ -121,7 +121,7 @@ command = "bad"
 	}
 	want := config{
 		PackageManager: "pnpm",
-		Disable:        []string{"Makefile"},
+		Disable:        []string{"make"},
 		Tasks:          []configTask{{Name: "ok", Command: "echo ok"}},
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -151,7 +151,7 @@ func TestLoadConfigProjectsSubtreeAndPrecedence(t *testing.T) {
 	writeFile(t, root, "global.toml", `
 theme = "dracula"
 package_manager = "npm"
-disable = ["Makefile.toml"]
+disable = ["cargo-make"]
 
 [[tasks]]
 name = "shared"
@@ -159,7 +159,7 @@ command = "global shared"
 
 [projects."~/work"]
 package_manager = "pnpm"
-disable = ["Makefile"]
+disable = ["make"]
 
 [[projects."~/work".tasks]]
 name = "shared"
@@ -199,7 +199,7 @@ command = "echo local"
 	want := config{
 		Theme:          "dracula",
 		PackageManager: "bun",
-		Disable:        []string{"Makefile.toml", "Makefile"},
+		Disable:        []string{"cargo-make", "make"},
 		Tasks: []configTask{
 			{Name: "shared", Command: "api shared"},
 			{Name: "work-only", Command: "echo work"},
@@ -271,7 +271,7 @@ func TestLoadConfigInvalidEntries(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "project.toml", `
 package_manager = "cargo"
-disable = ["Makefile"]
+disable = ["make"]
 
 [[tasks]]
 name = ""
@@ -303,12 +303,46 @@ command = "echo ok"
 		t.Errorf("loadConfig() warnings = %v, want 5", errs)
 	}
 	want := config{
-		Disable: []string{"Makefile"},
+		Disable: []string{"make"},
 		Tasks: []configTask{
 			{Name: "dup", Command: "one"},
 			{Name: "ok", Command: "echo ok"},
 		},
 	}
+	if !reflect.DeepEqual(cfg, want) {
+		t.Errorf("loadConfig() = %+v, want %+v", cfg, want)
+	}
+}
+
+// TestLoadConfigDisableFileName: disable takes source IDs, so a file name at
+// the top level or in a [projects."<path>"] block is dropped with a warning
+// carrying the file, the scope and the ID to use; valid IDs next to it stay.
+func TestLoadConfigDisableFileName(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	globalFile := filepath.Join(dir, "global.toml")
+	writeFile(t, dir, "global.toml", `
+disable = ["Makefile.toml", "cargo-make"]
+
+[projects."~"]
+disable = ["Makefile", "make"]
+`)
+
+	cfg, errs := loadConfig(osFiles{}, filepath.Join(dir, ".what-to-run.toml"), globalFile)
+	wantErrs := []string{
+		`rc file ~/global.toml: disable: "Makefile.toml" is a file name; use "cargo-make"`,
+		`rc file ~/global.toml: projects."~": disable: "Makefile" is a file name; use "make"`,
+	}
+	if len(errs) != len(wantErrs) {
+		t.Fatalf("loadConfig() warnings = %v, want %d", errs, len(wantErrs))
+	}
+	for i, want := range wantErrs {
+		if errs[i].Error() != want {
+			t.Errorf("loadConfig() warning %d = %q, want %q", i, errs[i], want)
+		}
+	}
+	want := config{Disable: []string{"cargo-make", "make"}}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Errorf("loadConfig() = %+v, want %+v", cfg, want)
 	}

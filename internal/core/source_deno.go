@@ -11,7 +11,11 @@ import (
 // in that order: Deno looks for deno.json first, so it wins when both exist.
 func denoSource() source {
 	return source{
-		Files: []string{"deno.json", "deno.jsonc"},
+		SourceInfo: SourceInfo{
+			ID:    "deno",
+			Label: "deno.json",
+			Files: []string{"deno.json", "deno.jsonc"},
+		},
 		Parse: parseDeno,
 	}
 }

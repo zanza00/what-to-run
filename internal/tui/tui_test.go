@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/zanza00/what-to-run/internal/core"
 )
 
@@ -741,6 +742,101 @@ func TestViewNoMatchingTask(t *testing.T) {
 	}
 }
 
+// emptyStateFileLines returns the lines of the empty screen's "looked for
+// task files" sentence, with ANSI escapes and indentation removed.
+func emptyStateFileLines(t *testing.T, view string) []string {
+	t.Helper()
+
+	lines := strings.Split(ansi.Strip(view), "\n")
+	start := -1
+	for i, line := range lines {
+		if strings.Contains(line, "looked for task files:") {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		t.Fatalf("View() has no \"looked for task files\" sentence:\n%s", ansi.Strip(view))
+	}
+
+	var sentence []string
+	for _, line := range lines[start:] {
+		if strings.Contains(line, "add [[tasks]]") {
+			return sentence
+		}
+		sentence = append(sentence, strings.TrimSpace(line))
+	}
+	t.Fatalf("View() file list is not followed by the rc hint:\n%s", ansi.Strip(view))
+	return nil
+}
+
+// emptyStateFiles returns the file names in the empty screen's
+// "looked for task files" sentence, with wrapping removed.
+func emptyStateFiles(t *testing.T, view string) []string {
+	t.Helper()
+
+	sentence := strings.Join(emptyStateFileLines(t, view), " ")
+	const prefix = "looked for task files: "
+	if !strings.HasPrefix(sentence, prefix) {
+		t.Fatalf("empty-screen sentence = %q, want prefix %q", sentence, prefix)
+	}
+	sentence = strings.TrimPrefix(sentence, prefix)
+
+	var files []string
+	for _, item := range strings.Split(sentence, ",") {
+		for _, name := range strings.Split(item, " and ") {
+			if name = strings.TrimSpace(name); name != "" {
+				files = append(files, name)
+			}
+		}
+	}
+	return files
+}
+
+// assertEmptyStateFiles compares the files named by the empty screen with the
+// registry's display files as a set: a substring check would let a missing
+// Makefile pass because of Makefile.toml.
+func assertEmptyStateFiles(t *testing.T, view string) {
+	t.Helper()
+
+	want := make(map[string]bool, len(sourceInfos))
+	for _, src := range sourceInfos {
+		if file := src.DisplayFile(); file != "" {
+			want[file] = true
+		}
+	}
+
+	got := make(map[string]bool, len(want))
+	for _, file := range emptyStateFiles(t, view) {
+		if got[file] {
+			t.Errorf("empty screen lists %q more than once:\n%s", file, ansi.Strip(view))
+		}
+		got[file] = true
+	}
+	for file := range want {
+		if !got[file] {
+			t.Errorf("empty screen does not list display file %q:\n%s", file, ansi.Strip(view))
+		}
+	}
+	for file := range got {
+		if !want[file] {
+			t.Errorf("empty screen lists %q, which is not a registry display file:\n%s", file, ansi.Strip(view))
+		}
+	}
+}
+
+// assertFileListNotTruncated fails when a line of the file list ends in the
+// ellipsis that render adds to a line wider than the picker.
+func assertFileListNotTruncated(t *testing.T, view string) {
+	t.Helper()
+
+	for _, line := range emptyStateFileLines(t, view) {
+		if strings.Contains(line, "…") {
+			t.Errorf("file list line is truncated: %q", line)
+		}
+	}
+}
+
 func TestViewNoTasksShowsPersistentEmptyState(t *testing.T) {
 	m := update(newModel(Options{Inline: true}, nil, nil), tea.WindowSizeMsg{Width: 80, Height: 30})
 	m = update(m, tea.CursorPositionMsg{Y: 5})
@@ -748,15 +844,6 @@ func TestViewNoTasksShowsPersistentEmptyState(t *testing.T) {
 	got := m.View().Content
 	for _, want := range []string{
 		"no tasks found here",
-		"package.json",
-		"Makefile.toml",
-		"Taskfile.yml",
-		"justfile",
-		".cargo/config.toml",
-		"devbox.json",
-		"composer.json",
-		"deno.json",
-		"mise.toml",
 		".what-to-run.toml",
 		"enter/esc close",
 	} {
@@ -764,9 +851,23 @@ func TestViewNoTasksShowsPersistentEmptyState(t *testing.T) {
 			t.Errorf("View() does not contain %q:\n%s", want, got)
 		}
 	}
+	assertEmptyStateFiles(t, got)
+	assertFileListNotTruncated(t, got)
 	if strings.Contains(got, "type to filter") {
 		t.Errorf("View() invites filtering with no tasks:\n%s", got)
 	}
+}
+
+func TestViewNoTasksNarrowWidth(t *testing.T) {
+	m := update(newModel(Options{Inline: true}, nil, nil), tea.WindowSizeMsg{Width: 40, Height: 30})
+	m = update(m, tea.CursorPositionMsg{Y: 5})
+
+	got := m.View().Content
+	if !strings.Contains(got, "no tasks found here") {
+		t.Errorf("View() at 40 columns does not show the empty state:\n%s", got)
+	}
+	assertEmptyStateFiles(t, got)
+	assertFileListNotTruncated(t, got)
 }
 
 func TestNoTasksEmptyStateOnlyDismisses(t *testing.T) {

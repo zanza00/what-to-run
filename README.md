@@ -63,7 +63,7 @@ The picker reads tasks from:
 
 - `package.json`
 - `Makefile`
-- `Taskfile`
+- `Taskfile.yml`
 - `justfile`
 - `Makefile.toml`
 - Cargo aliases (`.cargo/config`)

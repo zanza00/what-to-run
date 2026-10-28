@@ -17,8 +17,12 @@ import (
 // imports and modules.
 func justfileSource(files Files) source {
 	return source{
-		Files:         []string{"justfile", "Justfile", ".justfile"},
-		SearchParents: true,
+		SourceInfo: SourceInfo{
+			ID:            "just",
+			Label:         "justfile",
+			Files:         []string{"justfile", "Justfile", ".justfile"},
+			SearchParents: true,
+		},
 		Parse: func(dir string, data []byte) ([]Task, error) {
 			return parseJustfileFor(runtime.GOOS, files, dir, data)
 		},

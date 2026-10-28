@@ -1,25 +1,21 @@
-# Configuration (`config.toml` & `.what-to-run.toml`)
+# Configuration
 
-`wtr` reads two optional TOML configuration files:
+`wtr` reads two optional TOML files. The global file holds your preferences,
+global tasks and per-project overrides. The project file holds settings that a
+repository shares with everyone who works on it.
 
-1. **User global config:** `$XDG_CONFIG_HOME/what-to-run/config.toml`
-   (normally `~/.config/what-to-run/config.toml`; on macOS with
-   `XDG_CONFIG_HOME` unset, `~/Library/Application Support/what-to-run/config.toml`;
-   on Windows, `%AppData%\what-to-run\config.toml`)
-   — personal preferences, global custom tasks, and per-project overrides
-   (`[projects."<path>"]`).
-2. **Project local config:** `.what-to-run.toml` in the current working
-   directory — project settings shared with the repository.
+Neither file is required. A problem in a file is a warning, not an error: `wtr`
+keeps every valid setting and task. The [Warnings](#warnings) section covers
+how the picker shows them.
 
-Neither file is required. Any problem in a configuration file is reported as a
-non-fatal **warning** (shown in the warning modal at startup and accessible via
-`ctrl+w`), while every valid setting and task in the file still applies.
+## Schema
 
----
+### Global file
 
-## 1. Schema
-
-### Global file (`~/.config/what-to-run/config.toml`, or `%AppData%\what-to-run\config.toml` on Windows)
+The global file is `$XDG_CONFIG_HOME/what-to-run/config.toml`. Without
+`XDG_CONFIG_HOME`, the path is `~/.config/what-to-run/config.toml` on Linux,
+`~/Library/Application Support/what-to-run/config.toml` on macOS, and
+`%AppData%\what-to-run\config.toml` on Windows.
 
 ```toml
 # User UI theme (only valid in the global file).
@@ -53,9 +49,14 @@ description = "Run local dev server"
 cwd = "packages/web"
 ```
 
-### Project file (`.what-to-run.toml`)
+Both files use the same `[[tasks]]` fields. `name` and `command` are required.
+`description` defaults to the command. `cwd` is relative to the project
+directory and must stay inside it.
 
-The project file supports `package_manager`, `disable`, and `[[tasks]]`:
+### Project file
+
+The project file is `.what-to-run.toml` in the current directory. It supports
+`package_manager`, `disable` and `[[tasks]]`:
 
 ```toml
 package_manager = "bun"
@@ -68,138 +69,125 @@ description = "Deploy the service"
 cwd = "ops"
 ```
 
-User-only keys (`theme` and `projects`) are not allowed in a project
-`.what-to-run.toml`: if present, they are ignored with a warning.
+`wtr` warns about `theme` and `projects` in a project file and ignores them.
 
 ### Built-in task sources
 
-The supported task files, their commands, how each source is discovered and
-parsed, and the stable ID that `disable` uses are documented in
-[Task sources](task-sources.md). `disable` takes those IDs (`npm`, `make`,
-`cargo-make`), not file names: see [Source IDs](task-sources.md#source-ids). A
-file name is ignored with a warning naming the ID to use.
+[Task sources](task-sources.md) lists the supported task files, the commands,
+how each source is discovered and parsed, and the stable ID that `disable`
+uses. `disable` takes those IDs (`npm`, `make`, `cargo-make`), not file names.
+See [Source IDs](task-sources.md#source-ids). A `disable` entry that is a file
+name is ignored with a warning that names the ID to use. A package manager
+name is not a source ID either: to disable `package.json` scripts, use `npm`.
 
 ### Themes
 
-The `theme` key selects the look and is read only from the global file. While
-the picker is open, `ctrl+t` opens the theme picker: `↑`/`↓` preview live,
-`enter` keeps and saves the choice to the global file, and `esc` restores the
-theme that was active when the picker opened. `--theme <name>` pins a theme for
-one run, `--list-themes` lists the available names, and `--preview` renders a
-static frame.
+`theme` selects the look and is read only from the global file. While the
+picker is open, `ctrl+t` opens the theme picker. `↑`/`↓` preview a theme live.
+`enter` or `ctrl+t` keeps the choice and saves it to the global file. `esc`
+restores the theme that was active when the picker opened. `--theme <name>`
+pins a theme for one run, `--list-themes` lists the names, and `--preview`
+prints a static frame.
 
----
+## Per-project overrides
 
-## 2. Per-Project Overrides (`[projects."<path>"]`)
+A `[projects."<path>"]` table in the global file sets `package_manager`,
+`disable` and `[[tasks]]` for one directory and everything below it. Use it to
+customize a repository without adding a `.what-to-run.toml` to that repository.
 
-The `[projects."<path>"]` table in the user's global `config.toml` lets you
-customize `package_manager`, `disable`, and `[[tasks]]` for specific directories
-or workspace trees without creating a `.what-to-run.toml` inside those
-repositories.
+### Path resolution
 
-### Path Resolution and Canonicalization
+`wtr` prepares each project key and the current directory before it matches
+them:
 
-Before matching a project key against the current working directory (`dir`):
+1. A leading `~` or `~/` expands to the home directory (`os.UserHomeDir()`).
+2. A relative path is rejected with a warning. A project key must be absolute
+   or start with `~`.
+3. Both paths are normalized with `filepath.EvalSymlinks`, which resolves the
+   longest part of the path that exists, and the result is cleaned with
+   `filepath.Clean`. So `~/dev/app` (`/home/user/dev/app`) matches
+   `/var/home/user/dev/app` on ostree/Silverblue systems and symlinked
+   workspaces.
 
-1. **Home expansion:** A leading `~` or `~/` is expanded to the user's home
-   directory (`os.UserHomeDir()`).
-2. **Absolute resolution:** Relative paths in `[projects."..."]` are rejected
-   with a warning (project keys in the global config must be absolute or start
-   with `~`).
-3. **Symlink canonicalization:** Both the configured path and the current
-   working directory are normalized with `filepath.EvalSymlinks` (falling back
-   to `filepath.Clean` when a path does not exist on disk yet). This guarantees
-   that `~/dev/app` (`/home/user/dev/app`) matches `/var/home/user/dev/app` on
-   ostree/Silverblue systems or symlinked workspaces.
-
-On Windows, write the key as a TOML **literal string**:
+On Windows, write the key as a TOML literal string:
 
 ```toml
 [projects.'C:\Users\me\src\api']
 package_manager = "pnpm"
 ```
 
-A basic string (`[projects."C:\Users\me\src\api"]`) fails to parse: `\U` starts
-a Unicode escape in TOML. Paths are compared case-insensitively on Windows, so
+A basic string (`[projects."C:\Users\me\src\api"]`) fails to parse, because
+`\U` starts a Unicode escape in TOML. Windows paths are not case-sensitive, so
 `C:\Users\me\src\api` also matches `c:\users\me\src\api`.
 
-### Hierarchical Subtree Matching
+### Subtree matching
 
-A `[projects."<path>"]` entry matches the current directory if the canonicalized
-current directory is `<path>` itself or a subdirectory inside `<path>` (checked
-on path-segment boundaries via `filepath.Rel`, so `~/dev/app` matches
-`~/dev/app` and `~/dev/app/web`, but **never** `~/dev/app-2`).
+A `[projects."<path>"]` entry matches the current directory when the current
+directory is `<path>` or a subdirectory inside it. The check uses path-segment
+boundaries, so `~/dev/app` matches `~/dev/app` and `~/dev/app/web`, but never
+`~/dev/app-2`.
 
-When multiple `[projects."..."]` entries match the current directory (for
-example `[projects."~/work"]` and `[projects."~/work/api"]`), they are ordered
-by **specificity** (number of path segments, then path length, then lexical
-order for ties) from **least specific to most specific**.
+When several entries match, `wtr` orders them by specificity: number of path
+segments, then path length, then alphabetical order. It applies them from the
+least specific to the most specific.
 
----
+## Layering and precedence
 
-## 3. Layering & Precedence
+Settings merge from the most general layer to the most specific:
 
-Settings are merged in order from the most general to the most specificuser
-override:
+1. The global top level.
+2. The project file.
+3. Matching `[projects."<path>"]` blocks, from the outermost directory to the
+   deepest.
 
-1. **Global top-level** (`~/.config/what-to-run/config.toml`)
-2. **Project local file** (`.what-to-run.toml` in the working directory)
-3. **Matching `[projects."<path>"]` blocks** in the global file, from outermost
-   parent directory to the deepest matching directory.
-
-How each field merges across layers:
+How each field merges:
 
 | Field | Merge rule |
 | --- | --- |
-| `theme` | Read only from the global top-level config (overridden for a single run by `--theme`). |
-| `package_manager` | Later (more specific) non-empty layer wins. |
-| `disable` | Additive union of source IDs across all active layers. |
-| `tasks` | Higher-precedence layers come first and shadow same-named tasks from lower layers (and discovered sources). Within a layer, tasks keep their declaration order. |
+| `theme` | Read only from the global top level. `--theme` overrides it for one run. |
+| `package_manager` | The most specific non-empty value wins. |
+| `disable` | Every source ID from every layer applies. |
+| `tasks` | Tasks from more specific layers come first and shadow same-named tasks from lower layers and discovered sources. Inside a layer, tasks keep their order. |
 
----
+## Best-effort parsing
 
-## 4. Resilient Best-Effort TOML Parsing
+`wtr` keeps as much valid information as possible, even when part of a file is
+malformed or comes from another version of `wtr`:
 
-Configuration files are parsed to **recover as much valid information as
-possible** even when part of a file is malformed or comes from a newer/older
-version of `wtr`:
-
-1. **Syntax errors:** Only a grammatical TOML syntax error (e.g. an unclosed
-   quote or broken table header) skips that file; the other config file still
-   loads.
-2. **Unknown keys:** An unrecognized key at the top level, inside `[[tasks]]`,
-   or inside `[projects."<path>"]` produces a specific warning naming the key
-   (e.g. `unknown key "packge_manager"`), and **all other valid keys and
-   sections in the same file are still applied**.
-3. **Wrong types:** A field with the wrong TOML type (e.g. `disable = "make"`
-   instead of an array, or `theme = 123`) drops only that field with a warning;
-   the rest of the file and section is preserved.
-4. **Invalid entries:**
+1. A TOML syntax error (an unclosed quote, a broken table header) skips that
+   file. The other file still loads.
+2. An unknown key at the top level, in `[[tasks]]` or in
+   `[projects."<path>"]` produces a warning that names the key, for example
+   `unknown key "packge_manager"`. Every other valid key and section in the
+   file still applies.
+3. At the top level, a field with the wrong type drops that field with a
+   warning. For example, `disable` must be an array and `theme` must be a
+   string. In a task, a wrong type on `name`, `command` or `cwd` drops the
+   task, while a wrong `description` drops only the description.
+4. Invalid entries:
    - An unknown `package_manager` or `theme` is dropped with a warning.
-   - A `disable` entry that is not a source ID (a file name or an unknown
-     name) is dropped with a warning naming the ID to use; the other entries
-     stay.
-   - An invalid task in `[[tasks]]` (empty `name`, empty `command`, duplicate
-     `name`, or `cwd` escaping the project with `..`) is dropped individually;
-     sibling tasks in the same `[[tasks]]` list still load.
-   - An invalid `[projects."<path>"]` entry (empty/relative path, or a bad
-     setting/task inside it) drops only the bad entry or field without affecting
-     other projects or global settings.
+   - A `disable` entry that is not a source ID is dropped with a warning that
+     names the ID to use. The other entries stay.
+   - An invalid task is dropped on its own. The causes are an empty `name`, an
+     empty `command`, a duplicate `name`, or a `cwd` that escapes the project
+     with `..`. The other tasks in the list still load.
+   - An invalid `[projects."<path>"]` entry (an empty or relative path, or a
+     bad setting or task inside it) drops only the bad entry or field. Other
+     projects and global settings are unaffected.
 
----
-
-## 5. Warning Display & Dismissal
+## Warnings
 
 Warnings from config files and task sources never hide the bottom help line:
 
-- **Bottom chrome:** When warnings are present, the bottom bar shows the task
-  count alongside the warning count in the theme's error color (`11 tasks · 1
-  warning`) and the `ctrl+w warnings` key hint.
-- **Warning modal (`ctrl+w`):** Opens automatically at startup when there is at
-  least one undismissed warning, wrapping long messages across multiple lines.
-  - `enter`, `esc`, or `ctrl+w` closes the modal for the current session.
-  - `d` (*don't show again*) records the warning in
-    `$XDG_CACHE_HOME/what-to-run/dismissed-warnings`
-    (`%LocalAppData%\what-to-run\dismissed-warnings` on Windows) so future runs do
-    not pop the modal open automatically for that same warning, while `ctrl+w`
-    can still open it on demand.
+- When there are warnings, the bottom bar shows the task count and the warning
+  count. The warning count uses the theme's error color, for example
+  `11 tasks · 1 warning`. The bar also shows the `ctrl+w warnings` hint.
+- The warning modal (`ctrl+w`) opens automatically at startup when at least
+  one warning has not been dismissed. Long messages wrap across lines,
+  breaking on spaces, hyphens and path separators.
+  - `enter`, `esc` or `ctrl+w` closes the modal for the current session.
+  - `↑`/`↓` moves between warnings when there are several.
+  - `d` stops the modal from opening for the warning in future runs. `wtr`
+    records it in `$XDG_CACHE_HOME/what-to-run/dismissed-warnings`
+    (`%LocalAppData%\what-to-run\dismissed-warnings` on Windows). `ctrl+w`
+    still shows the warning on demand.

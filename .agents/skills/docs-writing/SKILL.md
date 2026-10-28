@@ -1,16 +1,18 @@
 ---
 name: docs-writing
-description: Write and update what-to-run's documentation — README.md and docs/*.md. Covers where each fact belongs, the project glossary, B2 English and the house voice, and the checks to run before finishing. Use when writing or editing the docs, adding a source (docs/task-sources.md and the README bullet list), documenting a config key, theme, flag or shell integration, or when the user asks to update the README or "i docs".
+description: Write what-to-run's user docs in the house voice, with one owner per fact, B2 English, the glossary and the finish checks. Use when writing or editing README.md or docs/*.md, adding a task source, or documenting a config key, theme, flag or shell widget.
 ---
 
 # Write the what-to-run docs
 
-Each detail has one owner. The README shows the way in and gives the shortest
-form of each step. `docs/` holds the reference. `AGENTS.md` is for agents and
-is not user documentation.
+`README.md` shows the way in and gives the shortest form of each step. `docs/`
+holds the reference. `AGENTS.md` is for agents, not for users.
 
-Write in B2 English (CEFR): clear for an upper-intermediate reader and natural
-for a native speaker. `docs/widget.md` is the reference page for this voice.
+The house voice is B2 English (CEFR): clear for an upper-intermediate reader and
+natural for a native speaker. `docs/widget.md` is the reference page.
+
+Every fact has one owner: one file states it in full, and every other page links
+to that file instead of repeating it.
 
 ## Where each fact belongs
 
@@ -24,17 +26,18 @@ for a native speaker. `docs/widget.md` is the reference page for this voice.
 | `docs/development.md` | prerequisites, tasks, README demo, local build, release secrets and pipeline | `.github/workflows/release.yml` for the pipeline source |
 | `AGENTS.md` | rules for agents | — |
 
-The README summarizes. It does not repeat a setup step in full. Put the details
-in `docs/` and link to them.
+The README links to the owner of each detail and never repeats a setup step.
 
 A new source needs one row in `docs/task-sources.md`, in registry order, and one
-bullet in the README "Task sources" section. `go test ./cmd/wtr` fails when
-either is missing. The test checks the table order, not the bullet order: keep
-the bullets in the same order anyway. Add a `##` section in
-`docs/task-sources.md` only when the source has caveats that the table cannot
-hold, as the `package.json` and Taskfile sections do.
+bullet in the README "Task sources" section: `go test ./cmd/wtr` fails when
+either is missing. The test checks the table order, so keep the bullets in the
+same order too. Add a `##` section in `docs/task-sources.md` only when the table
+cannot hold the caveats, as the `package.json` and Taskfile sections do.
 
 ## Glossary
+
+These are the project terms. Keep them in the prose: B2 covers general English,
+not this vocabulary. Introduce "fuzzy picker" once, then write "picker".
 
 | Term | Means | Do not write |
 | --- | --- | --- |
@@ -56,7 +59,7 @@ hold, as the `package.json` and Taskfile sections do.
 ## Page shape
 
 Start with one sentence that says what the thing is. Then order the sections by
-what the reader does, not by the code structure. `docs/widget.md` is the model:
+what the reader does, not by the code. `docs/widget.md` is the model:
 
 ```text
 # Widget setup
@@ -70,59 +73,32 @@ one sentence: what the widget is
 ## Running the picker
 ```
 
-Group shells under their operating system. Put an explanation next to the step
-it explains, in one short paragraph. Do not write a separate essay.
+Group shells under their operating system, and put an explanation next to the
+step it explains, in one short paragraph.
 
-## Voice and level
+## The house voice
 
-- One idea in each sentence. Keep most sentences under 25 words, but do not
-  split a cause from its effect: "cmd.exe handles quotes in a limited way, so
-  some arguments can change" stays one sentence.
-- Vary the length. A page of 10-word sentences reads like a machine.
+- One idea per sentence, most under 25 words, and vary the length: a page of
+  10-word sentences reads like a machine. Keep a cause with its effect:
+  "cmd.exe handles quotes in a limited way, so some arguments can change" stays
+  one sentence.
+- Make the component the subject, and address the reader as "you": "the picker
+  shows", "add the line". Never "we", "our" or "us".
+- Use the active voice: "the picker reads the rc file", not "the rc file is
+  read".
+- Put the condition first: "If there are no tasks, ...".
 - Prefer the common word: "shows" not "reports", "puts" not "inserts", "add" not
   "pass", "there are no tasks" not "the directory declares no tasks".
 - Put the action in the verb: "Ctrl-O opens the widget", not "the widget is
   bound to Ctrl-O".
-- Avoid C1 idioms and nominalizations: "stay exactly the same", not "survive an
-  exact round trip". Write "handles quotes in a limited way", not "its quoting
-  is limited".
-- Keep the technical terms: picker, rc file, prompt, fullscreen, raw key
-  sequence. B2 is about general English, not the domain vocabulary.
-
-## Rules
-
-- Use the imperative for steps and "you" for options. Do not use "we", "our" or
-  "us". Make the component the subject: "the picker shows", "wtr quotes".
-- Use the active voice: "the picker reads the rc file", not "the rc file is
-  read".
-- Put the condition first: "If there are no tasks, ...".
-- Do not use contractions or semicolons.
+- Stay with plain English: "stay exactly the same", not "survive an exact round
+  trip". Write "handles quotes in a limited way", not "its quoting is limited".
+- Write full forms and one sentence per period: "do not", "it is", and a period
+  where a semicolon tempts you.
 - Use American spelling: behavior, color, center.
-- Use one term for one thing. Introduce "fuzzy picker" once, then write
-  "picker".
-- Do not write "simply", "just", "obviously" or "easy".
-- Put code, flags, keys and file names in backticks. Put commands in fenced
-  blocks.
-- Write `wtr`, not `./bin/wtr`, except in `docs/development.md`.
-- Name the destination in a link: "see [Configuration](docs/config.md)" from the
-  README, not "click here".
+- Leave out "simply", "just", "obviously" and "easy": the fact carries itself.
 
-## Before you finish
-
-1. Run `task check-md`.
-2. Run `go test ./cmd/wtr` when the source list changed. It checks the
-   `docs/task-sources.md` table and the README bullets.
-3. Check every command against `wtr --help` and the code. Do not document a flag
-   that does not exist.
-4. Follow every new link and check the anchor against the heading.
-5. Search for the paragraph you wrote. If it already exists, link to it instead
-   of repeating it.
-6. Read the page aloud. Split a sentence that runs out of breath. Join two short
-   sentences with "so" or "because" when they belong together.
-7. Run `task all` when the same change touches Go code.
-8. Put the docs and the code in the same commit.
-
-## Examples
+Calibrate a draft against these pairs:
 
 | Before | After |
 | --- | --- |
@@ -131,3 +107,22 @@ it explains, in one short paragraph. Do not write a separate essay.
 | To change it, pass `--key` to `init`. | To change the key, add `--key` to the `init` command. |
 | Its quoting is limited: use PowerShell when an argument must survive an exact round trip. | It handles quotes in a limited way, so some arguments can change. Use PowerShell when the exact command matters. |
 | Simply add the following line to your shell's rc file, and then make sure to restart your shell so that the widget becomes available. | Add this line to your rc file. Start a new shell to load the widget. |
+
+## Formatting
+
+- Put code, flags, keys and file names in backticks, and commands in fenced
+  blocks.
+- Write `wtr`, not `./bin/wtr`, except in `docs/development.md`.
+- Name the destination in the link: `see [Configuration](docs/config.md)`.
+
+## Before you finish
+
+1. Run `task check-md`. It must report no diff.
+2. Run `go test ./cmd/wtr` when the source list changed. It must pass.
+3. Check every command you touched against `wtr --help` and the code. If you
+   cannot find a command, delete it from the docs.
+4. Open every new link. The anchor must match a heading.
+5. Search the docs for the fact you added. If it already has an owner, link to
+   it instead of writing it again.
+6. Run `task all` when the change touches Go code. It must pass.
+7. Commit the docs with the code they describe.

@@ -189,6 +189,18 @@ Before any Go coding, review, debugging, troubleshooting, or setup task, load th
   manual rename of `ggprompts/tfe` to avoid an id collision with `bubbletea` —
   don't reinstall it unrenamed.
 
+## Comments
+
+Comments follow the principles of Simplified Technical English
+([ASD-STE100](https://www.asd-ste100.org/), Issue 9), but not its controlled
+dictionary:
+
+- Inside a function, explain why the code is there, not what it does.
+- Write short sentences, with one idea in each sentence.
+- Use the active voice.
+- Keep the articles and the full sentence: no telegraphic English.
+- Use one term for one thing, and prefer the term the codebase already uses.
+
 ## Charm v2 gotchas
 
 - Import `charm.land/bubbletea/v2` and `charm.land/lipgloss/v2`, not the older

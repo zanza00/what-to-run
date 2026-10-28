@@ -23,11 +23,15 @@ mise installs `wtr` from the GitHub releases.
 
 ## npm
 
-With [Node.js](https://nodejs.org/) 18 or later:
+With [Node.js](https://nodejs.org/) 22 or later:
 
 ```sh
 npm install -g what-to-run
 ```
+
+Publishing is opt-in for this project: releases reach npm only while the
+maintainer has enabled the channel, so a version that is missing from the
+registry is not a packaging bug — use one of the other methods below.
 
 The command is `wtr`, like every other method, and npm puts it in the global
 bin directory (`npm prefix -g` to see where). This is the shortest path on

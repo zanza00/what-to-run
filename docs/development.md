@@ -225,6 +225,13 @@ python3 scripts/publish-npm.py --tag vX.Y.Z --artifact dist/checksums.txt
 Add the trusted publisher to all seven packages, then
 `gh variable set NPM_PUBLISH --body true`.
 
+Before setting `NPM_PUBLISH`, install the package and check the widget
+once: `eval "$(wtr init zsh)"` in a fresh shell, then press the key and
+confirm the picker opens and the chosen task runs. The launcher inherits
+the terminal and the exit code, and the widget captures stdout, so this
+is the same tmux check the other widget changes need (`bash` and
+PowerShell have their own widgets, `init bash` and `init powershell`).
+
 ### Check the setup
 
 To check the release setup without publishing:

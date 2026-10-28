@@ -42,11 +42,6 @@ PowerShell takes key names only (`ctrl-o`, `alt-x`), not raw sequences.
 With the widget open, press `ctrl-f` to expand the inline picker to fullscreen.
 Press it again to go back.
 
-## cmd.exe
-
-cmd.exe is supported, but its quoting is limited: use PowerShell when an
-argument must survive an exact round trip.
-
 ## Running the picker
 
 `wtr` runs the picker without the shell widget:
@@ -68,3 +63,6 @@ fullscreen run reports the error and exits.
 With the widget, `enter` runs the selected command and `tab` only inserts it in
 the prompt. Without the widget, `wtr --inline` runs the command itself, and
 `tab` prints the command line instead.
+
+cmd.exe is supported, but its quoting is limited: use PowerShell when an
+argument must survive an exact round trip.

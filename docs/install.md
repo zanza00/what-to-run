@@ -1,10 +1,11 @@
 # Installation
 
-The command is `wtr`. Run `wtr --version` to verify an installation.
+The command is `wtr`. Run `wtr --version` to check an installation. It prints
+the command name and the version, for example `wtr 0.9.0`.
 
 ## Homebrew
 
-On macOS or Linux with [Homebrew](https://brew.sh/):
+With [Homebrew](https://brew.sh/) on macOS or Linux:
 
 ```sh
 brew install zanza00/tap/what-to-run
@@ -12,20 +13,19 @@ brew install zanza00/tap/what-to-run
 
 ## mise
 
-On macOS or Linux with [mise](https://mise.jdx.dev/):
+With [mise](https://mise.jdx.dev/) on macOS or Linux:
 
 ```sh
 mise use -g github:zanza00/what-to-run
 ```
 
-This installs `wtr` from the GitHub releases.
+mise installs `wtr` from the GitHub releases.
 
 ## Debian and Ubuntu
 
 ### apt repository
 
-Configure the project's apt repository, signed with the project's GPG key,
-with one command:
+Add the project's apt repository and install the package:
 
 ```sh
 curl -fsSL https://zanza00.github.io/what-to-run/setup.deb.sh | sudo bash
@@ -33,12 +33,12 @@ sudo apt install what-to-run
 ```
 
 The script is `scripts/setup.deb.sh` in this repository, so you can read it
-before piping it to a shell. It only adds the key and the source, then
-refreshes the apt indexes. The repository supports both `amd64` and `arm64`;
-set `WTR_REPOSITORY` to use a mirror, or `WTR_APT_KEYRING` and
-`WTR_APT_SOURCES` to change the installed paths.
+before you pipe it to a shell. It adds the key and the source, then refreshes
+the apt indexes. The repository supports `amd64` and `arm64`. Set
+`WTR_REPOSITORY` to use a mirror, or `WTR_APT_KEYRING` and `WTR_APT_SOURCES` to
+change the installed paths.
 
-The same steps by hand:
+To do the same by hand:
 
 ```sh
 curl -fsSL https://zanza00.github.io/what-to-run/key.gpg \
@@ -51,10 +51,10 @@ sudo apt install what-to-run
 
 ### .deb package
 
-The `.deb` packages for each version are attached to the
-[releases](https://github.com/zanza00/what-to-run/releases). Download the file
-for your architecture (`amd64`, or `arm64` on ARM machines) and install it
-directly:
+Each release attaches the `.deb` packages. Download the file for your
+architecture from the
+[releases](https://github.com/zanza00/what-to-run/releases) (`amd64`, or `arm64`
+on ARM machines) and install it:
 
 ```sh
 sudo apt install ./what-to-run_<version>_linux_amd64.deb
@@ -64,7 +64,7 @@ sudo apt install ./what-to-run_<version>_linux_amd64.deb
 
 ### dnf/yum repository
 
-Configure the project's RPM repository with one command:
+Add the project's RPM repository and install the package:
 
 ```sh
 curl -fsSL https://zanza00.github.io/what-to-run/setup.rpm.sh | sudo bash
@@ -72,13 +72,13 @@ sudo dnf install what-to-run
 ```
 
 The script is `scripts/setup.rpm.sh` in this repository, so you can read it
-before piping it to a shell. It imports the repository key, writes
-`/etc/yum.repos.d/what-to-run.repo`, and refreshes the dnf metadata. The
-repository supports both `x86_64` and `aarch64`; set `WTR_REPOSITORY` to use a
+before you pipe it to a shell. It imports the repository key, writes
+`/etc/yum.repos.d/what-to-run.repo`, and refreshes the package manager metadata.
+The repository supports `x86_64` and `aarch64`. Set `WTR_REPOSITORY` to use a
 mirror, or `WTR_RPM_KEY` and `WTR_RPM_REPOSITORY_FILE` to change the installed
 paths.
 
-The same steps by hand:
+To configure the repository by hand:
 
 ```sh
 sudo rpm --import https://zanza00.github.io/what-to-run/key.asc
@@ -96,20 +96,21 @@ sudo dnf install what-to-run
 
 ### .rpm package
 
-The `.rpm` packages are attached to the
-[releases](https://github.com/zanza00/what-to-run/releases) starting with the
-release after v0.7.0. Download the file for your architecture (`amd64`, or
-`arm64` on ARM machines) and install it directly:
+Each release from v0.8.0 attaches the `.rpm` packages. Download the file for
+your architecture from the
+[releases](https://github.com/zanza00/what-to-run/releases) (`amd64`, or `arm64`
+on ARM machines) and install it:
 
 ```sh
 sudo dnf install ./what-to-run_<version>_linux_amd64.rpm
 ```
 
-The file names use the Go architecture names: `amd64` is `x86_64` and `arm64`
-is `aarch64`.
+The file names use the Go architecture names. An `x86_64` machine downloads
+the `amd64` file, and an `aarch64` machine downloads the `arm64` file.
 
-The packages are signed with the project's GPG key, the same one that signs the
-apt repository. To verify a download, import the key and check the signature:
+The project's GPG key signs the `.rpm` packages. It is the same key that signs
+the apt repository. To verify a download, import the key and check the
+signature:
 
 ```sh
 sudo rpm --import https://zanza00.github.io/what-to-run/key.asc
@@ -118,33 +119,35 @@ rpm --checksig what-to-run_<version>_linux_amd64.rpm
 
 ## Arch Linux
 
-An AUR package (`what-to-run-bin`) is pending. Until it is published, use a
+The AUR package `what-to-run-bin` is not published yet. Until it is, use a
 [release tarball](#prebuilt-tarballs).
 
 ## Prebuilt tarballs
 
 > [!WARNING]
-> Use this only as a last resort: the CLI has no self-updater, so a tarball
-> installed by hand stays at that version until you replace it. Install through
-> one of the methods above to receive upgrades from your package manager.
+> Use a tarball only as a last resort. The CLI has no self-updater, so a
+> tarball installed by hand stays at that version until you replace it. Install
+> through one of the methods above to receive upgrades from your package
+> manager.
 
 Each release attaches tarballs for macOS and Linux on Intel and ARM64, as an
-alternative to the packages above. Extract one and put the binary on your
-`PATH`:
+alternative to the packages above. Extract the archive and put the binary on
+your `PATH`:
 
 ```sh
 tar -xzf what-to-run_<version>_linux_amd64.tar.gz
 sudo install -m 755 wtr /usr/local/bin/
 ```
 
-Use `what-to-run_<version>_darwin_arm64.tar.gz` on Apple silicon, and so on.
+On Apple silicon, use `what-to-run_<version>_darwin_arm64.tar.gz`. The other
+platforms follow the same pattern.
 
 ## Windows
 
 ### Scoop
 
-With [Scoop](https://scoop.sh/), which installs per user without administrator
-rights and has native ARM64 support:
+[Scoop](https://scoop.sh/) installs per user without administrator rights and
+supports ARM64:
 
 ```powershell
 scoop bucket add zanza00 https://github.com/zanza00/scoop-bucket
@@ -153,27 +156,30 @@ scoop update what-to-run
 scoop uninstall what-to-run
 ```
 
-The manifest installs `wtr` on Intel and ARM64 Windows alike. The bucket
-receives the manifest of every release; if it has no manifest for the version
-you need yet, use the zip below.
+The manifest installs `wtr` on Intel and ARM64 Windows. The bucket receives the
+manifest of every release. If the bucket has no manifest for the version you
+need yet, use the zip below.
 
 ### Zip
+
+> [!WARNING]
+> Use a zip only as a last resort. The CLI has no self-updater, so a zip
+> installed by hand stays at that version until you replace it. Install through
+> Scoop to receive upgrades.
 
 Each release attaches a zip for Windows on Intel and ARM64:
 
 - `what-to-run_<version>_windows_amd64.zip`
 - `what-to-run_<version>_windows_arm64.zip`
 
-Extract it, put the folder on your `PATH`, and verify the install from
-PowerShell:
+The zip contains `wtr.exe` at its root. Extract the zip, put the folder on your
+`PATH`, and check the install from PowerShell:
 
 ```powershell
 Expand-Archive what-to-run_<version>_windows_amd64.zip -DestinationPath C:\Tools\what-to-run
 $env:Path = "C:\Tools\what-to-run;$env:Path"   # or add it permanently
 wtr --version
 ```
-
-The archive contains `wtr.exe`.
 
 The binary is not code-signed, so SmartScreen may block the first run.
 `Unblock-File` clears the mark of the web on the extracted files:
@@ -184,13 +190,11 @@ Get-ChildItem C:\Tools\what-to-run | Unblock-File
 
 ## Go
 
-With Go installed, `go install` compiles the program locally:
+With Go 1.27.2 or later, `go install` compiles the program locally:
 
 ```sh
 go install github.com/zanza00/what-to-run/cmd/wtr@latest
 ```
-
-This requires Go 1.27.2 or later.
 
 ## Upgrading from a two-name release
 
@@ -207,9 +211,9 @@ wtr init powershell | Out-String | Invoke-Expression
 # was: what-to-run init powershell | Out-String | Invoke-Expression
 ```
 
-Upgrading to a release that ships this change removes the second binary; the
-configuration in `~/.config/what-to-run/` and the `.what-to-run.toml` project
-file keep their names.
+Releases from v0.8.0 ship only `wtr`. The configuration in
+`~/.config/what-to-run/` (or `%AppData%\what-to-run\` on Windows) and the
+`.what-to-run.toml` project file keep their names.
 
 ## Next steps
 

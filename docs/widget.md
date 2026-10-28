@@ -18,7 +18,9 @@ eval "$(wtr init zsh)"
 eval "$(wtr init bash)"
 ```
 
-## PowerShell
+## Windows
+
+### PowerShell
 
 Add this to `$PROFILE`, then start a new PowerShell session. To load the
 profile right away, run `. $PROFILE` in the current session.
@@ -27,6 +29,11 @@ profile right away, run `. $PROFILE` in the current session.
 # PowerShell 5.1 or 7+
 wtr init powershell | Out-String | Invoke-Expression
 ```
+
+### cmd.exe
+
+The widget needs PowerShell. `wtr` also runs from cmd.exe, but its quoting is
+limited: use PowerShell when an argument must survive an exact round trip.
 
 ## Key binding
 
@@ -63,6 +70,3 @@ fullscreen run reports the error and exits.
 With the widget, `enter` runs the selected command and `tab` only inserts it in
 the prompt. Without the widget, `wtr --inline` runs the command itself, and
 `tab` prints the command line instead.
-
-cmd.exe is supported, but its quoting is limited: use PowerShell when an
-argument must survive an exact round trip.

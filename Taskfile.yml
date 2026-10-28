@@ -85,6 +85,11 @@ tasks:
     cmds:
       - '{{.GO}} test -race -coverprofile=coverage.out ./...'
 
+  test-npm:
+    desc: Run the npm launcher tests (Node 24)
+    cmds:
+      - node --test 'npm/test/*.test.js'
+
   fmt:
     desc: Format Go and Markdown, and vet the code
     cmds:

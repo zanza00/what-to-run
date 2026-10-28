@@ -1,0 +1,27 @@
+{
+  "name": "what-to-run",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Task picker for the commands you can never remember in a repository",
+  "keywords": ["cli", "tasks", "makefile", "justfile", "taskfile", "picker", "terminal"],
+  "homepage": "https://github.com/zanza00/what-to-run",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zanza00/what-to-run.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zanza00/what-to-run/issues"
+  },
+  "license": "MIT",
+  "author": "Simone Picciani <codefloe@simonepicciani.it>",
+  "bin": {
+    "wtr": "bin/wtr.js"
+  },
+  "files": ["bin/wtr.js"],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

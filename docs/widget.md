@@ -42,6 +42,11 @@ PowerShell takes key names only (`ctrl-o`, `alt-x`), not raw sequences.
 With the widget open, press `ctrl-f` to expand the inline picker to fullscreen.
 Press it again to go back.
 
+## cmd.exe
+
+cmd.exe is supported, but its quoting is limited: use PowerShell when an
+argument must survive an exact round trip.
+
 ## Running the picker
 
 `wtr` runs the picker without the shell widget:

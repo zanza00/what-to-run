@@ -40,9 +40,9 @@ func TestParsePowerShellBindKeyInvalid(t *testing.T) {
 	}
 }
 
-// TestParsePowerShellBindKeyExplainsRawSequences pins the hint in the error:
-// a key copied from another shell's widget is the likely mistake, and
-// PowerShell cannot take a raw sequence at all.
+// TestParsePowerShellBindKeyExplainsRawSequences pins the hint in the error. A
+// key that was copied from the widget of another shell is the likely mistake,
+// and PowerShell cannot take a raw sequence at all.
 func TestParsePowerShellBindKeyExplainsRawSequences(t *testing.T) {
 	for _, in := range []string{"", "shift-x", "^[x", `\e[15~`} {
 		_, _, err := parsePowerShellBindKey(in)
@@ -85,9 +85,9 @@ func TestPowerShellInitScript(t *testing.T) {
 	}
 }
 
-// TestPowerShellInitNamesTheInvokedProgram pins the mnemonic rule: the script
-// keeps the name it was generated with, so the integration is self-explaining
-// in the profile.
+// TestPowerShellInitNamesTheInvokedProgram pins the mnemonic rule. The script
+// keeps the name that it was generated with, so the integration explains
+// itself in the profile.
 func TestPowerShellInitNamesTheInvokedProgram(t *testing.T) {
 	tests := []struct {
 		prog string
@@ -129,8 +129,8 @@ func TestPowerShellInitErrors(t *testing.T) {
 }
 
 // TestPowerShellInitParsesAsPowerShell runs the generated script through the
-// real PowerShell parser, without executing it, when one is installed: an
-// eval-able script is the whole point of `init powershell`.
+// real PowerShell parser, without executing it, when one is installed. A
+// script that can be evaluated is the whole point of `init powershell`.
 func TestPowerShellInitParsesAsPowerShell(t *testing.T) {
 	shell, err := exec.LookPath("pwsh")
 	if err != nil {

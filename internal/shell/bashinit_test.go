@@ -66,8 +66,8 @@ func TestBashInitScript(t *testing.T) {
 	}
 }
 
-// TestBashInitNamesTheInvokedProgram pins the mnemonic rule: the script keeps
-// the name it was generated with, so the integration is self-explaining in
+// TestBashInitNamesTheInvokedProgram pins the mnemonic rule. The script keeps
+// the name that it was generated with, so the integration explains itself in
 // the rc file.
 func TestBashInitNamesTheInvokedProgram(t *testing.T) {
 	tests := []struct {
@@ -97,9 +97,9 @@ func TestBashInitNamesTheInvokedProgram(t *testing.T) {
 	}
 }
 
-// TestBashInitIsQuiet pins that evaluating the script prints nothing where
-// there is nothing to bind: the integration lives in the rc file, and a
-// non-interactive shell must not even see readline's complaints.
+// TestBashInitIsQuiet pins that evaluating the script prints nothing when
+// there is nothing to bind. The integration lives in the rc file, and a
+// non-interactive shell must not even see the complaints of readline.
 func TestBashInitIsQuiet(t *testing.T) {
 	bash, err := exec.LookPath("bash")
 	if err != nil {
@@ -148,7 +148,8 @@ func TestBashInitErrors(t *testing.T) {
 }
 
 // TestBashInitParsesAsBash runs the generated script through the real bash,
-// when one is installed: eval-ability is the whole point of `init bash`.
+// when one is installed. The ability to evaluate the script is the whole point
+// of `init bash`.
 func TestBashInitParsesAsBash(t *testing.T) {
 	bash, err := exec.LookPath("bash")
 	if err != nil {

@@ -38,8 +38,8 @@ func sampleTasks() []core.Task {
 	}
 }
 
-// sized returns a model after the terminal size (and, inline, the cursor
-// position query) has been answered, as in a running session.
+// sized returns a model after the terminal has answered the size query and, in
+// inline mode, the cursor position query, as in a running session.
 func sized(opts Options) model {
 	m := update(newModel(opts, sampleTasks(), nil), tea.WindowSizeMsg{Width: 80, Height: 30})
 	if opts.Inline {
@@ -126,7 +126,7 @@ func TestViewShowsCommandLines(t *testing.T) {
 }
 
 func TestViewHidesRepeatedDescription(t *testing.T) {
-	// An rc task without a custom description defaults to its command: the
+	// An rc task without a custom description defaults to its command, so the
 	// row must not print it twice.
 	tasks := []core.Task{{Source: "rc", Name: "status", Desc: "git status", Args: []string{"sh", "-c", "git status"}}}
 	got := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10}).View().Content
@@ -136,9 +136,9 @@ func TestViewHidesRepeatedDescription(t *testing.T) {
 }
 
 func TestViewShowsScriptBodyMatchingTaskName(t *testing.T) {
-	// A package.json script like "knip": "knip" has the same text as the
-	// script name in "pnpm run knip", but its script body must still be
-	// shown in the description column.
+	// A package.json script such as "knip": "knip" has the same text as the
+	// script name in "pnpm run knip", but the picker must still show its script
+	// body in the description column.
 	tasks := []core.Task{
 		{Source: "package.json", Name: "test:watch", Desc: "vitest", Args: []string{"pnpm", "run", "test:watch"}},
 		{Source: "package.json", Name: "knip", Desc: "knip", Args: []string{"pnpm", "run", "knip"}},
@@ -150,8 +150,8 @@ func TestViewShowsScriptBodyMatchingTaskName(t *testing.T) {
 }
 
 func TestFilteringByCommandLine(t *testing.T) {
-	// The name is not a column any more: filtering has to find what the
-	// rows show, e.g. the runner.
+	// The name is not a column any more, so filtering has to find what the rows
+	// show, e.g. the runner.
 	m := press(sized(Options{}), "npm")
 	if vis := m.visible(); len(vis) != 1 || vis[0].Name != "build" {
 		t.Errorf("visible tasks with filter %q = %+v, want just the build task", m.filter, vis)
@@ -242,9 +242,9 @@ func TestFilteringRanksAndRejectsScatteredCrossWordNoise(t *testing.T) {
 	}
 	base := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 15})
 
-	// "dev": exact task name first, then prefix name ("dev:edge"), then
-	// description match ("preview"), while "build" ("src/edge && vite") is
-	// rejected as cross-word mid-word noise.
+	// "dev": the exact task name comes first, then the prefix name
+	// ("dev:edge"), then the description match ("preview"). The "build" task
+	// ("src/edge && vite") is rejected as cross-word mid-word noise.
 	m := press(base, "dev")
 	vis := m.visible()
 	var names []string
@@ -255,9 +255,10 @@ func TestFilteringRanksAndRejectsScatteredCrossWordNoise(t *testing.T) {
 		t.Errorf("ranked tasks for %q = %v, want %v", "dev", names, want)
 	}
 
-	// "tsc": contiguous "tsc" in build's description beats a non-contiguous
-	// acronym match in a task name ("type-strict-check"), and scattered
-	// cross-word noise ("test:watch", "codes", "icons", "check") is rejected.
+	// "tsc": a contiguous "tsc" in the description of build beats a
+	// non-contiguous acronym match in a task name ("type-strict-check"), and
+	// the scattered cross-word noise ("test:watch", "codes", "icons", "check")
+	// is rejected.
 	m = press(base, "tsc")
 	vis = m.visible()
 	names = nil
@@ -324,8 +325,8 @@ func TestViewHighlightsMatches(t *testing.T) {
 	m = press(m, "vite")
 
 	got := m.View().Content
-	// Selected row (build) highlights "vite" with selectedMatch; unselected
-	// row (dev) highlights "vite" with match.
+	// The selected row (build) highlights "vite" with selectedMatch, and the
+	// unselected row (dev) highlights "vite" with match.
 	wantSel := m.styles.selectedMatch.Render("vite")
 	wantUnsel := m.styles.match.Render("vite")
 	if !strings.Contains(got, wantSel) {
@@ -356,9 +357,9 @@ func TestViewWindowsLongDescriptionAroundMatch(t *testing.T) {
 }
 
 func TestViewFlattensMultiLineDescriptions(t *testing.T) {
-	// A Taskfile `desc: |` block and a just `[doc("a\nb")]` keep their
-	// newlines in Task.Desc, but a row is one line: the description has to
-	// stay in the description column and the source badge on the same row.
+	// A Taskfile `desc: |` block and a just `[doc("a\nb")]` keep their newlines
+	// in Task.Desc, but a row is one line. The description has to stay in the
+	// description column, and the source badge has to stay on the same row.
 	tests := []struct {
 		name string
 		desc string
@@ -399,9 +400,9 @@ func TestViewFlattensMultiLineDescriptions(t *testing.T) {
 }
 
 func TestViewHighlightsMatchOnSecondDescriptionLine(t *testing.T) {
-	// The match mask is computed on the flattened description, so a token
-	// found on the second line of a `desc: |` block still highlights the
-	// runes the row actually shows.
+	// The match mask is computed on the flattened description, so a token that
+	// is found on the second line of a `desc: |` block still highlights the
+	// runes that the row shows.
 	tasks := []core.Task{{
 		Source: "Taskfile.yml",
 		Name:   "build",
@@ -418,8 +419,8 @@ func TestViewHighlightsMatchOnSecondDescriptionLine(t *testing.T) {
 }
 
 func TestViewKeepsCommandOnNarrowTerminals(t *testing.T) {
-	// At 44 columns the description barely fits: the command must stay
-	// readable, since it is what will actually run.
+	// At 44 columns the description barely fits, and the command must stay
+	// readable, because it is what runs.
 	m := update(newModel(Options{}, sampleTasks(), nil), tea.WindowSizeMsg{Width: 44, Height: 10})
 	got := m.View().Content
 	if !strings.Contains(got, "npm run build") {
@@ -539,9 +540,9 @@ func TestViewInlineFullscreenToggle(t *testing.T) {
 	}
 }
 
-// The alternate screen can report a different terminal size (a scrollbar
-// comes and goes, for example). Toggling back must lay the inline frame out at
-// the main screen's size: a column too many wraps every row and leaves the
+// The alternate screen can report a different terminal size (a scrollbar comes
+// and goes, for example). Toggling back must lay the inline frame out at the
+// size of the main screen: one column too many wraps every row and leaves the
 // previous frame on screen.
 func TestViewInlineUsesMainScreenSizeAfterFullscreen(t *testing.T) {
 	m := sized(Options{Inline: true}) // 80x30, with the inline area starting at row 5
@@ -565,7 +566,7 @@ func TestViewInlineUsesMainScreenSizeAfterFullscreen(t *testing.T) {
 		}
 	}
 
-	// A resize of the main screen after toggling back is adopted.
+	// The picker adopts a resize of the main screen after it toggles back.
 	m = update(m, tea.WindowSizeMsg{Width: 90, Height: 32})
 	if got := m.inlineWidth(); got != 90 {
 		t.Errorf("inline width after a main-screen resize = %d, want 90", got)
@@ -742,8 +743,9 @@ func TestViewNoMatchingTask(t *testing.T) {
 	}
 }
 
-// emptyStateFileLines returns the lines of the empty screen's "looked for
-// task files" sentence, with ANSI escapes and indentation removed.
+// emptyStateFileLines returns the lines of the "looked for task files"
+// sentence of the empty screen, with the ANSI escapes and the indentation
+// removed.
 func emptyStateFileLines(t *testing.T, view string) []string {
 	t.Helper()
 
@@ -770,8 +772,8 @@ func emptyStateFileLines(t *testing.T, view string) []string {
 	return nil
 }
 
-// emptyStateFiles returns the file names in the empty screen's
-// "looked for task files" sentence, with wrapping removed.
+// emptyStateFiles returns the file names in the "looked for task files"
+// sentence of the empty screen, with the wrapping removed.
 func emptyStateFiles(t *testing.T, view string) []string {
 	t.Helper()
 
@@ -793,9 +795,9 @@ func emptyStateFiles(t *testing.T, view string) []string {
 	return files
 }
 
-// assertEmptyStateFiles compares the files named by the empty screen with the
-// registry's display files as a set: a substring check would let a missing
-// Makefile pass because of Makefile.toml.
+// assertEmptyStateFiles compares the files that the empty screen names with the
+// display files of the registry, as a set. A substring check would let a
+// missing Makefile pass because of Makefile.toml.
 func assertEmptyStateFiles(t *testing.T, view string) {
 	t.Helper()
 
@@ -826,7 +828,7 @@ func assertEmptyStateFiles(t *testing.T, view string) {
 }
 
 // assertFileListNotTruncated fails when a line of the file list ends in the
-// ellipsis that render adds to a line wider than the picker.
+// ellipsis that render adds to a line that is wider than the picker.
 func assertFileListNotTruncated(t *testing.T, view string) {
 	t.Helper()
 

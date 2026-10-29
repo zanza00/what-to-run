@@ -1,9 +1,9 @@
 //go:build ignore
 
-// Command install-dprint downloads the dprint release pinned below for the
-// host platform into the given path. `task fmt-md` and `task check-md` run it
-// through `go run`, so contributors do not need a global dprint install and
-// every machine, CI included, uses the same version.
+// Command install-dprint downloads the dprint release that is pinned below for
+// the host platform into the given path. `task fmt-md` and `task check-md` run
+// the command through `go run`, so contributors do not need a global dprint
+// install, and every machine, CI included, uses the same version.
 package main
 
 import (
@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-// dprintVersion is the release downloaded by `task fmt-md` and used by CI.
+// dprintVersion is the release that `task fmt-md` downloads and that CI uses.
 const dprintVersion = "0.64.3"
 
 func main() {
@@ -42,10 +42,10 @@ func main() {
 	fmt.Printf("Installed dprint %s to %s\n", dprintVersion, dest)
 }
 
-// hasPinnedVersion reports whether dest is a regular file running the release
-// pinned in dprintVersion. Comparing the version instead of the file's
-// existence keeps bin/tools in sync when the pin moves: a stale copy is
-// reinstalled. A failed run means reinstalling too.
+// hasPinnedVersion reports whether dest is a regular file that runs the release
+// pinned in dprintVersion. The check compares the version and not the existence
+// of the file, so bin/tools stays in sync when the pin moves. A stale copy is
+// reinstalled, and so is a copy that fails to run.
 func hasPinnedVersion(dest string) bool {
 	info, err := os.Stat(dest)
 	if err != nil || !info.Mode().IsRegular() {

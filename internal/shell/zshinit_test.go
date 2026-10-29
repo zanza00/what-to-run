@@ -63,8 +63,8 @@ func TestZshInitScript(t *testing.T) {
 	}
 }
 
-// TestZshInitNamesTheInvokedProgram pins the mnemonic rule: the script keeps
-// the name it was generated with, so the integration is self-explaining in
+// TestZshInitNamesTheInvokedProgram pins the mnemonic rule. The script keeps
+// the name that it was generated with, so the integration explains itself in
 // the rc file.
 func TestZshInitNamesTheInvokedProgram(t *testing.T) {
 	tests := []struct {
@@ -94,7 +94,7 @@ func TestZshInitNamesTheInvokedProgram(t *testing.T) {
 	}
 }
 
-// TestZshInitIsQuiet pins that evaluating the script prints nothing: the
+// TestZshInitIsQuiet pins that evaluating the script prints nothing. The
 // integration lives in the rc file, and a greeting at every new shell is
 // noise.
 func TestZshInitIsQuiet(t *testing.T) {
@@ -124,8 +124,8 @@ func TestZshInitFlowControlKeyDisablesIXON(t *testing.T) {
 }
 
 // TestDefaultKeyLeavesFlowControlAlone pins why the default is not Ctrl-S or
-// Ctrl-Q: those are the terminal's XOFF/XON keys, and binding one makes the
-// generated zsh and bash scripts run stty -ixon.
+// Ctrl-Q. Those are the XOFF/XON keys of the terminal, and a binding to one of
+// them makes the generated zsh and bash scripts run stty -ixon.
 func TestDefaultKeyLeavesFlowControlAlone(t *testing.T) {
 	for _, tt := range []struct {
 		name string
@@ -157,7 +157,8 @@ func TestZshInitErrors(t *testing.T) {
 }
 
 // TestZshInitParsesAsZsh runs the generated script through the real zsh, when
-// one is installed: eval-ability is the whole point of `init zsh`.
+// one is installed. The ability to evaluate the script is the whole point of
+// `init zsh`.
 func TestZshInitParsesAsZsh(t *testing.T) {
 	zsh, err := exec.LookPath("zsh")
 	if err != nil {

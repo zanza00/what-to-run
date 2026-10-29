@@ -15,7 +15,8 @@ import (
 
 var ctrlTKey = tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl}
 
-// titleLine returns the first rendered line, without ANSI sequences.
+// titleLine returns the first rendered line of the view, without the ANSI
+// sequences.
 func titleLine(view string) string {
 	return ansi.Strip(strings.SplitN(view, "\n", 2)[0])
 }
@@ -32,8 +33,8 @@ func TestThemeRegistry(t *testing.T) {
 		if seen[th.name] {
 			t.Errorf("duplicate theme name %q", th.name)
 		}
-		// A colored theme needs both tint colors: the selected row's
-		// background and a readable foreground on it.
+		// A colored theme needs both tint colors: the background of the
+		// selected row, and a foreground that stays readable on it.
 		if th.accent != nil && (th.selBg == nil || th.selFg == nil) {
 			t.Errorf("theme %q has colors but misses selBg or selFg", th.name)
 		}
@@ -41,13 +42,13 @@ func TestThemeRegistry(t *testing.T) {
 	}
 }
 
-// TestThemeContrast keeps the selected row readable: the light text of a bar
+// TestThemeContrast keeps the selected row readable. The light text of a bar
 // theme must stand out from its tint (WCAG AA, 4.5:1). The nord theme once
-// failed this with the dim color on a nearly identical tint.
+// failed this test, with the dim color on a nearly identical tint.
 func TestThemeContrast(t *testing.T) {
 	for _, th := range themes {
 		if th.selBg == nil || th.selFg == nil {
-			continue // the colorless theme has no tint to check
+			continue // The colorless theme has no tint to check.
 		}
 		if got := contrastRatio(th.selFg, th.selBg); got < 4.5 {
 			t.Errorf("theme %q: selFg on selBg contrast = %.1f:1, want at least 4.5:1", th.name, got)
@@ -209,8 +210,8 @@ func TestThemePickerPreviewsLive(t *testing.T) {
 	if got := themes[m.themeIdx].name; got != "nord" {
 		t.Errorf("theme after one down = %q, want nord", got)
 	}
-	// The preview is live: the task list behind the box wears the theme's
-	// tint (nord selBg #434C5E).
+	// The preview is live, so the task list behind the box wears the tint of
+	// the theme (nord selBg #434C5E).
 	got := m.View().Content
 	var row string
 	for _, line := range strings.Split(got, "\n") {
@@ -251,10 +252,10 @@ func TestThemePickerPreviewsLive(t *testing.T) {
 func TestThemePickerConfirmAndCancel(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg")) // keep the save hermetic
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg")) // The temporary directory keeps the save hermetic.
 
-	// enter keeps the previewed theme and closes the box, confirming the
-	// save with a toast (not the help line).
+	// The enter key keeps the previewed theme and closes the box. The save
+	// arrives as a toast, not on the help line.
 	m := update(sized(Options{}), ctrlTKey)
 	m = update(m, downKey)
 	m = update(m, enterKey)
@@ -271,7 +272,7 @@ func TestThemePickerConfirmAndCancel(t *testing.T) {
 		t.Errorf("the box is still drawn after enter:\n%s", got)
 	}
 
-	// ctrl+t toggles the picker closed, keeping the preview.
+	// A second ctrl+t closes the picker and keeps the preview.
 	m = update(sized(Options{}), ctrlTKey)
 	m = update(m, downKey)
 	m = update(m, ctrlTKey)
@@ -279,8 +280,8 @@ func TestThemePickerConfirmAndCancel(t *testing.T) {
 		t.Errorf("after ctrl+t: modal = %v, theme = %d; want closed on 1", m.themeModal, m.themeIdx)
 	}
 
-	// esc cancels: the theme from before the picker comes back, and the
-	// press neither quits nor clears the filter.
+	// esc cancels. The theme from before the picker comes back, and the press
+	// neither quits nor clears the filter.
 	m = press(sized(Options{}), "npm")
 	m = update(m, ctrlTKey)
 	m = update(m, downKey)
@@ -314,8 +315,8 @@ func TestViewTitleIgnoresTheTheme(t *testing.T) {
 	if got := titleLine(sized(Options{}).View().Content); got != "wtr" {
 		t.Errorf("default title = %q, want %q", got, "wtr")
 	}
-	// The title stays the program name whatever the theme is: the picker
-	// shows the look itself.
+	// The title stays the program name whatever the theme is, because the
+	// picker shows the look itself.
 	if got := titleLine(sized(Options{Theme: "nord"}).View().Content); got != "wtr" {
 		t.Errorf("title with the nord theme = %q, want %q", got, "wtr")
 	}
@@ -333,8 +334,8 @@ func selectedRow(t *testing.T, view string) string {
 	return ""
 }
 
-// boxHeight returns the number of rows of the theme picker box, from the top
-// border to the bottom one.
+// boxHeight returns the number of rows that the theme picker box occupies,
+// from its top border to its bottom border.
 func boxHeight(t *testing.T, view string) int {
 	t.Helper()
 	top, bottom := -1, -1
@@ -355,8 +356,8 @@ func boxHeight(t *testing.T, view string) int {
 func TestBarSelectionTintsTheWholeRow(t *testing.T) {
 	selected := selectedRow(t, sized(Options{Theme: "tokyo"}).View().Content)
 
-	// The tint arrives as a background color, and the text on it is the
-	// palette's light tone: never the dim color, which can be nearly
+	// The tint arrives as a background color, and the text on it is the light
+	// tone of the palette. It is never the dim color, which can be nearly
 	// identical to the tint (the nord bug) and make the row unreadable.
 	if !strings.Contains(selected, "48;2;59;66;97") { // #3B4261
 		t.Errorf("selected row does not paint the theme tint:\n%q", selected)
@@ -368,8 +369,8 @@ func TestBarSelectionTintsTheWholeRow(t *testing.T) {
 		t.Errorf("selected row still uses the dim color for part of its text:\n%q", selected)
 	}
 
-	// The default theme is a bar theme like the others: same marker, its
-	// own violet tint and light tone.
+	// The default theme is a bar theme like the others: the same marker, and
+	// its own violet tint and light tone.
 	selected = selectedRow(t, sized(Options{}).View().Content)
 	if !strings.Contains(selected, "48;2;70;60;110") { // #463C6E
 		t.Errorf("default selected row does not paint its tint:\n%q", selected)
@@ -381,8 +382,8 @@ func TestBarSelectionTintsTheWholeRow(t *testing.T) {
 		t.Errorf("default selected row still uses the dim color for part of its text:\n%q", selected)
 	}
 
-	// The colorless theme keeps the same layout: no colors anywhere on the
-	// row, reverse video as its tint.
+	// The colorless theme keeps the same layout. The row carries no colors at
+	// all, and reverse video acts as its tint.
 	selected = selectedRow(t, sized(Options{Theme: "mono"}).View().Content)
 	if !strings.Contains(selected, "[7m") && !strings.Contains(selected, ";7m") {
 		t.Errorf("mono selected row does not use reverse video:\n%q", selected)
@@ -404,12 +405,12 @@ func TestThemePickerRenders(t *testing.T) {
 		t.Errorf("box height = %d rows, want %d", h, themeModalListRows+themeModalChrome)
 	}
 
-	// The rows are just the names: no theme description in the box.
+	// The rows hold only the names, so the box shows no theme description.
 	if strings.Contains(got, "the default violet look") {
 		t.Errorf("theme picker shows a theme description:\n%s", got)
 	}
 
-	// The previewed row is tinted with the active theme's palette...
+	// The previewed row wears the palette of the active theme.
 	var row string
 	for _, line := range strings.Split(got, "\n") {
 		if strings.Contains(line, "▌") && strings.Contains(line, "classic") {
@@ -424,7 +425,7 @@ func TestThemePickerRenders(t *testing.T) {
 		t.Errorf("selected theme row does not paint the theme tint:\n%q", row)
 	}
 
-	// ... and the other rows use their own palette: nord's name carries its
+	// The other rows use their own palette, so the name of nord carries its
 	// accent.
 	for _, line := range strings.Split(got, "\n") {
 		if strings.Contains(line, "nord") && !strings.Contains(line, "38;2;136;192;208") { // #88C0D0
@@ -445,7 +446,8 @@ func TestThemePickerRendersEveryTheme(t *testing.T) {
 }
 
 func TestThemePickerWindowsTheList(t *testing.T) {
-	// The box shows five theme rows; the rest are reached by scrolling.
+	// The box shows five theme rows, and the user reaches the rest by
+	// scrolling.
 	m := update(sized(Options{}), ctrlTKey)
 	got := m.View().Content
 	if !strings.Contains(got, "themes 1/14 ↓") {
@@ -472,7 +474,7 @@ func TestThemePickerWindowsTheList(t *testing.T) {
 }
 
 func TestThemePickerFitsInlineArea(t *testing.T) {
-	// Inline with a 15-row area: the box is smaller than the area and the
+	// In the inline area of 15 rows the box is smaller than the area, and the
 	// view keeps its 15 rows.
 	m := newModel(Options{Inline: true}, sampleTasks(), nil)
 	m = update(m, tea.WindowSizeMsg{Width: 80, Height: 20})
@@ -488,9 +490,9 @@ func TestThemePickerFitsInlineArea(t *testing.T) {
 	}
 }
 
-// TestThemePickerSavesTheChoice: keeping a theme from the picker writes it to
-// the user rc file, and a toast confirms where it went without touching the
-// help line.
+// TestThemePickerSavesTheChoice checks that keeping a theme from the picker
+// writes it to the user rc file. A toast confirms where it went, and the help
+// line stays untouched.
 func TestThemePickerSavesTheChoice(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -518,9 +520,9 @@ func TestThemePickerSavesTheChoice(t *testing.T) {
 	}
 }
 
-// TestThemePickerSavesInTheUserFile: the picker saves the theme in the user
-// rc file (like OpenCode's cli.json), never in the project one, and ctrl+t
-// keeps like enter does.
+// TestThemePickerSavesInTheUserFile pins that the picker saves the theme in the
+// user rc file (like OpenCode's cli.json) and never in the project one. ctrl+t
+// keeps the choice like enter does.
 func TestThemePickerSavesInTheUserFile(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -550,8 +552,8 @@ func TestThemePickerSavesInTheUserFile(t *testing.T) {
 	}
 }
 
-// TestNoticeExpires: the toast clears itself on its timer, and a stale timer
-// does not clear a newer notice.
+// TestNoticeExpires checks that the toast clears itself on its timer, and that
+// a stale timer does not clear a newer notice.
 func TestNoticeExpires(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -565,7 +567,7 @@ func TestNoticeExpires(t *testing.T) {
 	}
 	first := m.noticeID
 
-	// A newer notice replaces it, keeping its own timer.
+	// A newer notice replaces the first one and keeps its own timer.
 	m = update(m, ctrlTKey)
 	m = update(m, downKey)
 	m = update(m, enterKey)
@@ -589,8 +591,8 @@ func TestNoticeExpires(t *testing.T) {
 	}
 }
 
-// TestThemePickerSaveFailureStaysInTheStatusLine: a failed save is not a
-// toast; it stays in the status line like any other problem.
+// TestThemePickerSaveFailureStaysInTheStatusLine pins that a failed save is not
+// a toast. It stays in the status line like any other problem.
 func TestThemePickerSaveFailureStaysInTheStatusLine(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -613,8 +615,9 @@ func TestThemePickerSaveFailureStaysInTheStatusLine(t *testing.T) {
 	}
 }
 
-// TestThemePickerDoesNotSaveWithoutAChange: cancelling with esc, or keeping
-// the theme that was already active, writes nothing.
+// TestThemePickerDoesNotSaveWithoutAChange pins that cancelling with esc writes
+// nothing, and that keeping the theme that was already active writes nothing
+// too.
 func TestThemePickerDoesNotSaveWithoutAChange(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -672,8 +675,8 @@ func TestHelpThemeHintFits(t *testing.T) {
 		t.Errorf("fullscreen help line does not mention ctrl+t:\n%s", got)
 	}
 
-	// Inline at 80 columns the hint would push the line over the edge: it is
-	// dropped, and the keys before it stay readable.
+	// In the inline area at 80 columns the hint would push the line over the
+	// edge. The view drops it, and the keys before it stay readable.
 	if got := sized(Options{Inline: true}).View().Content; strings.Contains(got, "ctrl+t theme") {
 		t.Errorf("inline help line at 80 columns keeps the ctrl+t hint, want it dropped:\n%s", got)
 	}
@@ -688,7 +691,7 @@ func TestHelpThemeHintFits(t *testing.T) {
 func TestPreviewRendersAFrame(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // ignore the user's rc file
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // A fresh config directory hides the user rc file.
 	if err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte("build:\n\techo building\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -705,15 +708,15 @@ func TestPreviewRendersAFrame(t *testing.T) {
 	if !strings.Contains(got, "build") {
 		t.Errorf("preview does not contain the task:\n%s", got)
 	}
-	// The frame wears the requested theme: its accent colors the title
+	// The frame wears the requested theme, so its accent colors the title
 	// (tokyo #7AA2F7).
 	if !strings.Contains(got, "38;2;122;162;247") {
 		t.Errorf("preview does not use the tokyo accent:\n%s", got)
 	}
 }
 
-// TestPreviewUsesTheConfiguredTheme: the user rc theme is the starting look,
-// and --theme still wins for a single run.
+// TestPreviewUsesTheConfiguredTheme pins that the theme of the user rc file is
+// the starting look, and that --theme still wins for a single run.
 func TestPreviewUsesTheConfiguredTheme(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

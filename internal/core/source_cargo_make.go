@@ -9,7 +9,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// cargoMakeSource returns the source for the project's Makefile.toml.
+// cargoMakeSource returns the source for the Makefile.toml of the project.
 func cargoMakeSource() source {
 	return source{
 		SourceInfo: SourceInfo{
@@ -21,7 +21,7 @@ func cargoMakeSource() source {
 	}
 }
 
-// cargoTask is the subset of a cargo-make task definition the picker uses.
+// cargoTask is the subset of a cargo-make task definition that the picker uses.
 type cargoTask struct {
 	Description string   `toml:"description"`
 	Command     string   `toml:"command"`
@@ -30,9 +30,9 @@ type cargoTask struct {
 	Disabled    bool     `toml:"disabled"`
 }
 
-// parseCargoMakefile returns the cargo-make tasks declared in the project's
-// Makefile.toml [tasks] section, sorted by name. Private and disabled tasks
-// are skipped: the picker would not be able to run them directly.
+// parseCargoMakefile returns the cargo-make tasks that the [tasks] section of
+// the project's Makefile.toml declares, sorted by name. It skips private and
+// disabled tasks, because the picker could not run them directly.
 func parseCargoMakefile(_ string, data []byte) ([]Task, error) {
 	var doc struct {
 		Tasks map[string]cargoTask `toml:"tasks"`

@@ -1,6 +1,6 @@
-// Command wtr is a TUI for running the tasks declared in a project's files
-// (see docs/task-sources.md) and the rc file. The invoked name is the one
-// shown in usage, messages and the picker title.
+// Command wtr is a TUI that runs the tasks that a project's files declare (see
+// docs/task-sources.md), and the tasks of the rc file. The name that the binary
+// was invoked as is the name in usage, messages and the picker title.
 package main
 
 import (
@@ -18,17 +18,17 @@ import (
 	"github.com/zanza00/what-to-run/internal/tui"
 )
 
-// prog is the name the program was invoked as (wtr, or whatever it was
-// renamed to) and identifies itself with.
+// prog is the name that the program was invoked as (wtr, or whatever name it
+// was renamed to), and it is the name that the program uses for itself.
 var prog = progName(os.Args[0])
 
 // version is the release version, injected at build time with
-// `-X main.version` (see Taskfile.yml and .goreleaser.yaml); local builds
-// report "dev".
+// `-X main.version` (see Taskfile.yml and .goreleaser.yaml). A local build
+// reports "dev".
 var version = "dev"
 
 func main() {
-	// A subcommand comes first; everything else is the picker's own flags.
+	// A subcommand comes first, and everything else is a flag of the picker.
 	if len(os.Args) > 1 && os.Args[1] == "init" {
 		if err := runInit(os.Args[2:], os.Stdout); err != nil {
 			fmt.Fprintf(os.Stderr, "%s: %v\n", prog, err)
@@ -88,8 +88,8 @@ func main() {
 		return
 	}
 
-	// A task launched from the inline picker failed: exit with the task's
-	// own code and stay quiet, the task already reported its error.
+	// A task that the inline picker launched failed. Exit with the code of the
+	// task and stay quiet, because the task already reported its error.
 	var exit interface{ ExitCode() int }
 	if errors.As(err, &exit) {
 		code := exit.ExitCode()
@@ -104,8 +104,8 @@ func main() {
 }
 
 // runInit implements the init subcommand, `<prog> init zsh|bash|powershell
-// [--key combo]`: it prints to w the shell integration for the running binary,
-// ready to be evaluated by an interactive shell:
+// [--key combo]`. It prints to w the shell integration for the running binary,
+// which is ready to be evaluated by an interactive shell:
 //
 //	eval "$(wtr init zsh)"
 //	eval "$(wtr init bash)"
@@ -143,8 +143,8 @@ func runInit(args []string, w io.Writer) error {
 	default:
 		return fmt.Errorf("unsupported shell %q: only zsh, bash and powershell are supported", sh)
 	}
-	// flag stops at the first positional argument, so a flag written after
-	// the shell name ("init zsh --key ctrl-g") needs a second pass.
+	// flag stops at the first positional argument. A flag that is written after
+	// the shell name ("init zsh --key ctrl-g") therefore needs a second pass.
 	if len(tail) > 0 {
 		if err := fs.Parse(tail); err != nil {
 			return err
@@ -162,16 +162,16 @@ func runInit(args []string, w io.Writer) error {
 	return nil
 }
 
-// progName is the name the program shows as its own: the basename of the
-// command it was invoked as, with a fallback for the odd exec without argv[0].
+// progName is the name that the program shows as its own. It is the basename of
+// the command that invoked it, with a fallback for the odd exec without argv[0].
 func progName(arg0 string) string {
 	return progNameFor(runtime.GOOS, arg0)
 }
 
-// progNameFor is progName for the given platform. On Windows argv[0] may use
-// either separator, and the launcher usually appends the .exe suffix: neither
-// belongs in the name the program shows, so both are dropped there. Elsewhere
-// a file literally named wtr.exe keeps its suffix.
+// progNameFor is progName for the given platform. On Windows, argv[0] may use
+// either separator, and the launcher usually appends the .exe suffix. Neither
+// belongs in the name that the program shows, so both are dropped there.
+// Elsewhere, a file that is literally named wtr.exe keeps its suffix.
 func progNameFor(goos, arg0 string) string {
 	if arg0 == "" {
 		return "wtr"
@@ -189,16 +189,16 @@ func progNameFor(goos, arg0 string) string {
 	return name
 }
 
-// versionLine is what --version prints: the invoked name and the release
-// version, so a copy-pasted bug report says both.
+// versionLine returns what --version prints: the invoked name and the release
+// version. A copy-pasted bug report then says both.
 func versionLine(prog, ver string) string {
 	return prog + " " + ver
 }
 
-// widgetBin is the command the generated zsh widget launches: the binary as
-// the user invoked it, so the widget keeps calling it by the same name (and
-// the picker keeps showing that name). A bare name stays bare and is
-// resolved through PATH when the key is pressed; a path is made absolute.
+// widgetBin is the command that the generated shell widget launches: the binary
+// as the user invoked it, so the widget keeps calling the binary by the same
+// name, and the picker keeps showing that name. A bare name stays bare and is
+// resolved through PATH when the key is pressed. A path is made absolute.
 func widgetBin(arg0 string) string {
 	switch {
 	case arg0 == "":
@@ -217,8 +217,8 @@ func widgetBin(arg0 string) string {
 }
 
 // hasPathSeparator reports whether arg0 names a path rather than a bare
-// command: '/' separates everywhere, '\' only on Windows, where it cannot be
-// part of a file name.
+// command. '/' separates everywhere, and '\' separates only on Windows, where
+// it cannot be part of a file name.
 func hasPathSeparator(goos, arg0 string) bool {
 	if strings.ContainsRune(arg0, '/') {
 		return true

@@ -6,7 +6,7 @@ import (
 	"github.com/zanza00/what-to-run/internal/core"
 )
 
-// osFiles is the production core.Files adapter.
+// osFiles is the core.Files adapter that the picker uses in production.
 type osFiles struct{}
 
 var _ core.Files = osFiles{}

@@ -20,8 +20,8 @@ func TestUserDirsHonorAbsoluteXDG(t *testing.T) {
 }
 
 func TestUserDirsIgnoreRelativeXDG(t *testing.T) {
-	// The XDG spec makes relative paths invalid: they must be ignored, not
-	// resolve a config file inside the current directory.
+	// The XDG spec makes a relative path invalid, so the two functions must
+	// ignore it and never resolve a config file inside the current directory.
 	t.Setenv("XDG_CONFIG_HOME", "relative")
 	t.Setenv("XDG_CACHE_HOME", "relative")
 	t.Setenv("HOME", t.TempDir())
@@ -32,7 +32,7 @@ func TestUserDirsIgnoreRelativeXDG(t *testing.T) {
 	} {
 		got, err := dir()
 		if err != nil {
-			continue // no native directory on this platform: nothing to check
+			continue // No native directory on this platform, so there is nothing to check.
 		}
 		if got == "relative" || !filepath.IsAbs(got) {
 			t.Errorf("%s() = %q, want an absolute native directory", name, got)

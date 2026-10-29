@@ -7,9 +7,9 @@ import (
 	"github.com/tidwall/jsonc"
 )
 
-// unmarshalJSONC decodes JSONC into v: JSON that may additionally contain
-// // line comments, /* */ block comments and trailing commas. Standard JSON
-// is valid JSONC, so this also decodes a plain .json file.
+// unmarshalJSONC decodes JSONC into v. JSONC is JSON that may also contain //
+// line comments, /* */ block comments and trailing commas. Standard JSON is
+// valid JSONC, so this function also decodes a plain .json file.
 func unmarshalJSONC(data []byte, v any) error {
 	return json.Unmarshal(jsonc.ToJSON(data), v)
 }

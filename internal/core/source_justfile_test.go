@@ -7,9 +7,9 @@ import (
 	"testing"
 )
 
-// TestParseJustfile covers the shapes a justfile can declare: doc comments and
-// attributes, private and silent recipes, body lines that look like headers,
-// and the statements that are not recipes at all.
+// TestParseJustfile covers the shapes that a justfile can declare: doc
+// comments and attributes, private and silent recipes, body lines that look
+// like headers, and the statements that are not recipes at all.
 func TestParseJustfile(t *testing.T) {
 	tests := []struct {
 		name string
@@ -709,9 +709,9 @@ export FOO := "bar"
 	}
 }
 
-// TestParseJustfileNeverErrors pins the forgiving contract: an odd or broken
-// justfile produces no tasks instead of a warning that would hide the file's
-// siblings.
+// TestParseJustfileNeverErrors pins the forgiving contract. An odd or broken
+// justfile produces no tasks, instead of a warning that would hide the sibling
+// files.
 func TestParseJustfileNeverErrors(t *testing.T) {
 	for _, in := range []string{
 		"this is not a justfile %%%\n    indented?\n",
@@ -729,9 +729,9 @@ func TestParseJustfileNeverErrors(t *testing.T) {
 	}
 }
 
-// TestParseJustfilePlatforms pins the platform attributes: each one lists its
-// recipe only on a matching GOOS, several attributes are OR-ed whether they
-// share a list or not, and unix covers every GOOS but Windows.
+// TestParseJustfilePlatforms pins the platform attributes. Each attribute
+// lists its recipe only on a matching GOOS. Several attributes are OR-ed,
+// whether they share a list or not, and unix covers every GOOS but Windows.
 func TestParseJustfilePlatforms(t *testing.T) {
 	in := `[windows]
 win:
@@ -784,9 +784,10 @@ split:
 	}
 }
 
-// TestParseJustfilePlatformVariants reads the platform fixture from disk: a
-// recipe defined once per platform must produce one row, carrying the doc and
-// description of the definition enabled on the target GOOS.
+// TestParseJustfilePlatformVariants reads the platform fixture from disk. A
+// recipe that is defined once for each platform must produce one row, and that
+// row carries the doc and the description of the definition that is enabled on
+// the target GOOS.
 func TestParseJustfilePlatformVariants(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("testdata", "justfile-platforms", "justfile"))
 	if err != nil {
@@ -897,8 +898,9 @@ deploy:
 	}
 }
 
-// parseJustfileTree parses main as the root justfile in root, with tree as the
-// justfiles it may import, keyed by their path relative to root.
+// parseJustfileTree parses main as the root justfile in root. The tree holds
+// the justfiles that the root may import, keyed by their path relative to
+// root.
 func parseJustfileTree(t *testing.T, goos, root, main string, tree map[string]string) []Task {
 	t.Helper()
 	files := make(mapFiles, len(tree))
@@ -912,10 +914,11 @@ func parseJustfileTree(t *testing.T, goos, root, main string, tree map[string]st
 	return tasks
 }
 
-// TestParseJustfileImports covers how local imports join the list: their
-// recipes keep their own descriptions, resolve relative to the importing file,
-// and missing ones are skipped. The duplicate cases pin the precedence rule:
-// the shallowest file wins, and at equal depth the earlier import.
+// TestParseJustfileImports covers how local imports join the list. The recipes
+// of an import keep their own descriptions, and a relative path resolves
+// against the importing file. Missing imports are skipped. The duplicate cases
+// pin the precedence rule: the shallowest file wins, and at equal depth the
+// earlier import wins.
 func TestParseJustfileImports(t *testing.T) {
 	tests := []struct {
 		name string
@@ -1035,9 +1038,9 @@ func TestParseJustfileImports(t *testing.T) {
 	}
 }
 
-// TestParseJustfileModules covers how modules join the list: their recipes are
-// namespaced with "name::", the source is looked up where just looks for it,
-// and nested modules chain the namespace.
+// TestParseJustfileModules covers how modules join the list. The recipes of a
+// module are namespaced with "name::", and the source is looked up where just
+// looks for it. Nested modules chain the namespace.
 func TestParseJustfileModules(t *testing.T) {
 	tests := []struct {
 		name string
@@ -1154,7 +1157,8 @@ func TestParseJustfileModules(t *testing.T) {
 	}
 }
 
-// TestParseJustfileImportAbsolute: an absolute import path is read as written.
+// TestParseJustfileImportAbsolute: the parser reads an absolute import path as
+// written.
 func TestParseJustfileImportAbsolute(t *testing.T) {
 	root := t.TempDir()
 	abs := filepath.Join(root, "abs.just")
@@ -1170,8 +1174,8 @@ func TestParseJustfileImportAbsolute(t *testing.T) {
 	}
 }
 
-// TestParseJustfileImportHome: a leading "~/" expands to the home directory,
-// as it does in just.
+// TestParseJustfileImportHome: the parser expands a leading "~/" to the home
+// directory, as it does in just.
 func TestParseJustfileImportHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -1188,8 +1192,8 @@ func TestParseJustfileImportHome(t *testing.T) {
 	}
 }
 
-// justTaskNames returns the names of the parsed tasks in order, for tests that
-// only care about which recipes are visible.
+// justTaskNames returns the names of the parsed tasks in order. Tests that
+// only care about which recipes are visible use it.
 func justTaskNames(tasks []Task) []string {
 	names := make([]string, 0, len(tasks))
 	for _, task := range tasks {
@@ -1207,9 +1211,9 @@ func TestJustfileSourceFiles(t *testing.T) {
 	}
 }
 
-// TestDiscoverJustfileFirstFileWins pins the candidate-file preference:
-// justfile beats .justfile. The names differ by a dot, not by case, so the
-// fixture is safe on the case-insensitive filesystem of macOS.
+// TestDiscoverJustfileFirstFileWins pins the preference between candidate
+// files: justfile wins over .justfile. The names differ by a dot, not by case,
+// so the fixture is safe on the case-insensitive filesystem of macOS.
 func TestDiscoverJustfileFirstFileWins(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".justfile", "dot-only:\n    echo dot\n")
@@ -1225,8 +1229,8 @@ func TestDiscoverJustfileFirstFileWins(t *testing.T) {
 	}
 }
 
-// TestDiscoverJustfileDotFallback: .justfile is read when there is no
-// higher-priority candidate, and its name is the badge.
+// TestDiscoverJustfileDotFallback: discovery reads .justfile when no candidate
+// with a higher priority exists, and the name of that file is the badge.
 func TestDiscoverJustfileDotFallback(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".justfile", "# Build the app\nbuild:\n    echo build\n")
@@ -1241,8 +1245,9 @@ func TestDiscoverJustfileDotFallback(t *testing.T) {
 	}
 }
 
-// TestDiscoverJustfileImports: imported recipes are listed under the root
-// file's badge, since the picker runs "just <name>" from the project directory.
+// TestDiscoverJustfileImports: discovery lists imported recipes under the
+// badge of the root file, because the picker runs "just <name>" from the
+// project directory.
 func TestDiscoverJustfileImports(t *testing.T) {
 	dir := "testdata/justfile-imports"
 
@@ -1259,8 +1264,9 @@ func TestDiscoverJustfileImports(t *testing.T) {
 	}
 }
 
-// TestDiscoverJustfileModules: module recipes are listed under the root file's
-// badge, since the picker runs "just name::recipe" from the project directory.
+// TestDiscoverJustfileModules: discovery lists module recipes under the badge
+// of the root file, because the picker runs "just name::recipe" from the
+// project directory.
 func TestDiscoverJustfileModules(t *testing.T) {
 	dir := "testdata/justfile-modules"
 
@@ -1284,7 +1290,7 @@ func TestDiscoverJustfileMissingFile(t *testing.T) {
 	}
 }
 
-// TestDiscoverTasksJustfileOrder: rc tasks first, then package.json,
+// TestDiscoverTasksJustfileOrder: rc tasks come first, then package.json,
 // Taskfile.yml and justfile, in the registry order.
 func TestDiscoverTasksJustfileOrder(t *testing.T) {
 	dir := t.TempDir()
@@ -1308,8 +1314,8 @@ func TestDiscoverTasksJustfileOrder(t *testing.T) {
 	}
 }
 
-// TestDiscoverTasksOddJustfileKeepsSiblings: a justfile the parser cannot make
-// sense of contributes no recipes and no warning, and does not hide a
+// TestDiscoverTasksOddJustfileKeepsSiblings: a justfile that the parser cannot
+// make sense of contributes no recipes and no warning, and it does not hide a
 // package.json in the same directory.
 func TestDiscoverTasksOddJustfileKeepsSiblings(t *testing.T) {
 	dir := t.TempDir()

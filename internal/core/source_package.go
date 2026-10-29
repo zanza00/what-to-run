@@ -9,8 +9,9 @@ import (
 	"strings"
 )
 
-// packageJSONSource returns the source for the project's package.json.
-// runnerOverride is the rc file's package_manager setting, empty when unset.
+// packageJSONSource returns the source for the package.json of the project.
+// runnerOverride is the package_manager setting of the rc file, empty when it
+// is unset.
 func packageJSONSource(runnerOverride string, files Files) source {
 	return source{
 		SourceInfo: SourceInfo{
@@ -24,8 +25,8 @@ func packageJSONSource(runnerOverride string, files Files) source {
 	}
 }
 
-// parsePackageScripts returns the scripts declared in package.json, sorted
-// by name, each run through the package manager in use.
+// parsePackageScripts returns the scripts that package.json declares, sorted by
+// name. Each script runs through the package manager in use.
 func parsePackageScripts(files Files, dir string, data []byte, runnerOverride string) ([]Task, error) {
 	var pkg struct {
 		Scripts        map[string]string `json:"scripts"`
@@ -61,9 +62,9 @@ func PackageManagerName(declared string) (string, bool) {
 	return "", false
 }
 
-// packageRunner returns the argv prefix for running a package.json script:
-// the rc file's package_manager, then the declared packageManager field,
-// then the lock file in use, then npm.
+// packageRunner returns the argv prefix that runs a package.json script. The
+// precedence is the package_manager of the rc file, then the declared
+// packageManager field, then the lock file in use, then npm.
 func packageRunner(files Files, dir, declared, override string) []string {
 	for _, name := range []string{override, declared} {
 		if pm, ok := PackageManagerName(name); ok {

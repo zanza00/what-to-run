@@ -122,7 +122,7 @@ func TestQuotePowerShellArg(t *testing.T) {
 }
 
 // TestQuoteCmdArg pins the best-effort output of the cmd dialect, not a
-// round-trip: cmd expands %VAR% and !VAR! even inside double quotes.
+// round-trip. cmd expands %VAR% and !VAR! even inside double quotes.
 func TestQuoteCmdArg(t *testing.T) {
 	tests := []struct {
 		name string

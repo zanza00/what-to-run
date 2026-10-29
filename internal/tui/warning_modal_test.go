@@ -28,8 +28,8 @@ func TestWarningModalOpensAtStartAndKeepsBottomChrome(t *testing.T) {
 	}
 
 	got := ansi.Strip(m.View().Content)
-	// The box is composited over the rows, so rebuild its text from the
-	// interior of its borders before checking wrapped messages.
+	// The box is composited over the rows, so the test rebuilds its text from
+	// the interior of its borders before it checks the wrapped messages.
 	var box []string
 	for _, line := range strings.Split(got, "\n") {
 		if i, j := strings.Index(line, "│"), strings.LastIndex(line, "│"); i >= 0 && j > i {
@@ -137,7 +137,7 @@ func TestWarningModalDismissWithD(t *testing.T) {
 		t.Errorf("dismissed-warnings = %q, want %q", data, warn.Error())
 	}
 
-	// Next run with the same warning: the modal stays closed at startup,
+	// The next run with the same warning keeps the modal closed at startup,
 	// while the bottom chrome still shows "1 warning" and ctrl+w opens it.
 	again := update(newModel(Options{}, sampleTasks(), []error{warn}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -193,9 +193,9 @@ func TestWarningModalMultipleWarnings(t *testing.T) {
 		t.Errorf("warningIdx after end = %d, want 1", m.warningIdx)
 	}
 
-	// Pressing d on warning 2 dismisses it and advances to the remaining
-	// undismissed warning 1; pressing d again dismisses warning 1 and
-	// closes the modal.
+	// Pressing d on warning 2 dismisses it and advances to warning 1, which is
+	// still undismissed. Pressing d again dismisses warning 1 and closes the
+	// modal.
 	m = update(m, dKey)
 	if !m.warningModal || m.warningIdx != 0 {
 		t.Errorf("after dismissing warning 2: modal = %v, idx = %d; want open on 0", m.warningModal, m.warningIdx)
@@ -212,7 +212,7 @@ func TestWarningModalFitsInlineAndNarrowTerminals(t *testing.T) {
 	longErr := errors.New("rc file /home/zanza00/.config/what-to-run/config.toml: strict mode: fields in the document are missing in the target struct")
 	m := newModel(Options{Inline: true}, sampleTasks(), []error{longErr})
 	m = update(m, tea.WindowSizeMsg{Width: 40, Height: 20})
-	m = update(m, tea.CursorPositionMsg{Y: 12}) // 15-row inline area
+	m = update(m, tea.CursorPositionMsg{Y: 12}) // The cursor position leaves a 15-row inline area.
 
 	got := m.View().Content
 	if n := strings.Count(got, "\n"); n != 14 {
@@ -249,8 +249,8 @@ func TestSavingThemeReParsesConfigAndClearsResolvedWarning(t *testing.T) {
 		t.Fatal("warningModal did not open for the broken theme")
 	}
 
-	// Close the warning modal, open the theme picker, and confirm a valid
-	// theme: saving re-parses config.toml and clears the resolved warning.
+	// With the warning modal closed, the theme picker confirms a valid theme.
+	// Saving re-parses config.toml and clears the resolved warning.
 	m = update(m, escKey)
 	m = update(m, ctrlTKey)
 	m = update(m, downKey) // nord

@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// composerSource returns the source for the project's composer.json.
+// composerSource returns the source for the composer.json of the project.
 func composerSource() source {
 	return source{
 		SourceInfo: SourceInfo{
@@ -20,14 +20,15 @@ func composerSource() source {
 	}
 }
 
-// parseComposer returns the custom scripts declared in composer.json, sorted
-// by name, each run through "composer run-script". Composer's documented
-// lifecycle and plugin events are left out: composer runs them itself at the
-// matching moment, so they are not commands to start by hand. A script is a
-// command string or an array of them; scripts-descriptions overrides the
-// description, which otherwise shows those commands.
+// parseComposer returns the custom scripts that composer.json declares, sorted
+// by name. Each script runs through "composer run-script". The parser leaves
+// out the documented lifecycle and plugin events of Composer, because composer
+// runs them itself at the matching moment. They are not commands to start by
+// hand. A script is a command string or an array of commands, and
+// scripts-descriptions overrides the description, which otherwise shows those
+// commands.
 func parseComposer(_ string, data []byte) ([]Task, error) {
-	// An empty file declares no scripts: report it like a missing one
+	// An empty file declares no scripts, so report it like a missing file
 	// instead of failing on invalid JSON.
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, nil
@@ -65,10 +66,10 @@ func parseComposer(_ string, data []byte) ([]Task, error) {
 	return tasks, nil
 }
 
-// composerScriptDesc turns one scripts value into the description of the
-// task: a command string, or an array of commands joined as a shell line. ok
-// is false when the value declares no usable command — an empty string, an
-// empty array, or neither — and the caller skips that script.
+// composerScriptDesc turns one scripts value into the description of the task:
+// a command string, or an array of commands joined as a shell line. ok is false
+// when the value declares no usable command, which is an empty string, an empty
+// array or neither shape, and the caller skips that script.
 func composerScriptDesc(v any) (string, bool) {
 	switch cmds := v.(type) {
 	case string:
@@ -89,11 +90,11 @@ func composerScriptDesc(v any) (string, bool) {
 	return "", false
 }
 
-// composerLifecycleEvent reports whether name is one of Composer's
-// documented lifecycle or plugin event names. A project may declare extra
+// composerLifecycleEvent reports whether name is one of the documented
+// lifecycle or plugin event names of Composer. A project may declare extra
 // scratch scripts under those names, but composer also invokes them itself
-// during install, update and the other commands, so the picker does not
-// offer them as custom scripts.
+// during install, update and the other commands, so the picker does not offer
+// them as custom scripts.
 func composerLifecycleEvent(name string) bool {
 	switch name {
 	case "pre-install-cmd",

@@ -13,21 +13,21 @@ import (
 )
 
 // The warning modal (ctrl+w, or opened automatically at startup when an
-// undismissed warning is present) is a box drawn over the picker: it wraps the
-// warning message across multiple lines so long file paths and parser messages
-// stay readable without replacing the help line at the bottom.
+// undismissed warning is present) is a box drawn over the picker. It wraps the
+// warning message across multiple lines, so long file paths and parser
+// messages stay readable without replacing the help line at the bottom.
 //
-// Pressing d marks the warning as dismissed in the user's cache directory so
-// subsequent runs (such as repeated inline widget invocations) do not pop the
-// modal open again for the same warning, while keeping the warning count and
-// ctrl+w available in the bottom chrome.
+// Pressing d marks the warning as dismissed in the cache directory of the
+// user, so a later run (such as a repeated inline widget invocation) does not
+// pop the modal open again for the same warning. The warning count and ctrl+w
+// stay available in the bottom chrome.
 
-// warningModalChrome is the number of rows the box adds around the wrapped
-// warning text: two borders and the key hints line.
+// warningModalChrome is the number of rows that the box adds around the
+// wrapped warning text: two borders and the key hints line.
 const warningModalChrome = 3
 
-// warningModalMaxInnerWidth caps the text column of the warning box on wide
-// terminals so wrapped lines stay comfortable to read.
+// warningModalMaxInnerWidth caps the text column of the warning box on a wide
+// terminal, so the wrapped lines stay comfortable to read.
 const warningModalMaxInnerWidth = 60
 
 // Key hint lines for the bottom of the warning box, from widest to narrowest.
@@ -37,9 +37,9 @@ const (
 	warningModalShortHints  = "enter · esc · d"
 )
 
-// openWarningsAtStart reports whether the warning modal should open on
-// startup and which warning index to show first: the first warning that has
-// not been dismissed with d.
+// openWarningsAtStart reports whether the warning modal should open at startup,
+// and which warning index to show first. The index is the first warning that
+// the user has not dismissed with d.
 func openWarningsAtStart(warnings []error) (bool, int) {
 	if len(warnings) == 0 {
 		return false, 0
@@ -61,9 +61,9 @@ func warningCount(n int) string {
 	return fmt.Sprintf("%d warnings", n)
 }
 
-// dismissCurrentWarning records the displayed warning as dismissed so future
-// runs do not pop the modal open for it. If another warning in the session is
-// still undismissed, the box advances to it; otherwise the box closes.
+// dismissCurrentWarning records the displayed warning as dismissed, so a later
+// run does not pop the modal open for it. If another warning of the session is
+// still undismissed, the box advances to it. Otherwise the box closes.
 func (m *model) dismissCurrentWarning() {
 	if len(m.warnings) == 0 {
 		m.warningModal = false
@@ -86,10 +86,10 @@ func (m *model) dismissCurrentWarning() {
 	m.warningModal = false
 }
 
-// warningModalLines renders the warning box: the title (and position when
-// there are multiple warnings) on the top border, the wrapped warning text,
-// the key hints, and the bottom border. It returns nil when there are no
-// warnings or the space is too small for a usable box.
+// warningModalLines renders the warning box: the title (and the position when
+// there are several warnings) on the top border, the wrapped warning text, the
+// key hints and the bottom border. It returns nil when there are no warnings or
+// when the space is too small for a usable box.
 func (m model) warningModalLines(h, w int) []string {
 	if len(m.warnings) == 0 || h < warningModalChrome+1 || w < 10 {
 		return nil
@@ -135,7 +135,7 @@ func (m model) warningModalLines(h, w int) []string {
 	return lines
 }
 
-// warningModalTitle returns the plain title placed on the top border of the
+// warningModalTitle returns the plain title that goes on the top border of the
 // warning box.
 func (m model) warningModalTitle(idx int) string {
 	if len(m.warnings) <= 1 {
@@ -151,8 +151,8 @@ func (m model) warningModalTitle(idx int) string {
 	return fmt.Sprintf(" %swarnings %d/%d%s ", up, idx+1, len(m.warnings), down)
 }
 
-// wrapWarning wraps msg to width columns and at most maxLines rows, breaking
-// on spaces, hyphens and path slashes so long file paths wrap cleanly.
+// wrapWarning wraps msg to width columns and at most maxLines rows. It breaks
+// on spaces, hyphens and path slashes, so a long file path wraps cleanly.
 func wrapWarning(msg string, width, maxLines int) []string {
 	wrapped := strings.Split(ansi.Wrap(msg, width, "/"), "\n")
 	if len(wrapped) <= maxLines {
@@ -190,8 +190,8 @@ func (m model) warningModalFooter(innerW int) string {
 	return m.styles.dim.Render(hints) + strings.Repeat(" ", max(innerW-lipgloss.Width(hints), 0))
 }
 
-// warningKey normalizes a warning error into a single line for display and
-// persistence.
+// warningKey normalizes a warning error into a single line, for display and for
+// the dismissed-warnings file.
 func warningKey(err error) string {
 	if err == nil {
 		return ""
@@ -199,8 +199,8 @@ func warningKey(err error) string {
 	return strings.Join(strings.Fields(err.Error()), " ")
 }
 
-// dismissedWarningsFile returns the path of the file that stores dismissed
-// warnings in the user's cache directory.
+// dismissedWarningsFile returns the path of the file that stores the dismissed
+// warnings in the cache directory of the user.
 func dismissedWarningsFile() string {
 	cacheDir, err := userCacheDir()
 	if err != nil || cacheDir == "" {
@@ -210,7 +210,8 @@ func dismissedWarningsFile() string {
 }
 
 // loadDismissedWarnings reads the set of dismissed warning messages from the
-// user's cache directory. A missing or unreadable file yields an empty set.
+// cache directory of the user. A missing or unreadable file yields an empty
+// set.
 func loadDismissedWarnings() map[string]bool {
 	path := dismissedWarningsFile()
 	if path == "" {
@@ -230,8 +231,8 @@ func loadDismissedWarnings() map[string]bool {
 	return dismissed
 }
 
-// saveDismissedWarning adds err to the user's dismissed warnings file,
-// creating the file and its directory when missing.
+// saveDismissedWarning adds err to the dismissed-warnings file of the user, and
+// it creates the file and its directory when they are missing.
 func saveDismissedWarning(w error) error {
 	key := warningKey(w)
 	if key == "" {
@@ -260,8 +261,8 @@ func saveDismissedWarning(w error) error {
 	return os.WriteFile(path, []byte(out), 0o600)
 }
 
-// clearResolvedDismissals removes warnings that were present in old but are no
-// longer present in current from the dismissed-warnings file.
+// clearResolvedDismissals removes from the dismissed-warnings file the warnings
+// that were present in old and are no longer present in current.
 func clearResolvedDismissals(old, current []error) {
 	if len(old) == 0 {
 		return

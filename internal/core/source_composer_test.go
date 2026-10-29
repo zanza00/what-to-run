@@ -121,8 +121,8 @@ func TestDiscoverComposerTasks(t *testing.T) {
 	}
 }
 
-// TestDiscoverComposerLifecycleEvents pins the excluded names: every
-// documented Composer lifecycle and plugin event is filtered out, while a
+// TestDiscoverComposerLifecycleEvents pins the excluded names. The source
+// filters out every documented Composer lifecycle and plugin event, and a
 // custom script next to them still loads.
 func TestDiscoverComposerLifecycleEvents(t *testing.T) {
 	events := []string{

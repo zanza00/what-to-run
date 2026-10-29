@@ -19,6 +19,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
+	"github.com/zanza00/what-to-run/internal/config"
 	"github.com/zanza00/what-to-run/internal/core"
 )
 
@@ -204,30 +205,11 @@ func reportChoice(w io.Writer, t core.Task, insert bool, shell core.ShellDialect
 // reads the rc file first, and its problems become warnings, then it reads
 // every source. The warnings are returned even when tasks were found, because
 // the picker shows them in the status line.
-func discover() ([]core.Task, config, []error) {
-	projectFile, globalFile := defaultConfigFiles(".")
-	cfg, warnings := loadConfig(osFiles{}, projectFile, globalFile)
-	tasks, sourceWarnings := core.Discover(osFiles{}, ".", coreSettings(cfg))
+func discover() ([]core.Task, config.Config, []error) {
+	projectFile, globalFile := config.DefaultFiles(".")
+	cfg, warnings := config.Load(osFiles{}, projectFile, globalFile, themeNames())
+	tasks, sourceWarnings := core.Discover(osFiles{}, ".", cfg.Settings)
 	return tasks, cfg, append(warnings, sourceWarnings...)
-}
-
-// coreSettings maps the rc settings onto the configuration of the task domain.
-// The discovery layer knows nothing about the TOML file.
-func coreSettings(cfg config) core.Settings {
-	settings := core.Settings{
-		PackageManager: cfg.PackageManager,
-		Disable:        cfg.Disable,
-		Tasks:          make([]core.RCTask, len(cfg.Tasks)),
-	}
-	for i, t := range cfg.Tasks {
-		settings.Tasks[i] = core.RCTask{
-			Name:        t.Name,
-			Command:     t.Command,
-			Description: t.Description,
-			Cwd:         t.Cwd,
-		}
-	}
-	return settings
 }
 
 // noTasksError returns the error for a directory with nothing to run.
@@ -693,14 +675,14 @@ func (m *model) persistTheme() tea.Cmd {
 		return nil
 	}
 	name := themes[m.themeIdx].name
-	path, err := saveTheme(name)
+	path, err := config.SaveTheme(name)
 	if err != nil {
 		m.status = m.styles.err.Render(fmt.Sprintf("cannot save theme %s: %v", name, err))
 		return nil
 	}
 	m.opts.Theme = name
 	m.refreshConfigWarnings()
-	return m.showNotice(fmt.Sprintf("theme %s saved to %s", name, shortPath(path)))
+	return m.showNotice(fmt.Sprintf("theme %s saved to %s", name, config.ShortPath(path)))
 }
 
 // hasThemeWarning reports whether any current warning is about a theme.

@@ -304,6 +304,16 @@ func relativeLuminance(c color.Color) float64 {
 	return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
 }
 
+// themeNames returns the names of the registered themes. The rc loader checks
+// the theme of the user file against this list.
+func themeNames() []string {
+	names := make([]string, len(themes))
+	for i, t := range themes {
+		names[i] = t.name
+	}
+	return names
+}
+
 // themeIndex returns the index of the named theme. An empty name means the
 // default theme, and an unknown name reports false.
 func themeIndex(name string) (int, bool) {

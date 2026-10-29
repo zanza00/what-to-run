@@ -11,12 +11,14 @@ import (
 	"testing"
 )
 
-// upwardSearchDir is the in-repo fixture for the parent-directory search: the
-// task files sit in its root and a/b is the subdirectory the tests start from.
+// upwardSearchDir is the in-repo fixture for the parent-directory search. The
+// task files sit in its root, and a/b is the subdirectory that the tests start
+// from.
 const upwardSearchDir = "testdata/upward-search"
 
 // TestDiscoverSourceSearchesParentsJust: from a subdirectory without a local
-// justfile, the ancestor's file is found and badged with its relative path.
+// justfile, the source finds the file of the ancestor and badges it with its
+// relative path.
 func TestDiscoverSourceSearchesParentsJust(t *testing.T) {
 	dir := filepath.Join(upwardSearchDir, "a", "b")
 
@@ -30,8 +32,8 @@ func TestDiscoverSourceSearchesParentsJust(t *testing.T) {
 	}
 }
 
-// TestDiscoverSourceSearchesParentsTask: the Taskfile source searches parents
-// too, with the same relative badge.
+// TestDiscoverSourceSearchesParentsTask: the Taskfile source searches the
+// parents too, and it uses the same relative badge.
 func TestDiscoverSourceSearchesParentsTask(t *testing.T) {
 	dir := filepath.Join(upwardSearchDir, "a", "b")
 
@@ -46,7 +48,8 @@ func TestDiscoverSourceSearchesParentsTask(t *testing.T) {
 }
 
 // TestDiscoverSourceDoesNotSearchParentsForPackageJSON: the package.json
-// source is directory-local, so an ancestor's file is not discovered.
+// source reads one directory only, so discovery ignores the file of an
+// ancestor.
 func TestDiscoverSourceDoesNotSearchParentsForPackageJSON(t *testing.T) {
 	dir := filepath.Join(upwardSearchDir, "a", "b")
 
@@ -56,11 +59,11 @@ func TestDiscoverSourceDoesNotSearchParentsForPackageJSON(t *testing.T) {
 	}
 }
 
-// TestRegistryInvariants pins the metadata every built-in source carries:
+// TestRegistryInvariants pins the metadata that every built-in source carries:
 // IDs, labels, display files, candidate order, parse functions and parent
-// search. It builds the registry through missingFiles, proving metadata needs
-// no disk, and runs the checks against broken fixtures, so the failure
-// messages are part of the test.
+// search. The test builds the registry through missingFiles, which proves that
+// the metadata needs no disk. It also runs the checks against broken fixtures,
+// so the failure messages are part of the test.
 func TestRegistryInvariants(t *testing.T) {
 	if errs := checkRegistry(defaultSources(Settings{}, missingFiles{})); len(errs) != 0 {
 		t.Fatalf("defaultSources() invariants = %v, want none", errs)
@@ -198,7 +201,7 @@ func TestRegistryInvariants(t *testing.T) {
 }
 
 // TestSourcesMatchesRegistry: the read-only view carries the registry metadata
-// in the display order pinned by registryOrder.
+// in the display order that registryOrder pins.
 func TestSourcesMatchesRegistry(t *testing.T) {
 	infos := Sources()
 	if len(infos) != len(registryOrder) {
@@ -230,8 +233,8 @@ func TestSourcesMatchesRegistry(t *testing.T) {
 	}
 }
 
-// TestSourcesReturnsCopies: changing the read-only view, file lists included,
-// must not affect a later call.
+// TestSourcesReturnsCopies: a change to the read-only view, the file lists
+// included, must not affect a later call.
 func TestSourcesReturnsCopies(t *testing.T) {
 	first := Sources()
 	if len(first) == 0 {
@@ -259,13 +262,13 @@ func TestSourcesReturnsCopies(t *testing.T) {
 	}
 }
 
-// registryOrder is the display order of the built-in sources: each entry has
-// the stable ID, the label, the first candidate file the source must prefer,
-// the display override it must declare, the file the empty screen must show
-// and whether it searches parent directories. The ID names the tool, not the
-// file: package.json scripts are "npm" whatever package manager runs them.
-// The table pins the order itself, so a reordered, missing or extra source
-// fails checkRegistry.
+// registryOrder is the display order of the built-in sources. Each entry has
+// the stable ID, the label, the first candidate file that the source must
+// prefer, the display override that it must declare, the file that the empty
+// screen must show, and whether it searches the parent directories. The ID
+// names the tool, not the file: package.json scripts are "npm", whatever
+// package manager runs them. The table pins the order itself, so checkRegistry
+// fails on a source that is reordered, missing or extra.
 var registryOrder = []struct {
 	id              string
 	label           string
@@ -310,14 +313,14 @@ var registryOrder = []struct {
 	{id: "mise", label: "mise.toml", firstFile: "mise.toml", displayFile: "mise.toml"},
 }
 
-// sourceIDPattern is the shape of a source ID: lowercase kebab-case, which is
-// also a valid bare TOML key, so [sources.cargo-make] needs no quotes.
+// sourceIDPattern is the shape of a source ID: lowercase kebab-case. Such an
+// ID is also a valid bare TOML key, so [sources.cargo-make] needs no quotes.
 var sourceIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 
-// checkSourceIDs reports the ID invariants a built-in registry must satisfy:
-// every source declares an ID in registry order, the ID is lowercase
-// kebab-case, IDs are unique, and no ID is one of the file names any source
-// reads.
+// checkSourceIDs reports the ID invariants that a built-in registry must
+// satisfy. Every source declares an ID in registry order, each ID is lowercase
+// kebab-case, the IDs are unique, and no ID is one of the file names that a
+// source reads.
 func checkSourceIDs(srcs []source) []error {
 	var errs []error
 
@@ -365,10 +368,10 @@ func checkSourceIDs(srcs []source) []error {
 	return errs
 }
 
-// checkRegistry reports the invariants a built-in registry must satisfy: the
-// IDs, order, labels, first files, display files and parent search in
-// registryOrder; unique labels; and a parser. Two sources may read the same
-// file, so file names are not unique.
+// checkRegistry reports the invariants that a built-in registry must satisfy.
+// The IDs, order, labels, first files, display files and parent search match
+// registryOrder, the labels are unique, and every source has a parser. Two
+// sources may read the same file, so the file names are not unique.
 func checkRegistry(srcs []source) []error {
 	errs := checkSourceIDs(srcs)
 	if len(srcs) != len(registryOrder) {
@@ -438,8 +441,8 @@ func checkRegistry(srcs []source) []error {
 	return errs
 }
 
-// cloneSources deep-copies the registry so a broken fixture cannot mutate the
-// slices the real sources share.
+// cloneSources deep-copies the registry, so a broken fixture cannot mutate the
+// slices that the real sources share.
 func cloneSources(srcs []source) []source {
 	out := make([]source, len(srcs))
 	for i, src := range srcs {
@@ -450,7 +453,7 @@ func cloneSources(srcs []source) []source {
 }
 
 // TestDiscoverSourceNearestDirectoryWins: the file in the nearest ancestor
-// beats the one further up, and a file in the directory itself keeps the bare
+// wins over the file further up. A file in the directory itself keeps the bare
 // name as its badge.
 func TestDiscoverSourceNearestDirectoryWins(t *testing.T) {
 	root := t.TempDir()

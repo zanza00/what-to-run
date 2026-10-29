@@ -8,9 +8,10 @@ import (
 	"testing"
 )
 
-// TestParseTaskfile covers the task shapes a Taskfile can declare: the short
-// string and sequence syntaxes, the table with desc/summary/cmd/cmds, the
-// internal flag, and the entries the picker cannot turn into a command line.
+// TestParseTaskfile covers the task shapes that a Taskfile can declare: the
+// short string and sequence syntaxes, the table with desc/summary/cmd/cmds,
+// the internal flag, and the entries that the picker cannot turn into a
+// command line.
 func TestParseTaskfile(t *testing.T) {
 	tests := []struct {
 		name string
@@ -242,8 +243,8 @@ includes:
 	}
 }
 
-// TestParseTaskfileCmdsScalarEqualsList pins the shorthand: a cmds scalar is
-// the same task as a one-element command list.
+// TestParseTaskfileCmdsScalarEqualsList pins the shorthand. A cmds scalar
+// declares the same task as a command list with one element.
 func TestParseTaskfileCmdsScalarEqualsList(t *testing.T) {
 	scalar, err := parseTaskfile(osFiles{}, "", []byte("tasks:\n  x:\n    cmds: echo one\n"))
 	if err != nil {
@@ -263,12 +264,13 @@ func TestParseTaskfileCmdsScalarEqualsList(t *testing.T) {
 	}
 }
 
-// TestParseTaskfileIncludes covers the local includes the parser follows: the
-// string file and directory forms, the map form, namespacing and its chain,
-// flatten, optional and mandatory missing files, internal includes, remote
-// paths, broken included files and duplicate final names.
+// TestParseTaskfileIncludes covers the local includes that the parser follows:
+// the string file and directory forms, the map form, namespacing and its
+// chain, flatten, optional and mandatory missing files, internal includes,
+// remote paths, broken included files and duplicate final names.
 func TestParseTaskfileIncludes(t *testing.T) {
-	// task is the task the parser derives from a name and a description.
+	// task builds the task that the parser derives from a name and a
+	// description.
 	task := func(name, desc string) Task {
 		return Task{Name: name, Desc: desc, Args: []string{"task", name}}
 	}
@@ -533,8 +535,9 @@ tasks:
 	}
 }
 
-// TestParseTaskfileTemplatedIncludeSkipped: an include path with Task template
-// braces is not followed, even when a directory with that literal name exists.
+// TestParseTaskfileTemplatedIncludeSkipped: the parser does not follow an
+// include path with Task template braces, even when a directory with that
+// literal name exists.
 func TestParseTaskfileTemplatedIncludeSkipped(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "{{.DOCS}}/Taskfile.yml", "tasks:\n  serve:\n    desc: Should not appear\n")
@@ -555,8 +558,9 @@ tasks:
 	}
 }
 
-// TestParseTaskfileIncludeCycle: two Taskfiles including each other terminate,
-// with the include read once and the result stable across calls.
+// TestParseTaskfileIncludeCycle: two Taskfiles that include each other
+// terminate. The parser reads the include once, and the result is stable
+// across calls.
 func TestParseTaskfileIncludeCycle(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.yml", "includes:\n  a: ./a/Taskfile.yml\n")
@@ -587,10 +591,11 @@ func TestParseTaskfileIncludeCycle(t *testing.T) {
 	}
 }
 
-// TestParseTaskfileIncludesFixture parses the permanent fixture: a root
-// Taskfile with a map include into .taskfiles/, a string directory include, a
-// flatten include, an internal include, an optional missing include and a
-// nested include. It pins the final names, the descriptions and the order.
+// TestParseTaskfileIncludesFixture parses the permanent fixture. The fixture
+// is a root Taskfile with a map include into .taskfiles/, a string directory
+// include, a flatten include, an internal include, an optional missing include
+// and a nested include. The test pins the final names, the descriptions and
+// the order.
 func TestParseTaskfileIncludesFixture(t *testing.T) {
 	const dir = "testdata/taskfile-includes"
 	root, err := os.ReadFile(filepath.Join(dir, "Taskfile.yml"))
@@ -614,8 +619,9 @@ func TestParseTaskfileIncludesFixture(t *testing.T) {
 	}
 }
 
-// TestDiscoverTaskfileBadYAML: a malformed Taskfile is a warning naming the
-// file that broke, not a fatal error and not a silent empty list.
+// TestDiscoverTaskfileBadYAML: a malformed Taskfile produces a warning that
+// names the file that broke. It is not a fatal error, and it is not a silent
+// empty list.
 func TestDiscoverTaskfileBadYAML(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.yml", "tasks:\n  build: [\n")
@@ -629,9 +635,10 @@ func TestDiscoverTaskfileBadYAML(t *testing.T) {
 	}
 }
 
-// TestDiscoverTaskfileFirstFileWins pins the candidate-file preference:
-// Taskfile.yml beats Taskfile.dist.yml. The names differ by ".dist", not by
-// case, so the fixture is safe on the case-insensitive filesystem of macOS.
+// TestDiscoverTaskfileFirstFileWins pins the preference between candidate
+// files: Taskfile.yml wins over Taskfile.dist.yml. The names differ by
+// ".dist", not by case, so the fixture is safe on the case-insensitive
+// filesystem of macOS.
 func TestDiscoverTaskfileFirstFileWins(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.dist.yml", "tasks:\n  dist-only:\n    desc: From the dist file\n")
@@ -647,8 +654,9 @@ func TestDiscoverTaskfileFirstFileWins(t *testing.T) {
 	}
 }
 
-// TestDiscoverTaskfileDistFallback: Taskfile.dist.yml is read when there is no
-// higher-priority candidate, and its name is the badge.
+// TestDiscoverTaskfileDistFallback: discovery reads Taskfile.dist.yml when no
+// candidate with a higher priority exists, and the name of that file is the
+// badge.
 func TestDiscoverTaskfileDistFallback(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.dist.yml", "tasks:\n  build:\n    desc: Build from the dist file\n")
@@ -670,8 +678,8 @@ func TestDiscoverTaskfileMissingFile(t *testing.T) {
 	}
 }
 
-// TestTaskfileSourceFiles pins the eight default names in go-task's search
-// order: the order is the preference order of discoverSource.
+// TestTaskfileSourceFiles pins the eight default names in the search order of
+// go-task. That order is the preference order of discoverSource.
 func TestTaskfileSourceFiles(t *testing.T) {
 	want := []string{
 		"Taskfile.yml", "taskfile.yml", "Taskfile.yaml", "taskfile.yaml",

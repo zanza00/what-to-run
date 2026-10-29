@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// writeFile writes a fixture file inside dir, creating parent directories for
-// nested paths like .cargo/config.toml.
+// writeFile writes a fixture file inside dir. It creates the parent
+// directories for a nested path like .cargo/config.toml.
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	path := filepath.Join(dir, name)

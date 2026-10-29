@@ -150,8 +150,8 @@ func TestParseMakeTargetsDeduplicates(t *testing.T) {
 	}
 }
 
-// TestDiscoverTaskfileOfThisRepo runs the source over the project's own
-// Taskfile, which is the repository's build entry point: every task a
+// TestDiscoverTaskfileOfThisRepo runs the source over the Taskfile of this
+// project, which is the build entry point of the repository. Every task that a
 // contributor types must reach the picker with its description.
 func TestDiscoverTaskfileOfThisRepo(t *testing.T) {
 	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), "../..")
@@ -183,10 +183,10 @@ func TestDiscoverTaskfileOfThisRepo(t *testing.T) {
 	}
 }
 
-// TestDiscoverSourceFirstFileWins pins the candidate-file preference: the
-// first name in source.Files that exists is the one parsed and shown. The
-// fixtures avoid names that differ only by case, which collide on the
-// case-insensitive filesystem of macOS.
+// TestDiscoverSourceFirstFileWins pins the preference between candidate files.
+// The parser reads and shows the first name in source.Files that exists. The
+// fixtures avoid names that differ only by case, because such names collide on
+// the case-insensitive filesystem of macOS.
 func TestDiscoverSourceFirstFileWins(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "GNUmakefile", "from-gnu:\n\ttrue\n")
@@ -247,8 +247,9 @@ func TestDiscoverCargoMakeTasksBrokenToml(t *testing.T) {
 func TestDiscoverTasksMergesSources(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
-	// GNUmakefile, not Makefile: case-sensitive filesystems would otherwise
-	// resolve the earlier "makefile" candidate and change the badge.
+	// GNUmakefile, not Makefile: on the case-insensitive filesystem of macOS
+	// the name "Makefile" also matches the earlier "makefile" candidate, and
+	// the badge would change.
 	writeFile(t, dir, "GNUmakefile", "test:\n\tgo test ./...\n")
 	writeFile(t, dir, "Makefile.toml", "[tasks.fmt]\ndescription = \"Format\"\n")
 	writeFile(t, dir, ".cargo/config.toml", "[alias]\nlint = \"clippy\"\n")
@@ -268,8 +269,8 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 }
 
 // TestDiscoverTasksTaskfileOrder: a directory with both a package.json and a
-// Taskfile lists the package scripts first and the Taskfile tasks second, with
-// the rc tasks still on top.
+// Taskfile lists the package scripts first and the Taskfile tasks second. The
+// rc tasks stay on top.
 func TestDiscoverTasksTaskfileOrder(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"scripts": {"dev": "vite"}}`)
@@ -305,8 +306,9 @@ func TestDiscoverTasksSkipsBrokenSource(t *testing.T) {
 	}
 }
 
-// TestDiscoverTasksRCTasksFirst: rc tasks come first, run through the shell,
-// default their description to the command and resolve a relative cwd.
+// TestDiscoverTasksRCTasksFirst: rc tasks come first, and they run through the
+// shell. Their description defaults to the command, and a relative cwd
+// resolves against the project directory.
 func TestDiscoverTasksRCTasksFirst(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
@@ -330,8 +332,8 @@ func TestDiscoverTasksRCTasksFirst(t *testing.T) {
 	}
 }
 
-// TestDiscoverTasksRCShadowsBuiltin: an rc task hides the same-named task of
-// the built-in sources.
+// TestDiscoverTasksRCShadowsBuiltin: an rc task hides the built-in task with
+// the same name.
 func TestDiscoverTasksRCShadowsBuiltin(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
@@ -346,11 +348,11 @@ func TestDiscoverTasksRCShadowsBuiltin(t *testing.T) {
 	}
 }
 
-// TestDiscoverTasksDisabledSourceIsNotRead: a disabled source is not even
-// read, so a file it could not parse cannot warn.
+// TestDiscoverTasksDisabledSourceIsNotRead: discovery does not read a disabled
+// source at all, so a file that the source could not parse cannot warn.
 func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "Makefile.toml", "[tasks\n") // broken, but disabled
+	writeFile(t, dir, "Makefile.toml", "[tasks\n") // The file is broken, but its source is disabled.
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
 	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo-make"}})
@@ -362,8 +364,8 @@ func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 	}
 }
 
-// TestDiscoverTasksUnknownDisableEntry: a disable entry that names no source
-// is reported with the known IDs, and no source is disabled.
+// TestDiscoverTasksUnknownDisableEntry: discovery reports a disable entry that
+// names no source with the known IDs, and it disables no source.
 func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
@@ -379,8 +381,8 @@ func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 	}
 }
 
-// TestDiscoverTasksFileNameDoesNotDisable: disable takes IDs, so a file name
-// warns with the ID to use and the source still runs.
+// TestDiscoverTasksFileNameDoesNotDisable: the disable option takes IDs, so a
+// file name warns with the ID to use, and the source still runs.
 func TestDiscoverTasksFileNameDoesNotDisable(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
@@ -395,12 +397,12 @@ func TestDiscoverTasksFileNameDoesNotDisable(t *testing.T) {
 	}
 }
 
-// TestCheckSourceID pins the registry-aware validation of source IDs: every ID
-// passes; every file name of every source, generated from the registry,
-// suggests that source's ID; a package manager points at npm; a near miss in
-// case suggests the exact ID; an unknown name lists the known IDs; and two
-// sources sharing a file name list both IDs. The real registry is built through
-// missingFiles, so validation needs no filesystem.
+// TestCheckSourceID pins the registry-aware validation of source IDs. Every ID
+// passes. Every file name of every source, generated from the registry,
+// suggests the ID of that source. A package manager points at npm, a near miss
+// in case suggests the exact ID, and an unknown name lists the known IDs. Two
+// sources that share a file name list both IDs. The test builds the real
+// registry through missingFiles, so validation needs no filesystem.
 func TestCheckSourceID(t *testing.T) {
 	registry := defaultSources(Settings{}, missingFiles{})
 
@@ -423,8 +425,8 @@ func TestCheckSourceID(t *testing.T) {
 		}
 	})
 
-	// Two sources may read the same file (a future pyproject.toml split by
-	// tool), so the suggestion lists every matching ID.
+	// Two sources may read the same file, such as a future pyproject.toml that
+	// several tools read, so the suggestion lists every matching ID.
 	sharedFile := []source{
 		{SourceInfo: SourceInfo{ID: "pdm", Files: []string{"pyproject.toml"}}},
 		{SourceInfo: SourceInfo{ID: "poe", Files: []string{"pyproject.toml"}}},
@@ -432,7 +434,7 @@ func TestCheckSourceID(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		sources   []source // nil: the real registry
+		sources   []source // a nil value selects the real registry
 		candidate string
 		want      string
 	}{
@@ -485,7 +487,7 @@ func TestCheckSourceID(t *testing.T) {
 }
 
 // TestCheckSourceIDNeedsNoFiles: the exported wrapper builds the real registry
-// through missingFiles, so it validates from a directory without any project
+// through missingFiles, so it validates from a directory that holds no project
 // file.
 func TestCheckSourceIDNeedsNoFiles(t *testing.T) {
 	t.Chdir(t.TempDir())

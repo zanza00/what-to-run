@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// osFiles is the test-only OS adapter for the Files port: it reads the real
+// osFiles is the test-only adapter of the Files port. It reads the real
 // filesystem, which the fixture-based tests in this package need.
 type osFiles struct{}
 
@@ -32,8 +32,8 @@ func (osFiles) ReadDir(name string) ([]DirEntry, error) {
 	return directories, nil
 }
 
-// mapFiles is an in-memory Files implementation: a path is present when it is
-// a key of the map, empty content included.
+// mapFiles is an in-memory implementation of Files. A path exists when it is
+// a key of the map, and empty content is a valid value.
 type mapFiles map[string]string
 
 var _ Files = mapFiles{}
@@ -73,7 +73,7 @@ func (m mapFiles) ReadDir(name string) ([]DirEntry, error) {
 	return entries, nil
 }
 
-// mapDirEntry is the DirEntry an in-memory directory reports.
+// mapDirEntry is the DirEntry that an in-memory directory reports.
 type mapDirEntry struct {
 	name string
 	dir  bool
@@ -82,8 +82,9 @@ type mapDirEntry struct {
 func (e mapDirEntry) Name() string { return e.name }
 func (e mapDirEntry) IsDir() bool  { return e.dir }
 
-// TestDiscoverInMemoryFiles proves discovery needs no disk: a package.json and
-// its lock file live only in the map, and the lock file still picks the runner.
+// TestDiscoverInMemoryFiles proves that discovery needs no disk. The
+// package.json and its lock file live only in the map, and the lock file still
+// picks the runner.
 func TestDiscoverInMemoryFiles(t *testing.T) {
 	files := mapFiles{
 		"package.json": `{"scripts": {"build": "go build ./..."}}`,

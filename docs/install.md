@@ -75,7 +75,7 @@ On NixOS, add the flake as an input, pass the inputs to the modules with
 inputs.what-to-run.url = "github:zanza00/what-to-run";
 
 environment.systemPackages = [
-  inputs.what-to-run.packages.${pkgs.system}.default
+  inputs.what-to-run.packages.${pkgs.stdenv.hostPlatform.system}.default
 ];
 ```
 

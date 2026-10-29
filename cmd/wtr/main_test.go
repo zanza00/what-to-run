@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// TestRunInitShells pins the init subcommand dispatch: each shell gets its own
-// integration, flags written after the shell name are honoured, and the
-// unsupported shells are refused.
+// TestRunInitShells pins the dispatch of the init subcommand. Each shell gets
+// its own integration, a flag written after the shell name is honoured, and an
+// unsupported shell is refused.
 func TestRunInitShells(t *testing.T) {
 	tests := []struct {
 		name string
@@ -42,8 +42,8 @@ func TestRunInitShells(t *testing.T) {
 	}
 }
 
-// TestRunInitDefaultKey pins the binding used when --key is absent, in each
-// shell's own notation.
+// TestRunInitDefaultKey pins the binding that is used when --key is absent, in
+// the notation of each shell.
 func TestRunInitDefaultKey(t *testing.T) {
 	tests := []struct {
 		shell string
@@ -112,8 +112,8 @@ func TestVersionLine(t *testing.T) {
 }
 
 func TestWidgetBin(t *testing.T) {
-	// A bare name is kept: the widget resolves it through PATH when the key
-	// is pressed, so it keeps calling the binary by the invoked name.
+	// A bare name is kept, because the widget resolves it through PATH when the
+	// key is pressed. The widget then calls the binary by the invoked name.
 	if got := widgetBin("task-picker"); got != "task-picker" {
 		t.Errorf("widgetBin(%q) = %q; want the bare name", "task-picker", got)
 	}

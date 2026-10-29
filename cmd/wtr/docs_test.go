@@ -25,7 +25,8 @@ var backtickedName = regexp.MustCompile("`([^`]+)`")
 var bulletFileSuffix = regexp.MustCompile(" \\(`[^`]+`\\)$")
 
 // TestTaskSourcesTableMatchesRegistry checks that docs/task-sources.md has one
-// row per source, in registry order, listing exactly the source's ID and files.
+// row per source, in registry order, and that each row lists exactly the ID and
+// the files of the source.
 func TestTaskSourcesTableMatchesRegistry(t *testing.T) {
 	const docName = "docs/task-sources.md"
 
@@ -54,8 +55,8 @@ func TestTaskSourcesTableMatchesRegistry(t *testing.T) {
 	}
 }
 
-// TestReadmeTaskSourcesMatchRegistry checks that the README bullet list names
-// every source label exactly, with one bullet per source.
+// TestReadmeTaskSourcesMatchRegistry checks that the bullet list of the README
+// names every source label exactly, with one bullet for each source.
 func TestReadmeTaskSourcesMatchRegistry(t *testing.T) {
 	const docName = "README.md"
 
@@ -98,8 +99,9 @@ func TestReadmeTaskSourcesMatchRegistry(t *testing.T) {
 	}
 }
 
-// TestBulletLabel pins the two allowances of the README check: whole-label
-// backticks are stripped, and the parenthetical file after a label is ignored.
+// TestBulletLabel pins the two allowances of the README check. The backticks
+// around a whole label are stripped, and the file in parentheses after a label
+// is ignored.
 func TestBulletLabel(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -120,8 +122,8 @@ func TestBulletLabel(t *testing.T) {
 	}
 }
 
-// readDoc reads a document relative to the package directory, naming it as
-// docName in failures.
+// readDoc reads a document relative to the package directory, and it names the
+// document as docName in a failure.
 func readDoc(t *testing.T, path, docName string) string {
 	t.Helper()
 
@@ -133,8 +135,9 @@ func readDoc(t *testing.T, path, docName string) string {
 }
 
 // sourceTableRows returns the names in the named column of the first Markdown
-// table whose header has that column. It reads data rows until the first line
-// that does not start with "|", so a table later in the document is ignored.
+// table that has a header with that column. It reads data rows until the first
+// line that does not start with "|", so a table later in the document is
+// ignored.
 func sourceTableRows(t *testing.T, doc, docName, column string) [][]string {
 	t.Helper()
 
@@ -227,9 +230,9 @@ func sameNames(got, want []string) bool {
 	return true
 }
 
-// bulletLabel returns a README bullet's text with the whole-label backticks
-// stripped and the optional trailing file dropped, as in "Cargo aliases
-// (`.cargo/config`)".
+// bulletLabel returns the text of a README bullet, with the backticks around a
+// whole label stripped and the optional trailing file dropped, as in "Cargo
+// aliases (`.cargo/config`)".
 func bulletLabel(bullet string) string {
 	bullet = strings.TrimSpace(bullet)
 	if len(bullet) >= 2 && strings.HasPrefix(bullet, "`") && strings.HasSuffix(bullet, "`") {

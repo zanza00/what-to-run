@@ -13,20 +13,29 @@
       ];
       eachSystem = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
+      # go.mod requires Go 1.27.2 or later. Prefer the versioned attribute, and
+      # check the default when nixpkgs no longer carries it.
+      goFor =
+        pkgs:
+        if pkgs ? go_1_27 then
+          pkgs.go_1_27
+        else if pkgs.lib.versionAtLeast pkgs.go.version "1.27.2" then
+          pkgs.go
+        else
+          throw "nixpkgs provides Go ${pkgs.go.version}, but go.mod requires 1.27.2";
+
+      buildGoModuleFor = pkgs: pkgs.buildGoModule.override { go = goFor pkgs; };
+
       # The release workflow injects the tag into the binaries. A flake build
       # has no tag, so this value keeps the version in one place for Nix users
-      # and is bumped with each release.
+      # and is checked against the tag by the release workflow.
       version = "0.9.0";
-
-      # go.mod requires a Go version that the default package may not have yet,
-      # so prefer the matching attribute when nixpkgs provides it.
-      withGo = pkgs: pkgs.buildGoModule.override { go = pkgs.go_1_27 or pkgs.go; };
     in
     {
       packages = eachSystem (
         pkgs:
         let
-          buildGoModule = withGo pkgs;
+          buildGoModule = buildGoModuleFor pkgs;
         in
         rec {
           what-to-run = buildGoModule {
@@ -42,7 +51,6 @@
             # so a Nix build checks the same packages as `go test ./...`.
             checkPhase = ''
               runHook preCheck
-              export GOFLAGS="''${GOFLAGS//-trimpath/}"
               go test ./...
               runHook postCheck
             '';
@@ -66,17 +74,10 @@
         }
       );
 
-      apps = eachSystem (pkgs: {
-        default = {
-          type = "app";
-          program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/wtr";
-        };
-      });
-
       devShells = eachSystem (pkgs: {
         default = pkgs.mkShell {
           packages = [
-            (pkgs.go_1_27 or pkgs.go)
+            (goFor pkgs)
             pkgs.go-task
           ];
         };

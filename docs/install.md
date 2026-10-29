@@ -79,9 +79,10 @@ environment.systemPackages = [
 ];
 ```
 
-The flake builds the default branch. To pin a release, add the tag to the URL:
-`github:zanza00/what-to-run/v0.9.0`. The `version` attribute in `flake.nix`
-sets the string that `wtr --version` prints, because a Nix build has no git tag.
+The flake builds the default branch. To pin a release, use a tag that contains
+the flake: `github:zanza00/what-to-run/<tag>`. The `version` attribute in
+`flake.nix` sets the string that `wtr --version` prints, because a Nix build
+has no git tag.
 
 ## Debian and Ubuntu
 

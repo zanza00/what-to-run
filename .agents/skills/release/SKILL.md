@@ -22,7 +22,7 @@ channel moved.
 | Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` (missing → channel skipped with a warning) |
 | Release assets | `checksums.txt`, 4 tarballs, 2 Windows zips, 2 `.deb` files, 2 `.rpm` files (11 total) |
 | Version string | `wtr --version` prints `wtr X.Y.Z` in released binaries, `wtr vX.Y.Z-N-g…` from `task build` |
-| Nix | the `version` attribute in `flake.nix`, bumped with the tag; the flake builds the default branch |
+| Nix | the `version` attribute in `flake.nix`, bumped with the tag and checked by the validate job; the flake builds the default branch |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | Scoop | `bucket/what-to-run.json` in `zanza00/scoop-bucket` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
@@ -94,7 +94,7 @@ ran on something else.
 
 The Nix package reads its version from `flake.nix`, so set the `version`
 attribute to the proposed version before the tag. Commit the bump with the
-release changes.
+release changes. The validate job fails when the tag and the attribute differ.
 
 When `goreleaser` is installed, validate the config and build every artifact
 without publishing:

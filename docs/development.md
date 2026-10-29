@@ -59,8 +59,8 @@ filter matches subsequences. Enter runs the command.
 VHS draws the window chrome (`Set WindowBar Colorful` adds the
 close/minimize/maximize dots) over the wallpaper in
 `docs/demo/background.webp`. The wallpaper is a crop of
-[andreas kretschmer's photo on
-Unsplash](https://unsplash.com/photos/brown-mountain-during-daytime-4VXCQjiyVyc),
+[Pawel Czerwinski's photo on
+Unsplash](https://unsplash.com/photos/a-painting-of-a-black-and-blue-swirl-lt891TUy6iw),
 cut to the recording size. VHS stretches `MarginFill` to the canvas, so the
 image must have the same aspect ratio. It is WebP and not JPEG because ffmpeg
 decodes JPEG as full-range, while VHS fills `Padding` with a limited-range

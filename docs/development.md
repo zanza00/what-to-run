@@ -17,7 +17,8 @@ after installing, add it to the `PATH` in your shell rc file.
 
 `task` is a contributor prerequisite, not a runtime dependency of `wtr`. When
 it is not installed, run the Go commands from `.github/workflows/checks.yml`
-directly.
+directly. With Nix, `nix develop` provides Go and `task`, so you can skip the
+install.
 
 ## Commands
 
@@ -247,6 +248,11 @@ version. The Scoop pipe runs in the build phase, so the manifest is generated
 without being published. The Homebrew formula comes from a custom publisher, so
 only a real release writes it. `goreleaser check` catches a broken `scoops`
 block before the tag.
+
+`wtr --version` reports the version injected at build time: the release tag in
+released archives, a `git describe` string in local `task build` binaries. A
+Nix build has no git tag, so `flake.nix` holds its own `version` attribute.
+Bump it in the same commit that you tag.
 
 ### Recover a failed repository step
 

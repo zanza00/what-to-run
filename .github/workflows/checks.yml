@@ -77,3 +77,16 @@ jobs:
         # The scripts refuse to run without root; the stub tools and the WTR_*
         # paths keep this run inside a temporary directory.
         run: sudo env "PATH=$PATH" python3 -m unittest discover -s scripts -p 'setup_scripts_test.py'
+
+  nix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: cachix/install-nix-action@v31
+      - name: Check the flake
+        run: nix flake check
+      - name: Build the package
+        run: nix build .#default

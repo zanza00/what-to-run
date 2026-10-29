@@ -4,12 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/zanza00/what-to-run/internal/config"
 )
 
 // The warning modal (ctrl+w, or opened automatically at startup when an
@@ -39,12 +40,11 @@ const (
 
 // openWarningsAtStart reports whether the warning modal should open at startup,
 // and which warning index to show first. The index is the first warning that
-// the user has not dismissed with d.
-func openWarningsAtStart(warnings []error) (bool, int) {
+// the user has not dismissed with d. The dismissed set comes from the edge.
+func openWarningsAtStart(warnings []error, dismissed map[string]bool) (bool, int) {
 	if len(warnings) == 0 {
 		return false, 0
 	}
-	dismissed := loadDismissedWarnings()
 	for i, w := range warnings {
 		if !dismissed[warningKey(w)] {
 			return true, i
@@ -61,24 +61,49 @@ func warningCount(n int) string {
 	return fmt.Sprintf("%d warnings", n)
 }
 
-// dismissCurrentWarning records the displayed warning as dismissed, so a later
-// run does not pop the modal open for it. If another warning of the session is
-// still undismissed, the box advances to it. Otherwise the box closes.
-func (m *model) dismissCurrentWarning() {
+// dismissCurrentWarning returns a command that records the displayed warning
+// as dismissed, so a later run does not pop the modal open for it. The result
+// message carries the warning index and the reloaded dismissed set.
+func (m model) dismissCurrentWarning() tea.Cmd {
+	if len(m.warnings) == 0 {
+		return nil
+	}
+	idx := min(max(m.warningIdx, 0), len(m.warnings)-1)
+	env := m.env
+	warning := m.warnings[idx]
+	return func() tea.Msg {
+		if err := saveDismissedWarning(env.Store, env.CacheFile, warning); err != nil {
+			return warningDismissedMsg{idx: idx, err: err}
+		}
+		return warningDismissedMsg{idx: idx, dismissed: loadDismissedWarnings(env.Store, env.CacheFile)}
+	}
+}
+
+// warningDismissedMsg reports the result of saving a dismissed warning.
+type warningDismissedMsg struct {
+	idx       int
+	dismissed map[string]bool
+	err       error
+}
+
+// applyWarningDismissed advances to the next undismissed warning, and it closes
+// the box when every warning is dismissed. A failed save shows the error in the
+// status line and closes the box.
+func (m *model) applyWarningDismissed(msg warningDismissedMsg) {
+	if msg.err != nil {
+		m.status = m.styles.err.Render(fmt.Sprintf("cannot save dismissed warning: %v", msg.err))
+		m.warningModal = false
+		return
+	}
+	m.env.Dismissed = msg.dismissed
 	if len(m.warnings) == 0 {
 		m.warningModal = false
 		return
 	}
-	m.warningIdx = min(max(m.warningIdx, 0), len(m.warnings)-1)
-	if err := saveDismissedWarning(m.warnings[m.warningIdx]); err != nil {
-		m.status = m.styles.err.Render(fmt.Sprintf("cannot save dismissed warning: %v", err))
-		m.warningModal = false
-		return
-	}
-	dismissed := loadDismissedWarnings()
+	from := min(max(msg.idx, 0), len(m.warnings)-1)
 	for i := range len(m.warnings) {
-		idx := (m.warningIdx + 1 + i) % len(m.warnings)
-		if !dismissed[warningKey(m.warnings[idx])] {
+		idx := (from + 1 + i) % len(m.warnings)
+		if !m.env.Dismissed[warningKey(m.warnings[idx])] {
 			m.warningIdx = idx
 			return
 		}
@@ -199,25 +224,13 @@ func warningKey(err error) string {
 	return strings.Join(strings.Fields(err.Error()), " ")
 }
 
-// dismissedWarningsFile returns the path of the file that stores the dismissed
-// warnings in the cache directory of the user.
-func dismissedWarningsFile() string {
-	cacheDir, err := userCacheDir()
-	if err != nil || cacheDir == "" {
-		return ""
-	}
-	return filepath.Join(cacheDir, "what-to-run", "dismissed-warnings")
-}
-
-// loadDismissedWarnings reads the set of dismissed warning messages from the
-// cache directory of the user. A missing or unreadable file yields an empty
-// set.
-func loadDismissedWarnings() map[string]bool {
-	path := dismissedWarningsFile()
+// loadDismissedWarnings reads the set of dismissed warning messages from path
+// through the store. A missing or unreadable file yields an empty set.
+func loadDismissedWarnings(store config.Store, path string) map[string]bool {
 	if path == "" {
 		return nil
 	}
-	data, err := os.ReadFile(path)
+	data, err := store.ReadFile(path)
 	if err != nil {
 		return nil
 	}
@@ -231,25 +244,24 @@ func loadDismissedWarnings() map[string]bool {
 	return dismissed
 }
 
-// saveDismissedWarning adds err to the dismissed-warnings file of the user, and
-// it creates the file and its directory when they are missing.
-func saveDismissedWarning(w error) error {
+// saveDismissedWarning adds err to the dismissed-warnings file at path, and it
+// creates the file and its directory when they are missing.
+func saveDismissedWarning(store config.Store, path string, w error) error {
 	key := warningKey(w)
 	if key == "" {
 		return nil
 	}
-	path := dismissedWarningsFile()
 	if path == "" {
 		return errors.New("cannot resolve the user cache directory")
 	}
-	if loadDismissedWarnings()[key] {
+	if loadDismissedWarnings(store, path)[key] {
 		return nil
 	}
-	data, err := os.ReadFile(path)
+	data, err := store.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := store.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	var out string
@@ -258,46 +270,49 @@ func saveDismissedWarning(w error) error {
 	} else {
 		out = key + "\n"
 	}
-	return os.WriteFile(path, []byte(out), 0o600)
+	return store.WriteFile(path, []byte(out), 0o600)
 }
 
-// clearResolvedDismissals removes from the dismissed-warnings file the warnings
-// that were present in old and are no longer present in current.
-func clearResolvedDismissals(old, current []error) {
-	if len(old) == 0 {
-		return
-	}
-	path := dismissedWarningsFile()
+// clearResolvedDismissals removes from the cache file the warnings that were
+// present in old and are no longer present in current. It loads the file again,
+// so a dismissal written by another process is not missed. It returns the set
+// that is now in use.
+func clearResolvedDismissals(store config.Store, path string, old, current []error) map[string]bool {
 	if path == "" {
-		return
+		return nil
 	}
-	dismissed := loadDismissedWarnings()
-	if len(dismissed) == 0 {
-		return
+	dismissed := loadDismissedWarnings(store, path)
+	if len(old) == 0 || len(dismissed) == 0 {
+		return dismissed
 	}
 	stillActive := make(map[string]bool, len(current))
 	for _, w := range current {
 		stillActive[warningKey(w)] = true
 	}
+	next := make(map[string]bool, len(dismissed))
 	changed := false
+	for k := range dismissed {
+		next[k] = true
+	}
 	for _, w := range old {
 		k := warningKey(w)
-		if !stillActive[k] && dismissed[k] {
-			delete(dismissed, k)
+		if !stillActive[k] && next[k] {
+			delete(next, k)
 			changed = true
 		}
 	}
 	if !changed {
-		return
+		return dismissed
 	}
-	if len(dismissed) == 0 {
-		_ = os.Remove(path)
-		return
+	if len(next) == 0 {
+		_ = store.Remove(path)
+		return next
 	}
 	var b strings.Builder
-	for k := range dismissed {
+	for k := range next {
 		b.WriteString(k)
 		b.WriteByte('\n')
 	}
-	_ = os.WriteFile(path, []byte(b.String()), 0o600)
+	_ = store.WriteFile(path, []byte(b.String()), 0o600)
+	return next
 }

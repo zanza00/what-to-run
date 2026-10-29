@@ -50,26 +50,25 @@ func TestSetThemeKey(t *testing.T) {
 // unchanged.
 func TestSaveThemeWritesTheUserFile(t *testing.T) {
 	dir := t.TempDir()
-	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
+	userFile := filepath.Join(dir, "xdg", "what-to-run", "config.toml")
+	projectFile := filepath.Join(dir, ".what-to-run.toml")
 	writeFile(t, dir, ".what-to-run.toml", "package_manager = \"bun\"\n")
 
-	path, err := SaveTheme("nord")
+	path, err := SaveTheme(diskFiles{}, userFile, "nord")
 	if err != nil {
 		t.Fatalf("SaveTheme: %v", err)
 	}
-	want := filepath.Join(dir, "xdg", "what-to-run", "config.toml")
-	if path != want {
-		t.Errorf("SaveTheme path = %q, want %q", path, want)
+	if path != userFile {
+		t.Errorf("SaveTheme path = %q, want %q", path, userFile)
 	}
-	data, err := os.ReadFile(want)
+	data, err := os.ReadFile(userFile)
 	if err != nil {
 		t.Fatalf("reading the user rc: %v", err)
 	}
 	if got := string(data); got != "theme = \"nord\"\n" {
 		t.Errorf("user rc = %q, want %q", got, "theme = \"nord\"\n")
 	}
-	info, err := os.Stat(want)
+	info, err := os.Stat(userFile)
 	if err != nil {
 		t.Fatalf("stat: %v", err)
 	}
@@ -77,11 +76,19 @@ func TestSaveThemeWritesTheUserFile(t *testing.T) {
 		t.Errorf("user rc mode = %o, want 0600", perm)
 	}
 
-	project, err := os.ReadFile(filepath.Join(dir, ".what-to-run.toml"))
+	project, err := os.ReadFile(projectFile)
 	if err != nil {
 		t.Fatalf("reading the project rc: %v", err)
 	}
 	if got := string(project); got != "package_manager = \"bun\"\n" {
 		t.Errorf("project rc = %q, want it untouched", got)
+	}
+}
+
+// TestSaveThemeNeedsAUserFile pins that the caller must resolve the user file
+// before it saves.
+func TestSaveThemeNeedsAUserFile(t *testing.T) {
+	if _, err := SaveTheme(diskFiles{}, "", "nord"); err == nil {
+		t.Error("SaveTheme without a user file returned nil, want an error")
 	}
 }

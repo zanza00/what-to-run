@@ -73,6 +73,12 @@ type Options struct {
 	// a pasted line is quoted for the shell that reads it. An unknown value is
 	// a warning, and the picker falls back to auto.
 	Shell string
+
+	// Env is the environment of this picker run: the paths and the filesystems
+	// for discovery and persistence. Run and Preview build the production one
+	// when it is nil. Tests pass an explicit one, so they do not depend on the
+	// process directory or the process environment.
+	Env *Env
 }
 
 // prog returns the name that the program identifies with: the invoked name,
@@ -141,7 +147,8 @@ func Run(opts Options) error {
 		}
 	}
 
-	tasks, cfg, warnings := discover()
+	env := opts.resolveEnv()
+	tasks, cfg, warnings := env.discover()
 	if len(tasks) == 0 && !opts.Inline {
 		return noTasksError(warnings)
 	}
@@ -201,17 +208,6 @@ func reportChoice(w io.Writer, t core.Task, insert bool, shell core.ShellDialect
 	fmt.Fprintf(w, "%s\n%s\n", mode, t.CommandLineFor(shell))
 }
 
-// discover gathers the tasks of the current directory and the rc settings. It
-// reads the rc file first, and its problems become warnings, then it reads
-// every source. The warnings are returned even when tasks were found, because
-// the picker shows them in the status line.
-func discover() ([]core.Task, config.Config, []error) {
-	projectFile, globalFile := config.DefaultFiles(".")
-	cfg, warnings := config.Load(osFiles{}, projectFile, globalFile, themeNames())
-	tasks, sourceWarnings := core.Discover(osFiles{}, ".", cfg.Settings)
-	return tasks, cfg, append(warnings, sourceWarnings...)
-}
-
 // noTasksError returns the error for a directory with nothing to run.
 func noTasksError(warnings []error) error {
 	if len(warnings) > 0 {
@@ -227,7 +223,8 @@ func noTasksError(warnings []error) error {
 // terminal size, and the picker draws it fullscreen (no inline anchoring, no
 // runner).
 func Preview(w io.Writer, opts Options, width, height int) error {
-	tasks, cfg, warnings := discover()
+	env := opts.resolveEnv()
+	tasks, cfg, warnings := env.discover()
 	if len(tasks) == 0 {
 		return noTasksError(warnings)
 	}
@@ -301,6 +298,9 @@ type taskDoneMsg struct {
 // the project.
 type model struct {
 	opts Options
+	// env is the environment of the run. The edge builds it, and the model
+	// only passes it to the commands.
+	env Env
 	// shell is the command-line dialect, parsed once from opts.Shell. An
 	// unknown value warns and falls back to the platform default.
 	shell    core.ShellDialect
@@ -374,6 +374,10 @@ type model struct {
 }
 
 func newModel(opts Options, tasks []core.Task, warnings []error) model {
+	env := Env{}
+	if opts.Env != nil {
+		env = *opts.Env
+	}
 	idx, ok := themeIndex(opts.Theme)
 	if !ok {
 		warnings = append([]error{fmt.Errorf(
@@ -385,9 +389,10 @@ func newModel(opts Options, tasks []core.Task, warnings []error) model {
 		warnings = append([]error{err}, warnings...)
 		shell = core.DefaultShellDialect()
 	}
-	warnOpen, warnIdx := openWarningsAtStart(warnings)
+	warnOpen, warnIdx := openWarningsAtStart(warnings, env.Dismissed)
 	m := model{
 		opts:         opts,
+		env:          env,
 		shell:        shell,
 		tasks:        tasks,
 		warnings:     warnings,
@@ -469,6 +474,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.id == m.noticeID {
 			m.notice = ""
 		}
+
+	case warningDismissedMsg:
+		m.applyWarningDismissed(msg)
+
+	case themeSavedMsg:
+		return m, m.applyThemeSaved(msg)
 	}
 
 	return m, nil
@@ -588,7 +599,11 @@ func (m model) handleWarningKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.warningModal = false
 
 	case "d":
-		m.dismissCurrentWarning()
+		if len(m.warnings) == 0 {
+			m.warningModal = false
+			return m, nil
+		}
+		return m, m.dismissCurrentWarning()
 
 	case "up", "ctrl+k", "ctrl+p", "left", "ctrl+h":
 		m.warningIdx = max(m.warningIdx-1, 0)
@@ -665,24 +680,69 @@ func (m model) themeAt(i int) theme {
 	return th
 }
 
-// persistTheme saves the previewed theme when it differs from the theme that
-// was active when the picker opened, or when a theme warning is active. A saved
-// theme re-parses the rc files to clear the resolved warnings, and it confirms
-// the save with a toast (showNotice). A failure becomes a status message that
-// stays there, and it is never fatal.
-func (m *model) persistTheme() tea.Cmd {
+// themeSavedMsg reports the result of saving a theme, together with the fresh
+// discovery and dismissed set.
+type themeSavedMsg struct {
+	name      string
+	path      string
+	tasks     []core.Task
+	warnings  []error
+	dismissed map[string]bool
+	err       error
+}
+
+// persistTheme returns a command that saves the previewed theme when it differs
+// from the theme that was active when the picker opened, or when a theme
+// warning is active. The command re-parses the rc files, and it clears the
+// warnings that the save resolved. A nil command means that there is nothing to
+// save.
+func (m model) persistTheme() tea.Cmd {
 	if m.themeIdx == m.themeBefore && !m.hasThemeWarning() {
 		return nil
 	}
+	env := m.env
 	name := themes[m.themeIdx].name
-	path, err := config.SaveTheme(name)
-	if err != nil {
-		m.status = m.styles.err.Render(fmt.Sprintf("cannot save theme %s: %v", name, err))
+	oldWarnings := m.warnings
+	return func() tea.Msg {
+		path, err := config.SaveTheme(env.Store, env.UserFile, name)
+		if err != nil {
+			return themeSavedMsg{name: name, err: err}
+		}
+		tasks, _, warnings := env.discover()
+		dismissed := clearResolvedDismissals(env.Store, env.CacheFile, oldWarnings, warnings)
+		return themeSavedMsg{
+			name:      name,
+			path:      path,
+			tasks:     tasks,
+			warnings:  warnings,
+			dismissed: dismissed,
+		}
+	}
+}
+
+// applyThemeSaved applies a saved theme: it refreshes the tasks and the
+// warnings, keeps the dismissed set current, and confirms the save with a toast
+// (showNotice). A failure becomes a status message that stays there, and it is
+// never fatal.
+func (m *model) applyThemeSaved(msg themeSavedMsg) tea.Cmd {
+	if msg.err != nil {
+		m.status = m.styles.err.Render(fmt.Sprintf("cannot save theme %s: %v", msg.name, msg.err))
 		return nil
 	}
-	m.opts.Theme = name
-	m.refreshConfigWarnings()
-	return m.showNotice(fmt.Sprintf("theme %s saved to %s", name, config.ShortPath(path)))
+	m.opts.Theme = msg.name
+	if len(msg.tasks) > 0 {
+		m.setTasks(msg.tasks)
+	}
+	m.env.Dismissed = msg.dismissed
+	m.warnings = msg.warnings
+	if len(m.warnings) == 0 {
+		m.warningModal = false
+		m.warningIdx = 0
+	} else {
+		m.warningIdx = min(m.warningIdx, len(m.warnings)-1)
+	}
+	m.keepCursorVisible()
+	return m.showNotice(fmt.Sprintf("theme %s saved to %s", msg.name, config.ShortPath(msg.path, m.env.Home)))
 }
 
 // hasThemeWarning reports whether any current warning is about a theme.
@@ -693,25 +753,6 @@ func (m model) hasThemeWarning() bool {
 		}
 	}
 	return false
-}
-
-// refreshConfigWarnings re-parses the rc files and the task sources after an
-// action that modifies the config file, and it drops the resolved warnings.
-func (m *model) refreshConfigWarnings() {
-	old := m.warnings
-	tasks, _, warnings := discover()
-	if len(tasks) > 0 {
-		m.setTasks(tasks)
-	}
-	clearResolvedDismissals(old, warnings)
-	m.warnings = warnings
-	if len(m.warnings) == 0 {
-		m.warningModal = false
-		m.warningIdx = 0
-	} else {
-		m.warningIdx = min(m.warningIdx, len(m.warnings)-1)
-	}
-	m.keepCursorVisible()
 }
 
 // run starts the task under the cursor.

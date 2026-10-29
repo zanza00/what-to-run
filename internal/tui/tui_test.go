@@ -21,6 +21,20 @@ func update(m model, msg tea.Msg) model {
 	return next.(model)
 }
 
+// execCmd runs cmd and returns its message. A test uses it for a persistence
+// effect, whose result arrives as a message.
+func execCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("command is nil, want an effect")
+	}
+	msg := cmd()
+	if msg == nil {
+		t.Fatal("command returned no message")
+	}
+	return msg
+}
+
 // press feeds one key press per rune of s, as if the user typed it.
 func press(m model, s string) model {
 	for _, r := range s {
@@ -50,8 +64,6 @@ func sized(opts Options) model {
 }
 
 func TestNewModelShellDialect(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-
 	tests := []struct {
 		name        string
 		shell       string
@@ -644,7 +656,6 @@ func TestViewFullscreenFillsHeightAndScrolls(t *testing.T) {
 }
 
 func TestViewShowsWarnings(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 30})
 	if got := m.View().Content; !strings.Contains(got, "Makefile.toml: boom") {
@@ -771,15 +782,18 @@ func TestModelWithoutSnapshotRenders(t *testing.T) {
 // TestTaskSnapshotFollowsRefresh pins that a reload of the task sources
 // replaces the cached ranking and keeps the cursor inside the shorter list.
 func TestTaskSnapshotFollowsRefresh(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
-	writeFile(t, dir, "Makefile", "build:\n\t@echo build\n")
+	env, files := testEnv(t)
+	files[filepath.Join(env.Dir, "Makefile")] = "build:\n\t@echo build\n"
 
-	m := press(sized(Options{}), "build")
+	m := press(sized(Options{Env: env}), "build")
 	m.cursor, m.offset = 1, 1
 
-	m.refreshConfigWarnings()
+	// Saving a theme re-discovers the task sources.
+	m = update(m, ctrlTKey)
+	m = update(m, downKey)
+	next, cmd := m.Update(enterKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 
 	if !m.snapshot.valid {
 		t.Fatal("snapshot after the task refresh is invalid")

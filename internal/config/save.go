@@ -4,30 +4,40 @@ import (
 	"bytes"
 	"errors"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 )
 
+// Store is the writable filesystem that the rc saver uses. The picker passes
+// its production adapter, and tests pass a temporary or an in-memory one.
+type Store interface {
+	ReadFile(name string) ([]byte, error)
+	WriteFile(name string, data []byte, perm fs.FileMode) error
+	MkdirAll(name string, perm fs.FileMode) error
+	Remove(name string) error
+}
+
 // SaveTheme writes a theme into the user rc file, the only place that holds it
 // (like OpenCode's cli.json). The function creates the file and its directory
 // when they are missing, and it preserves the rest of the content. It returns
 // the path that it wrote.
-func SaveTheme(name string) (string, error) {
-	_, userFile := DefaultFiles(".")
+//
+// The caller resolves userFile and provides the store, so the function never
+// reads the process environment or the current directory.
+func SaveTheme(store Store, userFile, name string) (string, error) {
 	if userFile == "" {
 		return "", errors.New("cannot resolve the user config directory")
 	}
 
-	data, err := os.ReadFile(userFile)
+	data, err := store.ReadFile(userFile)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", err
 	}
-	if err := os.MkdirAll(filepath.Dir(userFile), 0o755); err != nil {
+	if err := store.MkdirAll(filepath.Dir(userFile), 0o755); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(userFile, setThemeKey(data, name), 0o600); err != nil {
+	if err := store.WriteFile(userFile, setThemeKey(data, name), 0o600); err != nil {
 		return "", err
 	}
 	return userFile, nil

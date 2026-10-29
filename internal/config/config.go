@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"io/fs"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -66,6 +65,20 @@ func DefaultFiles(dir string) (project, global string) {
 	return project, global
 }
 
+// Paths are the rc files of one load. ProjectLabel names the project file in
+// warnings. An empty label uses ShortPath with Home, like the user file.
+type Paths struct {
+	Project, Global, ProjectLabel, Home string
+}
+
+// display returns the text that names path in a warning.
+func (p Paths) display(path string, isProject bool) string {
+	if isProject && p.ProjectLabel != "" {
+		return p.ProjectLabel
+	}
+	return ShortPath(path, p.Home)
+}
+
 // Load reads the rc files and returns the merged settings. The layers apply
 // from the general to the specific: the global top-level settings first, then
 // the project's .what-to-run.toml, then the matching [projects."<path>"]
@@ -73,11 +86,12 @@ func DefaultFiles(dir string) (project, global string) {
 // deepest match. Missing files are fine. The function reports a broken key or
 // entry as a warning and skips it, while the rest of the file still applies.
 //
-// themeNames are the theme names that the user rc file accepts. The caller owns
-// the registry, and an unknown name is a warning.
-func Load(files core.Files, projectFile, globalFile string, themeNames []string) (Config, []error) {
-	global, errs := readConfig(files, globalFile, false, themeNames)
-	project, projectErrs := readConfig(files, projectFile, true, themeNames)
+// paths names the files and how warnings show them. themeNames are the theme
+// names that the user rc file accepts. The caller owns the registry, and an
+// unknown name is a warning.
+func Load(files core.Files, paths Paths, themeNames []string) (Config, []error) {
+	global, errs := readConfig(files, paths, paths.Global, false, themeNames)
+	project, projectErrs := readConfig(files, paths, paths.Project, true, themeNames)
 	errs = append(errs, projectErrs...)
 
 	cfg := Config{
@@ -91,10 +105,10 @@ func Load(files core.Files, projectFile, globalFile string, themeNames []string)
 	cfg = mergeLayer(cfg, project.Settings)
 
 	projectDir := "."
-	if projectFile != "" {
-		projectDir = filepath.Dir(projectFile)
+	if paths.Project != "" {
+		projectDir = filepath.Dir(paths.Project)
 	}
-	for _, ov := range matchingProjects(global.Projects, projectDir) {
+	for _, ov := range matchingProjects(global.Projects, projectDir, paths.Home) {
 		cfg = mergeLayer(cfg, ov)
 	}
 	return cfg, errs
@@ -132,7 +146,7 @@ func firstTasks(tasks []core.RCTask) []core.RCTask {
 // a warning. An unknown key, a wrong type and an invalid entry drop only the
 // offending item, with one warning each, so the rest of the file still
 // applies.
-func readConfig(files core.Files, path string, isProject bool, themeNames []string) (Config, []error) {
+func readConfig(files core.Files, paths Paths, path string, isProject bool, themeNames []string) (Config, []error) {
 	if path == "" {
 		return Config{}, nil
 	}
@@ -140,7 +154,7 @@ func readConfig(files core.Files, path string, isProject bool, themeNames []stri
 	if errors.Is(err, fs.ErrNotExist) {
 		return Config{}, nil
 	}
-	disp := ShortPath(path)
+	disp := paths.display(path, isProject)
 	if err != nil {
 		return Config{}, []error{fmt.Errorf("rc file %s: %w", disp, err)}
 	}
@@ -149,13 +163,13 @@ func readConfig(files core.Files, path string, isProject bool, themeNames []stri
 	if err := toml.Unmarshal(data, &raw); err != nil {
 		return Config{}, []error{fmt.Errorf("rc file %s: %w", disp, err)}
 	}
-	return decodeConfigMap(raw, disp, isProject, themeNames)
+	return decodeConfigMap(raw, disp, isProject, paths.Home, themeNames)
 }
 
 // decodeConfigMap extracts the valid settings from a parsed top-level TOML
 // map. It collects a warning for every unknown key, type mismatch and invalid
 // entry.
-func decodeConfigMap(raw map[string]any, disp string, isProject bool, themeNames []string) (Config, []error) {
+func decodeConfigMap(raw map[string]any, disp string, isProject bool, home string, themeNames []string) (Config, []error) {
 	var cfg Config
 	var errs []error
 
@@ -197,7 +211,7 @@ func decodeConfigMap(raw map[string]any, disp string, isProject bool, themeNames
 				errs = append(errs, fmt.Errorf("rc file %s: projects is a user setting, ignored here", disp))
 				continue
 			}
-			cfg.Projects = decodeProjects(val, disp, &errs)
+			cfg.Projects = decodeProjects(val, disp, home, &errs)
 
 		default:
 			errs = append(errs, fmt.Errorf("rc file %s: unknown key %q", disp, key))
@@ -344,7 +358,7 @@ func decodeOneTask(table map[string]any, disp, scope string, errs *[]error) (cor
 }
 
 // decodeProjects validates the [projects."<path>"] table of the user rc file.
-func decodeProjects(val any, disp string, errs *[]error) map[string]core.Settings {
+func decodeProjects(val any, disp, home string, errs *[]error) map[string]core.Settings {
 	table, ok := val.(map[string]any)
 	if !ok {
 		*errs = append(*errs, fmt.Errorf("rc file %s: projects must be a table", disp))
@@ -353,7 +367,7 @@ func decodeProjects(val any, disp string, errs *[]error) map[string]core.Setting
 	projects := make(map[string]core.Settings, len(table))
 	for _, rawPath := range slices.Sorted(maps.Keys(table)) {
 		scope := fmt.Sprintf("projects.%q: ", rawPath)
-		expanded := expandHome(strings.TrimSpace(rawPath))
+		expanded := expandHome(strings.TrimSpace(rawPath), home)
 		if expanded == "" || !filepath.IsAbs(expanded) {
 			*errs = append(*errs, fmt.Errorf("rc file %s: %spath must be absolute or start with ~", disp, scope))
 			continue
@@ -390,11 +404,11 @@ func decodeProjects(val any, disp string, errs *[]error) map[string]core.Setting
 // itself or a parent directory of dir. The list runs from the least specific
 // block (the outermost directory) to the most specific one (the deepest
 // directory).
-func matchingProjects(projects map[string]core.Settings, dir string) []core.Settings {
+func matchingProjects(projects map[string]core.Settings, dir, home string) []core.Settings {
 	if len(projects) == 0 {
 		return nil
 	}
-	target := canonicalPath(dir)
+	target := canonicalPath(dir, home)
 	type match struct {
 		rawKey   string
 		canon    string
@@ -403,7 +417,7 @@ func matchingProjects(projects map[string]core.Settings, dir string) []core.Sett
 	}
 	var matches []match
 	for rawKey, settings := range projects {
-		canon := canonicalPath(strings.TrimSpace(rawKey))
+		canon := canonicalPath(strings.TrimSpace(rawKey), home)
 		if segs, ok := pathWithin(canon, target); ok {
 			matches = append(matches, match{
 				rawKey:   rawKey,
@@ -450,8 +464,8 @@ func pathWithin(base, target string) (int, bool) {
 // current directory, and resolves the symlinks on the longest prefix of the
 // path that exists. In this way a symlinked home (e.g. /home -> /var/home)
 // still matches.
-func canonicalPath(p string) string {
-	p = expandHome(p)
+func canonicalPath(p, home string) string {
+	p = expandHome(p, home)
 	if abs, err := filepath.Abs(p); err == nil {
 		p = abs
 	}
@@ -479,13 +493,13 @@ func evalSymlinksPartial(p string) string {
 	}
 }
 
-// expandHome replaces a leading "~" or "~/" with the user's home directory.
-func expandHome(path string) string {
+// expandHome replaces a leading "~" or "~/" with home. An empty home leaves
+// the path alone.
+func expandHome(path, home string) string {
 	if path != "~" && !strings.HasPrefix(path, "~/") && !strings.HasPrefix(path, `~\`) {
 		return path
 	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
+	if home == "" {
 		return path
 	}
 	if path == "~" {
@@ -494,10 +508,10 @@ func expandHome(path string) string {
 	return filepath.Join(home, path[2:])
 }
 
-// ShortPath replaces the home directory of the user with "~" in messages.
-func ShortPath(path string) string {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
+// ShortPath replaces home with "~" in messages. An empty home leaves the path
+// alone.
+func ShortPath(path, home string) string {
+	if home == "" {
 		return path
 	}
 	rest, ok := strings.CutPrefix(path, home)

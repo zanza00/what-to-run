@@ -35,17 +35,25 @@ func (m memFiles) Exists(name string) bool {
 
 func (memFiles) ReadDir(string) ([]core.DirEntry, error) { return nil, fs.ErrNotExist }
 
-// diskFiles is the core.Files adapter for the tests that use the real
+// diskFiles is the core.Files and Store adapter for the tests that use the real
 // filesystem.
 type diskFiles struct{}
 
-var _ core.Files = diskFiles{}
+var (
+	_ core.Files = diskFiles{}
+	_ Store      = diskFiles{}
+)
 
 func (diskFiles) ReadFile(name string) ([]byte, error) { return os.ReadFile(name) }
 func (diskFiles) Exists(name string) bool {
 	_, err := os.Stat(name)
 	return err == nil
 }
+func (diskFiles) WriteFile(name string, data []byte, perm fs.FileMode) error {
+	return os.WriteFile(name, data, perm)
+}
+func (diskFiles) MkdirAll(name string, perm fs.FileMode) error { return os.MkdirAll(name, perm) }
+func (diskFiles) Remove(name string) error                     { return os.Remove(name) }
 func (diskFiles) ReadDir(name string) ([]core.DirEntry, error) {
 	entries, err := os.ReadDir(name)
 	if err != nil {

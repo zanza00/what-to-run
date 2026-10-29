@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// devboxSource returns the source for the project's devbox.json.
+// devboxSource returns the source for the devbox.json of the project.
 func devboxSource() source {
 	return source{
 		SourceInfo: SourceInfo{
@@ -20,13 +20,13 @@ func devboxSource() source {
 	}
 }
 
-// parseDevbox returns the scripts declared in devbox.json's shell.scripts
-// object, sorted by name, each run through "devbox run". A script is a
-// command string or an array of them; the description shows those commands.
-// shell.init_hook and the rest of the file are ignored, and a script without
-// usable commands is skipped.
+// parseDevbox returns the scripts that the shell.scripts object of devbox.json
+// declares, sorted by name. Each script runs through "devbox run". A script is
+// a command string or an array of commands, and the description shows those
+// commands. The parser ignores shell.init_hook and the rest of the file, and it
+// skips a script without usable commands.
 func parseDevbox(_ string, data []byte) ([]Task, error) {
-	// An empty file declares no scripts: report it like a missing one
+	// An empty file declares no scripts, so report it like a missing file
 	// instead of failing on invalid JSON.
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, nil
@@ -60,9 +60,9 @@ func parseDevbox(_ string, data []byte) ([]Task, error) {
 }
 
 // devboxScriptDesc turns one shell.scripts value into the description of the
-// task: a command string, or an array of commands joined as a shell line. ok
-// is false when the value declares no usable command — an empty string, an
-// empty array, or neither — and the caller skips that script.
+// task: a command string, or an array of commands joined as a shell line. ok is
+// false when the value declares no usable command, which is an empty string, an
+// empty array or neither shape, and the caller skips that script.
 func devboxScriptDesc(v any) (string, bool) {
 	switch cmds := v.(type) {
 	case string:

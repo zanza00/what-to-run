@@ -11,18 +11,19 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// taskfileNames are the eight default Taskfile names, in the order go-task
-// searches them: the preference order of the source, and the names a
-// directory include is searched for.
+// taskfileNames holds the eight default Taskfile names, in the order that
+// go-task searches them. That order is the preference order of the source and
+// the list that a directory include is searched for.
 var taskfileNames = []string{
 	"Taskfile.yml", "taskfile.yml", "Taskfile.yaml", "taskfile.yaml",
 	"Taskfile.dist.yml", "taskfile.dist.yml",
 	"Taskfile.dist.yaml", "taskfile.dist.yaml",
 }
 
-// taskfileSource returns the source for go-task tasks: the first of the eight
-// default Taskfile names that exists, in the order go-task itself searches.
-// Like task, it also looks in the parent directories of the project directory.
+// taskfileSource returns the source for go-task tasks. It reads the first of
+// the eight default Taskfile names that exists, in the order that go-task
+// itself searches. Like task, it also looks in the parent directories of the
+// project directory.
 func taskfileSource(files Files) source {
 	return source{
 		SourceInfo: SourceInfo{
@@ -38,39 +39,39 @@ func taskfileSource(files Files) source {
 }
 
 // taskfileDoc is one Taskfile document: its own tasks and the local Taskfiles
-// it includes.
+// that it includes.
 type taskfileDoc struct {
 	Version  string         `yaml:"version"`
 	Includes map[string]any `yaml:"includes"`
 	Tasks    map[string]any `yaml:"tasks"`
 }
 
-// parseTaskfile returns the tasks a Taskfile declares, its local includes
-// followed recursively, sorted by name like "task --list-all", each run as
-// "task <name>".
+// parseTaskfile returns the tasks that a Taskfile declares, with its local
+// includes followed recursively, sorted by name like "task --list-all". Each
+// task runs as "task <name>".
 //
-// The description is the task's desc, else the first line of its summary,
-// else its command line: a Taskfile has no help convention beyond those
-// fields, and the picker must still show every runnable task. A task whose
-// body is only deps or a null value is kept with an empty description.
-// Internal tasks are skipped: "task --list" hides them and they cannot be
-// called directly.
+// The description is the desc of the task, else the first line of its summary,
+// else its command line. A Taskfile has no help convention beyond those fields,
+// and the picker must still show every runnable task. The parser keeps a task
+// whose body is only deps or a null value, with an empty description. It skips
+// internal tasks, because "task --list" hides them and they cannot be called
+// directly.
 //
-// Includes bring in another local Taskfile, relative to the including file's
-// directory, and their tasks are namespaced with the include key ("docs:build",
-// chained for nested includes). An include with flatten: true keeps the
-// inherited namespace instead of adding its key, an internal include hides
-// all its tasks (nested ones too), and aliases are not listed as extra rows.
-// Remote and templated include paths are not followed. An include that is
+// An include brings in another local Taskfile, relative to the directory of the
+// including file, and the parser namespaces its tasks with the include key
+// ("docs:build", chained for nested includes). An include with flatten: true
+// keeps the inherited namespace instead of adding its key. An internal include
+// hides all its tasks, nested ones too, and aliases are not listed as extra
+// rows. Remote and templated include paths are not followed. An include that is
 // missing, unreadable or unparseable is skipped without losing the tasks
-// already gathered; only an error in the root file is returned.
+// already gathered. Only an error in the root file is returned.
 //
-// desc and summary are shown as written, without evaluating Task templates.
-// The include dir field only affects where task runs, not the listed names.
-// The first definition of a final name wins: the root tasks come before the
+// desc and summary are shown as written, without evaluating Task templates. The
+// include dir field only affects where task runs, not the listed names. The
+// first definition of a final name wins: the root tasks come before the
 // includes, and includes are read in sorted key order.
 func parseTaskfile(files Files, dir string, data []byte) ([]Task, error) {
-	// An empty file declares no tasks: report it like a missing one
+	// An empty file declares no tasks, so report it like a missing file
 	// instead of failing on an empty YAML document.
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, nil
@@ -107,11 +108,11 @@ func taskfileDocOf(data []byte) (taskfileDoc, error) {
 	return doc, err
 }
 
-// taskfileCollect adds one document's tasks to collected and recurses into its
-// includes. prefix is the namespace inherited from the parent include and
-// active holds the absolute paths on the current include chain: a file already
-// on it is a cycle, while the same file included from a sibling branch is read
-// again under that branch's namespace.
+// taskfileCollect adds the tasks of one document to collected and recurses into
+// its includes. prefix is the namespace inherited from the parent include.
+// active holds the absolute paths on the current include chain: a file that is
+// already on it is a cycle, while the same file included from a sibling branch
+// is read again under the namespace of that branch.
 func taskfileCollect(files Files, doc taskfileDoc, dir, prefix string, active map[string]bool, collected map[string]Task) {
 	for _, name := range slices.Sorted(maps.Keys(doc.Tasks)) {
 		desc, ok := taskfileDesc(doc.Tasks[name])
@@ -162,17 +163,17 @@ func taskfileCollect(files Files, doc taskfileDoc, dir, prefix string, active ma
 
 // taskfileInclude is one normalized includes entry: the path to read and the
 // flags that affect the tasks it brings in. The dir field only changes where
-// task runs, so it is ignored here.
+// task runs, so the parser ignores it here.
 type taskfileInclude struct {
 	path     string
 	internal bool
 	flatten  bool
 }
 
-// taskfileIncludeOf normalizes an includes value. A string is the path; a
-// table carries it in taskfile, which must be a string. ok is false for a
-// table without a taskfile and for a remote or templated path, which the
-// parser does not follow.
+// taskfileIncludeOf normalizes an includes value. A string is the path. A table
+// carries the path in taskfile, which must be a string. ok is false for a table
+// without a taskfile and for a remote or templated path, which the parser does
+// not follow.
 func taskfileIncludeOf(v any) (taskfileInclude, bool) {
 	inc := taskfileInclude{}
 	switch entry := v.(type) {
@@ -205,11 +206,11 @@ func taskfileIncludeOf(v any) (taskfileInclude, bool) {
 	return inc, true
 }
 
-// taskfileIncludeFile resolves an include path against the including file's
-// directory and reads it. A directory is searched for the eight default names
-// in go-task's order. The Files port has no Stat, so a path that reads as a
-// file wins and a directory is the one whose default name reads. ok is false
-// when nothing readable exists there.
+// taskfileIncludeFile resolves an include path against the directory of the
+// including file and reads it. A directory is searched for the eight default
+// names in the order of go-task. The Files port has no Stat, so a path that
+// reads as a file wins, and a directory is the one whose default name reads. ok
+// is false when nothing readable exists there.
 func taskfileIncludeFile(files Files, dir, path string) (string, []byte, bool) {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(dir, path)
@@ -227,7 +228,7 @@ func taskfileIncludeFile(files Files, dir, path string) (string, []byte, bool) {
 }
 
 // taskfileDesc turns one tasks value into the description of the task and
-// reports whether the task should be listed: a short-syntax command string or
+// reports whether the parser should list it: a short-syntax command string or
 // command list, or a task table whose desc, summary or command line describes
 // it. ok is false only for an internal task, which the picker hides.
 func taskfileDesc(v any) (string, bool) {
@@ -263,7 +264,7 @@ func taskfileDesc(v any) (string, bool) {
 	return "", true
 }
 
-// taskfileCmdsDesc renders a task's cmds field: a list of commands, or a
+// taskfileCmdsDesc renders the cmds field of a task: a list of commands, or a
 // single command string, which is the same as a one-element list.
 func taskfileCmdsDesc(cmds any) string {
 	switch list := cmds.(type) {
@@ -275,10 +276,10 @@ func taskfileCmdsDesc(cmds any) string {
 	return ""
 }
 
-// taskfileCommands renders a Taskfile command list as one description line:
-// a bare command string, a "task:" reference to another task and a "cmd:"
-// block are shown; any other entry (defer, silent, vars, platforms) is
-// skipped. Only the other tasks' names and the shell lines matter here.
+// taskfileCommands renders a Taskfile command list as one description line. It
+// shows a bare command string, a "task:" reference to another task and a "cmd:"
+// block, and it skips any other entry (defer, silent, vars, platforms). Only
+// the names of the other tasks and the shell lines matter here.
 func taskfileCommands(cmds []any) string {
 	parts := make([]string, 0, len(cmds))
 	for _, entry := range cmds {
@@ -291,9 +292,9 @@ func taskfileCommands(cmds []any) string {
 	return strings.Join(parts, " && ")
 }
 
-// taskfileCommand renders one cmds entry: a command string, a task
-// reference ("task: name") or a cmd block ("cmd: text"). ok is false for the
-// entries that change how a command runs rather than what it is.
+// taskfileCommand renders one cmds entry: a command string, a task reference
+// ("task: name") or a cmd block ("cmd: text"). ok is false for the entries that
+// change how a command runs rather than what it is.
 func taskfileCommand(v any) (string, bool) {
 	switch entry := v.(type) {
 	case string:

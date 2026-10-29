@@ -6,8 +6,9 @@ import (
 	"strings"
 )
 
-// makeSource returns the source for make targets: the first of GNUmakefile,
-// makefile, Makefile that exists, which is the order make itself uses.
+// makeSource returns the source for make targets. The source reads the first of
+// GNUmakefile, makefile and Makefile that exists, which is the order that make
+// itself uses.
 func makeSource() source {
 	return source{
 		SourceInfo: SourceInfo{
@@ -20,23 +21,23 @@ func makeSource() source {
 	}
 }
 
-// parseMakeFile adapts parseMakeTargets to the source parser signature.
+// parseMakeFile adapts parseMakeTargets to the parser signature of a source.
 func parseMakeFile(_ string, data []byte) ([]Task, error) {
 	return parseMakeTargets(data), nil
 }
 
-// makeTargetRe matches a Makefile target line: a name at the start of the
+// makeTargetRe matches a target line of a Makefile: a name at the start of the
 // line followed by one or two colons, as in "build: ## Build everything".
 var makeTargetRe = regexp.MustCompile(`^([A-Za-z0-9_][A-Za-z0-9_.+-]*)[ \t]*:{1,2}[ \t]*(.*)$`)
 
-// parseMakeTargets extracts the targets from a Makefile.
+// parseMakeTargets extracts the targets of a Makefile.
 //
-// The parser is intentionally shallow: it recognizes "name: deps" and
-// "name:: deps" lines at the start of a line, skips variable assignments
-// ("NAME := value") and special targets (".PHONY", pattern rules), and uses
-// the contiguous comment directly above a target as its description. The
-// common "## name: text" and "## name - text" conventions (`make help`
-// style) are cleaned up to just the text.
+// The parser is intentionally shallow. It recognizes "name: deps" and
+// "name:: deps" lines at column 0, skips variable assignments ("NAME := value")
+// and special targets (".PHONY", pattern rules), and uses the contiguous
+// comment directly above a target as its description. It cleans up the common
+// "## name: text" and "## name - text" conventions (`make help` style) to just
+// the text.
 func parseMakeTargets(data []byte) []Task {
 	var (
 		tasks   []Task
@@ -77,8 +78,8 @@ func parseMakeTargets(data []byte) []Task {
 	return tasks
 }
 
-// makeDescription derives a task description from the comment above a
-// target, stripping the "name: text" and "name - text" help prefixes.
+// makeDescription derives the description of a task from the comment above the
+// target. It strips the "name: text" and "name - text" help prefixes.
 func makeDescription(name, comment string) string {
 	c := strings.TrimSpace(strings.TrimLeft(comment, "#"))
 	if rest, ok := strings.CutPrefix(c, name+":"); ok {

@@ -10,8 +10,9 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// miseSource returns the source for the project's mise.toml or .mise.toml,
-// in that order: mise looks for mise.toml first, so it wins when both exist.
+// miseSource returns the source for the mise.toml or .mise.toml of the project,
+// in that order. mise looks for mise.toml first, so that file wins when both
+// exist.
 func miseSource() source {
 	return source{
 		SourceInfo: SourceInfo{
@@ -23,14 +24,14 @@ func miseSource() source {
 	}
 }
 
-// parseMise returns the tasks declared in mise.toml's [tasks] table, sorted
-// by name, each run through "mise run". A task is a command string or a table
-// with a description, run commands and depends; the description shows the run
-// commands when the table does not declare one, and a table without a run is
-// kept — a depends-only task is still runnable. An entry whose value is
-// neither a string nor a table is skipped.
+// parseMise returns the tasks that the [tasks] table of mise.toml declares,
+// sorted by name. Each task runs through "mise run". A task is a command string
+// or a table with a description, run commands and depends. The description
+// shows the run commands when the table does not declare one, and the parser
+// keeps a table without a run, because a depends-only task is still runnable.
+// An entry whose value is neither a string nor a table is skipped.
 func parseMise(_ string, data []byte) ([]Task, error) {
-	// An empty file declares no tasks: report it like a missing one
+	// An empty file declares no tasks, so report it like a missing file
 	// instead of failing on invalid TOML.
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, nil
@@ -62,9 +63,9 @@ func parseMise(_ string, data []byte) ([]Task, error) {
 }
 
 // miseTaskDesc turns one tasks value into the description of the task: a
-// command string, or a table whose description overrides its run commands.
-// ok is false when the value is neither shape — a number, a boolean, an
-// array — and the caller skips that entry.
+// command string, or a table whose description overrides its run commands. ok
+// is false when the value is neither shape, which is a number, a boolean or an
+// array, and the caller skips that entry.
 func miseTaskDesc(v any) (string, bool) {
 	switch task := v.(type) {
 	case string:
@@ -79,9 +80,9 @@ func miseTaskDesc(v any) (string, bool) {
 	return "", false
 }
 
-// miseRunDesc renders a task's run body: a command string, or an array of
+// miseRunDesc renders the run body of a task: a command string, or an array of
 // commands joined as a shell line. ok is false when the table declares no
-// usable run — the task may still be runnable through depends.
+// usable run, but the task may still be runnable through depends.
 func miseRunDesc(run any) (string, bool) {
 	switch body := run.(type) {
 	case string:

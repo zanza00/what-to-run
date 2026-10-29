@@ -7,8 +7,9 @@ import (
 	"slices"
 )
 
-// denoSource returns the source for the project's deno.json or deno.jsonc,
-// in that order: Deno looks for deno.json first, so it wins when both exist.
+// denoSource returns the source for the deno.json or deno.jsonc of the project,
+// in that order. Deno looks for deno.json first, so that file wins when both
+// exist.
 func denoSource() source {
 	return source{
 		SourceInfo: SourceInfo{
@@ -20,13 +21,13 @@ func denoSource() source {
 	}
 }
 
-// parseDeno returns the tasks declared in deno.json's tasks object, sorted by
-// name, each run through "deno task". A task is a command string or an object
-// with a command and an optional description; the description shows the
-// command when the object does not declare one. An entry without a usable
-// command is skipped.
+// parseDeno returns the tasks that the tasks object of deno.json declares,
+// sorted by name. Each task runs through "deno task". A task is a command
+// string or an object with a command and an optional description. The
+// description shows the command when the object does not declare one. An entry
+// without a usable command is skipped.
 func parseDeno(_ string, data []byte) ([]Task, error) {
-	// An empty file declares no tasks: report it like a missing one
+	// An empty file declares no tasks, so report it like a missing file
 	// instead of failing on invalid JSON.
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, nil
@@ -59,9 +60,9 @@ func parseDeno(_ string, data []byte) ([]Task, error) {
 
 // denoTaskDesc turns one tasks value into the description of the task: a
 // command string, or an object whose description overrides its command. ok is
-// false when the value declares no usable command — an object command that is
-// missing or not a string, an empty string, or neither shape — and the caller
-// skips that task.
+// false when the value declares no usable command, which is an object command
+// that is missing or not a string, an empty string, or neither shape, and the
+// caller skips that task.
 func denoTaskDesc(v any) (string, bool) {
 	switch task := v.(type) {
 	case string:

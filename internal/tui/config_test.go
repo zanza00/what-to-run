@@ -21,8 +21,8 @@ func TestDefaultConfigFiles(t *testing.T) {
 	}
 }
 
-// TestLoadConfigInMemoryFiles proves the rc loader reads through the Files
-// port: the project file exists only in the map.
+// TestLoadConfigInMemoryFiles proves that the rc loader reads through the
+// Files port. The project file exists only in the map.
 func TestLoadConfigInMemoryFiles(t *testing.T) {
 	files := memFiles{"project.toml": "package_manager = \"bun\"\n"}
 
@@ -45,8 +45,8 @@ func TestLoadConfigMissingFiles(t *testing.T) {
 	}
 }
 
-// TestLoadConfigProjectOverridesGlobal pins the layering: the project file
-// replaces scalars, adds to the disable list, and its tasks (including a
+// TestLoadConfigProjectOverridesGlobal pins the layering. The project file
+// replaces the scalars, adds to the disable list, and its tasks (including a
 // same-named one) come first.
 func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
 	dir := t.TempDir()
@@ -190,8 +190,9 @@ name = "local-only"
 command = "echo local"
 `)
 
-	// Inside ~/work/api/sub (accessed via the real /var/home path while
-	// config uses ~/ through the /home symlink): global < local < ~/work < ~/work/api.
+	// The loadConfig call reaches ~/work/api/sub through the real /var/home
+	// path, while the config uses ~/ through the /home symlink. The precedence
+	// is global < local < ~/work < ~/work/api.
 	cfg, errs := loadConfig(osFiles{}, filepath.Join(apiSub, ".what-to-run.toml"), globalFile)
 	if len(errs) != 0 {
 		t.Fatalf("loadConfig() warnings = %v, want none", errs)
@@ -210,8 +211,8 @@ command = "echo local"
 		t.Errorf("loadConfig(api/sub) = %+v, want %+v", cfg, want)
 	}
 
-	// Inside ~/work/api-2: ~/work matches, but ~/work/api must NOT match on
-	// a prefix that is not a directory boundary.
+	// Inside ~/work/api-2 the block ~/work matches, but ~/work/api must not
+	// match, because the prefix is not a directory boundary.
 	api2 := filepath.Join(realHome, "work", "api-2")
 	cfg2, errs := loadConfig(osFiles{}, filepath.Join(api2, ".what-to-run.toml"), globalFile)
 	if len(errs) != 0 {
@@ -249,8 +250,8 @@ package_manager = "yarn"
 	}
 }
 
-// TestLoadConfigBrokenGlobalKeepsProject: a file-level error skips that
-// file only.
+// TestLoadConfigBrokenGlobalKeepsProject checks that a file-level error skips
+// only that file.
 func TestLoadConfigBrokenGlobalKeepsProject(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "global.toml", "package_manager = [\n")
@@ -265,8 +266,8 @@ func TestLoadConfigBrokenGlobalKeepsProject(t *testing.T) {
 	}
 }
 
-// TestLoadConfigInvalidEntries: each bad entry is dropped with its own
-// warning, and the valid settings and tasks still apply.
+// TestLoadConfigInvalidEntries checks that each bad entry is dropped with its
+// own warning, and that the valid settings and tasks still apply.
 func TestLoadConfigInvalidEntries(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "project.toml", `
@@ -314,9 +315,10 @@ command = "echo ok"
 	}
 }
 
-// TestLoadConfigDisableFileName: disable takes source IDs, so a file name at
-// the top level or in a [projects."<path>"] block is dropped with a warning
-// carrying the file, the scope and the ID to use; valid IDs next to it stay.
+// TestLoadConfigDisableFileName pins that disable takes source IDs. The loader
+// drops a file name at the top level or in a [projects."<path>"] block with a
+// warning that carries the file, the scope and the ID to use. A valid ID next
+// to it stays.
 func TestLoadConfigDisableFileName(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
@@ -349,7 +351,8 @@ disable = ["Makefile", "make"]
 }
 
 // TestLoadConfigThemeIsAUserSetting: like OpenCode's cli.json, the theme is
-// personal. The user file sets it; a project theme is ignored with a warning.
+// personal. The user file sets it, and the picker ignores a project theme with
+// a warning.
 func TestLoadConfigThemeIsAUserSetting(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "global.toml", "theme = \"nord\"\n")
@@ -424,8 +427,9 @@ func TestSetThemeKey(t *testing.T) {
 	}
 }
 
-// TestSaveThemeWritesTheUserFile: the theme always goes to the user rc file,
-// like OpenCode's cli.json, and a project rc file is left alone.
+// TestSaveThemeWritesTheUserFile pins that the theme always goes to the user
+// rc file, like OpenCode's cli.json, and that the project rc file stays
+// unchanged.
 func TestSaveThemeWritesTheUserFile(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

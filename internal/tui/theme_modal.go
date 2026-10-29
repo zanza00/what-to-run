@@ -8,21 +8,21 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// The theme picker (ctrl+t) is a modal box drawn over the picker: the list of
-// themes, windowed when the space is short, each row in its own palette and
-// the previewed one highlighted. The box is composited cell by cell (see
-// overlay), so the styled rows around it stay intact.
+// The theme picker (ctrl+t) is a modal box drawn over the picker. It lists the
+// themes and windows the list when the space is short. Each row wears its own
+// palette, and the previewed row is highlighted. The box is composited cell by
+// cell (see overlay), so the styled rows around it stay intact.
 
-// themeModalChrome is the number of rows the box adds around the theme list:
-// two borders and the hints line.
+// themeModalChrome is the number of rows that the box adds around the theme
+// list: two borders and the hints line.
 const themeModalChrome = 3
 
-// themeModalListRows is how many theme rows the box shows at a time: the list
-// scrolls under the cursor when it has more themes.
+// themeModalListRows is how many theme rows the box shows at a time. The list
+// scrolls under the cursor when it holds more themes.
 const themeModalListRows = 5
 
-// themeModalHeight returns the rows the picker box has available: the whole
-// terminal in fullscreen, the inline area otherwise.
+// themeModalHeight returns the number of rows that the picker box has
+// available: the whole terminal in fullscreen, or the inline area otherwise.
 func (m model) themeModalHeight() int {
 	if m.opts.Inline {
 		return m.areaHeight()
@@ -30,10 +30,11 @@ func (m model) themeModalHeight() int {
 	return m.height
 }
 
-// themeModalHints is the key hint line, kept short so the box stays narrow.
+// themeModalHints is the key hint line. It stays short, so the box stays
+// narrow.
 const themeModalHints = "↑/↓ · enter · esc"
 
-// themeModalTitle is the widest top border title, used to size the box: the
+// themeModalTitle is the widest top border title, and it sizes the box: the
 // "themes 14/14" counter with both scroll arrows.
 const themeModalTitle = " ↑ themes 14/14 ↓ "
 
@@ -48,7 +49,8 @@ func (m model) themeModalWindow() int {
 	return themeModalRows(m.themeModalHeight())
 }
 
-// keepThemeVisible scrolls the window so the previewed theme is inside it.
+// keepThemeVisible scrolls the window so that the previewed theme stays inside
+// it.
 func (m *model) keepThemeVisible() {
 	h := m.themeModalWindow()
 	m.themeOffset = min(max(m.themeOffset, 0), max(len(themes)-h, 0))
@@ -60,9 +62,9 @@ func (m *model) keepThemeVisible() {
 	}
 }
 
-// themeModalLines renders the theme picker box: the title and position on the
-// top border, one row per visible theme, the key hints, the bottom border.
-// It returns nil when the space is too small for a usable box.
+// themeModalLines renders the theme picker box: the title and the position on
+// the top border, one row per visible theme, the key hints and the bottom
+// border. It returns nil when the space is too small for a usable box.
 func (m model) themeModalLines(h, w int) []string {
 	if h < themeModalChrome+1 || w < 10 {
 		return nil
@@ -104,8 +106,8 @@ func (m model) themeModalLines(h, w int) []string {
 }
 
 // themeModalLayout returns the name column and the content width of the box
-// for a terminal w columns wide: the names, the room the title needs on the
-// top border and the hints line.
+// for a terminal w columns wide. It accounts for the names, the room that the
+// title needs on the top border, and the hints line.
 func themeModalLayout(w int) (nameCol, innerW int) {
 	nameW := 0
 	for _, th := range themes {
@@ -121,7 +123,8 @@ func themeModalLayout(w int) (nameCol, innerW int) {
 }
 
 // themeModalRow renders one theme row: the cursor marker and the name in the
-// theme's own accent, over the theme's tint when the row is being previewed.
+// accent of the theme, over the tint of the theme when the row is being
+// previewed.
 func themeModalRow(th theme, selected bool, nameCol, innerW int) string {
 	st := newStyles(th)
 
@@ -141,8 +144,8 @@ func themeModalRow(th theme, selected bool, nameCol, innerW int) string {
 	return left + strings.Repeat(" ", max(innerW-lipgloss.Width(left), 0))
 }
 
-// themeModalFooter renders the hints line, padded to the content width. The
-// hints are dropped when the box is too narrow.
+// themeModalFooter renders the hints line, padded to the content width. It
+// drops the hints when the box is too narrow.
 func (m model) themeModalFooter(innerW int) string {
 	hints := themeModalHints
 	if lipgloss.Width(hints) > innerW {

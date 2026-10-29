@@ -1,23 +1,26 @@
 // The rc file: optional settings that extend or patch what the built-in
 // sources discover.
 //
-// Two files are read, if present: the project's .what-to-run.toml and
-// the user's $XDG_CONFIG_HOME/what-to-run/config.toml. The user file
-// can also declare per-project overrides under [projects."<path>"], matched
-// against the current directory (and its subdirectories, from least to most
-// specific). Layers apply from general to specific: global top-level, then the
-// project's .what-to-run.toml, then matching [projects."<path>"] blocks
-// from the user file. The theme is a user setting, like OpenCode's cli.json:
-// only the user file's top level sets it, and a project theme is ignored with
-// a warning. Without either file the zero config keeps the built-in behaviour.
+// The picker reads two files, when they are present: the project's
+// .what-to-run.toml and the user's $XDG_CONFIG_HOME/what-to-run/config.toml.
+// The user file can also declare per-project overrides under
+// [projects."<path>"], and the picker matches them against the current
+// directory and its subdirectories, from the least specific to the most
+// specific. The layers apply from the general to the specific: the global top
+// level first, then the project's .what-to-run.toml, then the matching
+// [projects."<path>"] blocks of the user file. The theme is a user setting,
+// like OpenCode's cli.json, so only the top level of the user file sets it,
+// and the picker ignores a project theme with a warning. Without either file,
+// the zero config keeps the built-in behaviour.
 //
-// Problems are warnings, never fatal: a file with broken TOML syntax is
-// skipped, while an unknown key, a wrong field type, or an invalid task or
-// project entry drops only that item so every other valid setting in the file
+// A problem is a warning, never fatal. The picker skips a file with broken
+// TOML syntax, while an unknown key, a wrong field type, or an invalid task or
+// project entry drops only that item. Every other valid setting in the file
 // still applies.
 //
-// saveTheme writes a chosen theme back into the user file (creating it, with
-// its directory), preserving the rest of the file.
+// saveTheme writes a chosen theme back into the user file, creates the file
+// and its directory when they are missing, and preserves the rest of the
+// file.
 
 package tui
 
@@ -40,24 +43,26 @@ import (
 
 // config is the merged content of the rc files.
 type config struct {
-	// PackageManager forces the runner used for package.json scripts:
-	// "npm", "pnpm", "yarn" or "bun". Empty means detection as usual.
+	// PackageManager forces the runner that runs package.json scripts: "npm",
+	// "pnpm", "yarn" or "bun". An empty value means detection as usual.
 	PackageManager string `toml:"package_manager"`
 
-	// Theme is the look to start with, one of the names of ListThemes. It is
-	// a user setting, like OpenCode's cli.json: only the user rc file sets
-	// it. Empty means the default; --theme overrides it for a single run.
+	// Theme is the look to start with, one of the names that ListThemes
+	// prints. It is a user setting, like OpenCode's cli.json, so only the user
+	// rc file sets it. An empty value means the default, and --theme overrides
+	// it for a single run.
 	Theme string `toml:"theme"`
 
-	// Disable names the sources to skip, by ID ("make", "cargo-make"); see
-	// core.Sources for the built-in registry.
+	// Disable names the sources to skip, by ID ("make", "cargo-make").
+	// core.Sources returns the built-in registry.
 	Disable []string `toml:"disable"`
 
-	// Tasks are custom tasks, shown above the discovered ones.
+	// Tasks are custom tasks, and the picker shows them above the discovered
+	// ones.
 	Tasks []configTask `toml:"tasks"`
 
-	// Projects maps directory paths (e.g. "~/work/app") to per-project
-	// overrides in the user rc file.
+	// Projects maps directory paths (e.g. "~/work/app") to the per-project
+	// overrides of the user rc file.
 	Projects map[string]projectConfig `toml:"projects"`
 }
 
@@ -71,14 +76,14 @@ type projectConfig struct {
 // configTask is one [[tasks]] entry of an rc file.
 type configTask struct {
 	Name        string `toml:"name"`        // required
-	Command     string `toml:"command"`     // required; run with the platform shell (sh -c, cmd /c on Windows)
+	Command     string `toml:"command"`     // required, and the platform shell runs it (sh -c, cmd /c on Windows)
 	Description string `toml:"description"` // defaults to Command
 	Cwd         string `toml:"cwd"`         // optional, relative to the project
 }
 
-// defaultConfigFiles returns the project and user rc file locations for a
-// project directory. The user file is empty when the home config directory
-// cannot be resolved.
+// defaultConfigFiles returns the locations of the project rc file and of the
+// user rc file for a project directory. The user file is empty when the picker
+// cannot resolve the home config directory.
 func defaultConfigFiles(dir string) (project, global string) {
 	project = filepath.Join(dir, ".what-to-run.toml")
 	if configDir, err := userConfigDir(); err == nil {
@@ -87,12 +92,13 @@ func defaultConfigFiles(dir string) (project, global string) {
 	return project, global
 }
 
-// loadConfig reads the rc files and returns the merged settings. Layers are
-// applied from general to specific: global top-level settings first, then the
-// project's .what-to-run.toml, then any matching [projects."<path>"]
-// blocks from the global file ordered from outermost parent directory to the
-// deepest match. Missing files are fine; broken keys or entries are reported
-// as warnings and skipped while the rest of the file still applies.
+// loadConfig reads the rc files and returns the merged settings. The layers
+// apply from the general to the specific: the global top-level settings first,
+// then the project's .what-to-run.toml, then the matching
+// [projects."<path>"] blocks of the global file, ordered from the outermost
+// parent directory to the deepest match. Missing files are fine. The function
+// reports a broken key or entry as a warning and skips it, while the rest of
+// the file still applies.
 func loadConfig(files core.Files, projectFile, globalFile string) (config, []error) {
 	global, errs := readConfig(files, globalFile, false)
 	project, projectErrs := readConfig(files, projectFile, true)
@@ -120,9 +126,10 @@ func loadConfig(files core.Files, projectFile, globalFile string) (config, []err
 	return cfg, errs
 }
 
-// mergeLayer applies a more specific layer on top of cfg: a non-empty
-// package_manager wins, disable entries add to the list, and tasks from the
-// layer come first so they shadow same-named ones from lower layers.
+// mergeLayer applies a more specific layer on top of cfg. A non-empty
+// package_manager wins, the disable entries add to the list, and the tasks of
+// the layer come first so that they shadow the same-named tasks of the lower
+// layers.
 func mergeLayer(cfg config, layer projectConfig) config {
 	if layer.PackageManager != "" {
 		cfg.PackageManager = layer.PackageManager
@@ -132,7 +139,7 @@ func mergeLayer(cfg config, layer projectConfig) config {
 	return cfg
 }
 
-// firstTasks keeps the first task of each name.
+// firstTasks keeps the first task of each name and drops the later duplicates.
 func firstTasks(tasks []configTask) []configTask {
 	seen := make(map[string]bool, len(tasks))
 	var kept []configTask
@@ -148,8 +155,9 @@ func firstTasks(tasks []configTask) []configTask {
 
 // readConfig reads one rc file in best-effort mode. An empty path and a
 // missing file yield the zero config. A TOML syntax error skips the file with
-// a warning; unknown keys, wrong types, and invalid entries drop only the
-// offending item with a warning each so the rest of the file still applies.
+// a warning. An unknown key, a wrong type and an invalid entry drop only the
+// offending item, with one warning each, so the rest of the file still
+// applies.
 func readConfig(files core.Files, path string, isProject bool) (config, []error) {
 	if path == "" {
 		return config{}, nil
@@ -170,8 +178,9 @@ func readConfig(files core.Files, path string, isProject bool) (config, []error)
 	return decodeConfigMap(raw, disp, isProject)
 }
 
-// decodeConfigMap extracts valid settings from a parsed top-level TOML map,
-// collecting a warning for every unknown key, type mismatch, or invalid entry.
+// decodeConfigMap extracts the valid settings from a parsed top-level TOML
+// map. It collects a warning for every unknown key, type mismatch and invalid
+// entry.
 func decodeConfigMap(raw map[string]any, disp string, isProject bool) (config, []error) {
 	var cfg config
 	var errs []error
@@ -225,7 +234,8 @@ func decodeConfigMap(raw map[string]any, disp string, isProject bool) (config, [
 }
 
 // decodePackageManager validates a package_manager value. scope prefixes the
-// field in warning messages when inside a [projects."<path>"] block.
+// field in the warning messages when the value is inside a
+// [projects."<path>"] block.
 func decodePackageManager(val any, disp, scope string, errs *[]error) (string, bool) {
 	s, ok := val.(string)
 	if !ok {
@@ -243,8 +253,9 @@ func decodePackageManager(val any, disp, scope string, errs *[]error) (string, b
 	return name, true
 }
 
-// decodeDisable validates a disable array, keeping every valid source ID even
-// if another element in the array has the wrong type or names no source.
+// decodeDisable validates a disable array. It keeps every valid source ID,
+// even when another element of the array has the wrong type or names no
+// source.
 func decodeDisable(val any, disp, scope string, errs *[]error) []string {
 	items, ok := val.([]any)
 	if !ok {
@@ -270,9 +281,9 @@ func decodeDisable(val any, disp, scope string, errs *[]error) []string {
 	return out
 }
 
-// decodeTasks validates a [[tasks]] array of tables, keeping every valid task
-// and even recovering a task that has an unknown extra key alongside valid
-// name and command fields.
+// decodeTasks validates a [[tasks]] array of tables. It keeps every valid
+// task, and it even recovers a task that has an unknown extra key next to
+// valid name and command fields.
 func decodeTasks(val any, disp, scope string, errs *[]error) []configTask {
 	items, ok := val.([]any)
 	if !ok {
@@ -311,9 +322,9 @@ func decodeTasks(val any, disp, scope string, errs *[]error) []configTask {
 	return tasks
 }
 
-// decodeOneTask reads the fields of a single [[tasks]] table. Unknown keys
-// warn without discarding the task; a wrong type on a known field drops the
-// task.
+// decodeOneTask reads the fields of a single [[tasks]] table. An unknown key
+// warns without discarding the task. A wrong type on name, command or cwd drops
+// the task, while a wrong description drops only the description.
 func decodeOneTask(table map[string]any, disp, scope string, errs *[]error) (configTask, bool) {
 	var t configTask
 	valid := true
@@ -358,7 +369,7 @@ func decodeOneTask(table map[string]any, disp, scope string, errs *[]error) (con
 	return t, valid
 }
 
-// decodeProjects validates the [projects."<path>"] table in the user rc file.
+// decodeProjects validates the [projects."<path>"] table of the user rc file.
 func decodeProjects(val any, disp string, errs *[]error) map[string]projectConfig {
 	table, ok := val.(map[string]any)
 	if !ok {
@@ -401,9 +412,10 @@ func decodeProjects(val any, disp string, errs *[]error) map[string]projectConfi
 	return projects
 }
 
-// matchingProjects returns the [projects."<path>"] blocks whose path equals or
-// contains dir, ordered from least specific (outermost directory) to most
-// specific (deepest directory).
+// matchingProjects returns the [projects."<path>"] blocks whose path is dir
+// itself or a parent directory of dir. The list runs from the least specific
+// block (the outermost directory) to the most specific one (the deepest
+// directory).
 func matchingProjects(projects map[string]projectConfig, dir string) []projectConfig {
 	if len(projects) == 0 {
 		return nil
@@ -444,7 +456,7 @@ func matchingProjects(projects map[string]projectConfig, dir string) []projectCo
 }
 
 // pathWithin reports whether target is base itself or a subdirectory inside
-// base on path-segment boundaries, and returns the segment depth of base.
+// base, on path-segment boundaries. It also returns the segment depth of base.
 func pathWithin(base, target string) (int, bool) {
 	rel, err := filepath.Rel(base, target)
 	if err != nil {
@@ -460,9 +472,10 @@ func pathWithin(base, target string) (int, bool) {
 	return strings.Count(trimmed, string(filepath.Separator)) + 1, true
 }
 
-// canonicalPath expands a leading "~", resolves relative paths against the
-// current directory, and resolves symlinks on the longest existing prefix of
-// the path so symlinked homes (e.g. /home -> /var/home) match reliably.
+// canonicalPath expands a leading "~", resolves a relative path against the
+// current directory, and resolves the symlinks on the longest prefix of the
+// path that exists. In this way a symlinked home (e.g. /home -> /var/home)
+// still matches.
 func canonicalPath(p string) string {
 	p = expandHome(p)
 	if abs, err := filepath.Abs(p); err == nil {
@@ -471,7 +484,7 @@ func canonicalPath(p string) string {
 	return evalSymlinksPartial(filepath.Clean(p))
 }
 
-// evalSymlinksPartial resolves symlinks on p, or on its longest existing
+// evalSymlinksPartial resolves the symlinks on p, or on its longest existing
 // ancestor directory when p does not exist on disk yet.
 func evalSymlinksPartial(p string) string {
 	cur := p
@@ -508,9 +521,9 @@ func expandHome(path string) string {
 }
 
 // saveTheme writes a theme into the user rc file, the only place that holds
-// it (like OpenCode's cli.json): the file is created with its directory when
-// missing, and the rest of its content is preserved. It returns the path
-// written.
+// it (like OpenCode's cli.json). The function creates the file and its
+// directory when they are missing, and it preserves the rest of the content.
+// It returns the path that it wrote.
 func saveTheme(name string) (string, error) {
 	_, userFile := defaultConfigFiles(".")
 	if userFile == "" {
@@ -531,15 +544,16 @@ func saveTheme(name string) (string, error) {
 }
 
 // setThemeKey returns the rc file content with the top-level theme key set to
-// name: an existing assignment is replaced, a missing one is added at the top
-// of the file (after a table header it would belong to that table).
+// name. An existing assignment is replaced, and a missing one is added at the
+// top of the file, because after a table header the key would belong to that
+// table.
 func setThemeKey(src []byte, name string) []byte {
 	assignment := "theme = " + strconv.Quote(name)
 	lines := strings.Split(string(src), "\n")
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "[") {
-			break // tables start here: the key must go above them
+			break // A table starts here, so the key must go above it.
 		}
 		if key, _, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(key) == "theme" {
 			lines[i] = assignment
@@ -552,7 +566,7 @@ func setThemeKey(src []byte, name string) []byte {
 	return []byte(assignment + "\n\n" + string(src))
 }
 
-// shortPath replaces the user's home directory with "~", for messages.
+// shortPath replaces the home directory of the user with "~" in messages.
 func shortPath(path string) string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {

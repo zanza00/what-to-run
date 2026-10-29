@@ -11,8 +11,8 @@ import (
 	"github.com/zanza00/what-to-run/internal/core"
 )
 
-// memFiles is an in-memory core.Files implementation: a path is present when
-// it is a key of the map, empty content included.
+// memFiles is an in-memory core.Files implementation. A path is present when it
+// is a key of the map, empty content included.
 type memFiles map[string]string
 
 var _ core.Files = memFiles{}
@@ -52,7 +52,7 @@ func (m memFiles) ReadDir(name string) ([]core.DirEntry, error) {
 	return entries, nil
 }
 
-// memDirEntry is the core.DirEntry an in-memory directory reports.
+// memDirEntry is the core.DirEntry that an in-memory directory reports.
 type memDirEntry struct {
 	name string
 	dir  bool
@@ -61,8 +61,8 @@ type memDirEntry struct {
 func (e memDirEntry) Name() string { return e.name }
 func (e memDirEntry) IsDir() bool  { return e.dir }
 
-// writeFile writes a fixture file inside dir, creating parent directories for
-// nested paths like .cargo/config.toml.
+// writeFile writes a fixture file inside dir, and it creates the parent
+// directories for a nested path like .cargo/config.toml.
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	path := filepath.Join(dir, name)

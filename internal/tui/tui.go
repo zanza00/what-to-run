@@ -22,60 +22,60 @@ import (
 	"github.com/zanza00/what-to-run/internal/core"
 )
 
-// areaStyle draws the border around the inline area when DebugArea is set: a
-// development aid to check that the UI covers exactly the rows between the
-// prompt and the bottom of the screen.
+// areaStyle draws the border around the inline area when DebugArea is set. It
+// is a development aid that checks that the UI covers exactly the rows between
+// the prompt and the bottom of the screen.
 var areaStyle = lipgloss.NewStyle().
 	Border(lipgloss.RoundedBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
-// chromeRows is the number of rows the picker reserves around the task list:
-// title, filter line, blank separator and help line.
+// chromeRows is the number of rows that the picker reserves around the task
+// list: the title, the filter line, the blank separator and the help line.
 const chromeRows = 4
 
-// minInlineHeight is the smallest area reserved for the inline UI. Television
-// uses the same value: when fewer rows are free below the cursor, the
-// terminal is left to scroll up instead of squeezing the UI.
+// minInlineHeight is the smallest area that the inline UI reserves. Television
+// uses the same value. When fewer rows are free below the cursor, the terminal
+// scrolls up instead of squeezing the UI.
 const minInlineHeight = 15
 
 // Options configures the TUI.
 type Options struct {
-	// Prog is the name the program was invoked as ("wtr", or whatever it
-	// was renamed to): it identifies the picker and its warnings.
-	// Defaults to "wtr".
+	// Prog is the name that the program was invoked as ("wtr", or whatever it
+	// was renamed to). It identifies the picker and its warnings. The default
+	// is "wtr".
 	Prog string
 
 	// Inline renders the UI between the current cursor line and the bottom of
-	// the screen instead of taking over the whole screen. It is meant for
-	// shell widgets that launch the binary right below the prompt (the zsh,
-	// bash and PowerShell integrations from 'wtr init zsh', 'wtr init bash'
-	// and 'wtr init powershell', see shell.ZshInit, shell.BashInit and
-	// shell.PowerShellInit) so that the shell history above
-	// stays visible.
+	// the screen instead of taking over the whole screen. It is meant for the
+	// shell widgets that launch the binary right below the prompt, so that the
+	// shell history above stays visible. Those widgets are the zsh, bash and
+	// PowerShell integrations from 'wtr init zsh', 'wtr init bash' and
+	// 'wtr init powershell' (see shell.ZshInit, shell.BashInit and
+	// shell.PowerShellInit).
 	// ctrl+f expands the picker to the whole screen and toggles back.
 	Inline bool
 
-	// DebugArea draws a border around the whole inline area so the region
-	// managed by the app is visible. It is a development aid and is ignored
-	// in fullscreen mode.
+	// DebugArea draws a border around the whole inline area, so that the
+	// region that the app manages is visible. It is a development aid and the
+	// picker ignores it in fullscreen mode.
 	DebugArea bool
 
-	// Theme selects one of the named looks (see ListThemes); empty means
-	// the default. An unknown name is a warning, not an error: the picker
-	// opens with the default and reports it in the help line.
+	// Theme selects one of the named looks (see ListThemes). An empty value
+	// means the default. An unknown name is a warning, not an error: the
+	// picker opens with the default and reports the name in the help line.
 	Theme string
 
-	// Shell selects the syntax of the command lines the picker shows and
-	// the inline widgets place in the prompt: "auto" (the platform
-	// default: PowerShell on Windows, POSIX elsewhere), "posix",
-	// "powershell" or "cmd". The generated widgets pass their own dialect,
-	// so a pasted line is quoted for the shell reading it. An unknown value
-	// is a warning and falls back to auto.
+	// Shell selects the syntax of the command lines that the picker shows and
+	// that the inline widgets place in the prompt. The values are "auto" (the
+	// platform default: PowerShell on Windows, POSIX elsewhere), "posix",
+	// "powershell" and "cmd". The generated widgets pass their own dialect, so
+	// a pasted line is quoted for the shell that reads it. An unknown value is
+	// a warning, and the picker falls back to auto.
 	Shell string
 }
 
-// prog is the name the program identifies with: the invoked name, or "wtr"
-// when it was not set.
+// prog returns the name that the program identifies with: the invoked name,
+// or "wtr" when the caller did not set it.
 func (o Options) prog() string {
 	if o.Prog == "" {
 		return "wtr"
@@ -87,28 +87,28 @@ func (o Options) prog() string {
 // It returns an error when a fullscreen run finds nothing to run, or when the
 // program fails to start or crashes. Inline mode shows an empty state instead.
 //
-// In fullscreen mode a task chosen with enter runs in place, in the picker:
-// the terminal is handed over to the task (tea.ExecProcess) and taken back
-// afterwards, with the outcome shown in the status line.
+// In fullscreen mode, a task chosen with enter runs in place, in the picker.
+// The terminal is handed over to the task (tea.ExecProcess) and it is taken
+// back afterwards, with the outcome shown in the status line.
 //
 // In inline mode the picker only chooses. A shell widget (the zsh, bash and
 // PowerShell integrations, see shell.ZshInit, shell.BashInit and
-// shell.PowerShellInit) runs it with stdout captured, so
-// Bubble Tea renders on the terminal itself and the result is reported on
-// stdout as two lines: the mode ("run" after enter, "insert" after tab) and
-// the command line. The widget then executes the command or places it in the
-// prompt, so the command is visible and lands in the shell history. When
-// stdout is the terminal (no widget), enter runs the task here at the prompt
-// like a hand-typed command, propagating its exit code, and tab prints the
-// command line, as there is no prompt to insert it into.
+// shell.PowerShellInit) runs the task with stdout captured, so that Bubble Tea
+// renders on the terminal itself. The picker reports the result on stdout as
+// two lines: the mode ("run" after enter, "insert" after tab) and the command
+// line. The widget then executes the command or places it in the prompt, so
+// the command is visible and lands in the shell history. When stdout is the
+// terminal (no widget), enter runs the task here at the prompt like a
+// hand-typed command and propagates its exit code, and tab prints the command
+// line, because there is no prompt to insert it into.
 func Run(opts Options) error {
 	if opts.Inline && !inlineInputAvailable() {
 		fmt.Fprintf(os.Stderr, "%s: --inline requires an interactive terminal, running fullscreen\n", opts.prog())
 		opts.Inline = false
 	}
 
-	// A widget captures stdout to receive the result; the UI then renders on
-	// the terminal itself, like fzf does inside shell integrations.
+	// A widget captures stdout to receive the result, so the UI renders on the
+	// terminal itself, as fzf does inside shell integrations.
 	var progOpts []tea.ProgramOption
 	out := io.Writer(os.Stdout)
 	widget := false
@@ -118,19 +118,19 @@ func Run(opts Options) error {
 			fmt.Fprintf(os.Stderr, "%s: cannot open the terminal, running fullscreen\n", opts.prog())
 			opts.Inline = false
 		} else {
-			// Read from the process's own stdin when it is the terminal
-			// (the PowerShell widget runs that way; zsh and bash redirect
-			// stdin to /dev/tty): Bubble Tea's Windows cancel reader only
-			// recognizes os.Stdin, and the generic fallback cannot cancel a
-			// pending console read, which also makes closing that handle
-			// wait forever.
+			// Read from the stdin of the process itself when it is the
+			// terminal. The PowerShell widget runs that way, and zsh and bash
+			// redirect stdin to /dev/tty. Bubble Tea's Windows cancel reader
+			// recognizes only os.Stdin, and the generic fallback cannot cancel
+			// a pending console read. That failure also makes closing the
+			// handle wait forever.
 			in := io.Reader(os.Stdin)
 			if !term.IsTerminal(os.Stdin.Fd()) {
 				in = ttyIn
 			}
 			// Closing a console input handle with a pending read blocks on
-			// Windows; the process exits right after Run, so let the OS
-			// close both handles there.
+			// Windows. The process exits right after Run, so the OS closes both
+			// handles there.
 			if runtime.GOOS != "windows" {
 				defer func() { _ = ttyIn.Close(); _ = ttyOut.Close() }()
 			}
@@ -144,16 +144,17 @@ func Run(opts Options) error {
 	if len(tasks) == 0 && !opts.Inline {
 		return noTasksError(warnings)
 	}
-	// The rc theme is the starting look; --theme wins for a single run.
+	// The rc theme is the starting look. The --theme flag wins for a single
+	// run.
 	if opts.Theme == "" {
 		opts.Theme = cfg.Theme
 	}
 
 	final, err := tea.NewProgram(newModel(opts, tasks, warnings), progOpts...).Run()
 	if opts.Inline {
-		// A fullscreen frame (ctrl+f, or the fallback when the terminal
-		// cannot report the cursor row) lives on the alternate screen, which
-		// the terminal restores by itself.
+		// A fullscreen frame (ctrl+f, or the fallback when the terminal cannot
+		// report the cursor row) lives on the alternate screen. The terminal
+		// restores that screen by itself.
 		if m, ok := final.(model); ok && !m.fullscreen {
 			restoreCursor(out, m)
 		}
@@ -168,14 +169,14 @@ func Run(opts Options) error {
 	}
 
 	if widget {
-		// Widget mode: the shell runs the command (enter) or inserts it in
+		// In widget mode the shell runs the command (enter) or inserts it in
 		// the prompt (tab).
 		reportChoice(os.Stdout, *m.chosen, m.chosenInsert, m.shell)
 		return nil
 	}
 
 	if m.chosenInsert {
-		// No widget to insert into: print the command line.
+		// There is no widget to insert into, so print the command line.
 		fmt.Println(m.chosen.CommandLineFor(m.shell))
 		return nil
 	}
@@ -188,9 +189,9 @@ func Run(opts Options) error {
 	return nil
 }
 
-// reportChoice writes the picker result for the calling shell widget: the
-// mode line ("run" or "insert") followed by the command line, quoted for the
-// shell that will read it.
+// reportChoice writes the result of the picker for the shell widget that
+// started it. The result is the mode line ("run" or "insert") followed by
+// the command line, quoted for the shell that reads it.
 func reportChoice(w io.Writer, t core.Task, insert bool, shell core.ShellDialect) {
 	mode := "run"
 	if insert {
@@ -199,10 +200,10 @@ func reportChoice(w io.Writer, t core.Task, insert bool, shell core.ShellDialect
 	fmt.Fprintf(w, "%s\n%s\n", mode, t.CommandLineFor(shell))
 }
 
-// discover gathers the tasks of the current directory and the rc settings:
-// the rc file first (its problems become warnings), then every source. The
-// warnings are returned even when tasks were found, for the picker's status
-// line.
+// discover gathers the tasks of the current directory and the rc settings. It
+// reads the rc file first, and its problems become warnings, then it reads
+// every source. The warnings are returned even when tasks were found, because
+// the picker shows them in the status line.
 func discover() ([]core.Task, config, []error) {
 	projectFile, globalFile := defaultConfigFiles(".")
 	cfg, warnings := loadConfig(osFiles{}, projectFile, globalFile)
@@ -210,8 +211,8 @@ func discover() ([]core.Task, config, []error) {
 	return tasks, cfg, append(warnings, sourceWarnings...)
 }
 
-// coreSettings maps the rc settings onto the task domain's configuration: the
-// discovery layer knows nothing about the TOML file.
+// coreSettings maps the rc settings onto the configuration of the task domain.
+// The discovery layer knows nothing about the TOML file.
 func coreSettings(cfg config) core.Settings {
 	settings := core.Settings{
 		PackageManager: cfg.PackageManager,
@@ -229,7 +230,7 @@ func coreSettings(cfg config) core.Settings {
 	return settings
 }
 
-// noTasksError is the error of a directory with nothing to run.
+// noTasksError returns the error for a directory with nothing to run.
 func noTasksError(warnings []error) error {
 	if len(warnings) > 0 {
 		return fmt.Errorf("no tasks found: %w", errors.Join(warnings...))
@@ -238,16 +239,18 @@ func noTasksError(warnings []error) error {
 }
 
 // Preview renders one frame of the picker with the real tasks of the current
-// directory and writes it to w: a development and theming aid ('<prog>
-// --preview'), handy to compare themes side by side or paste a frame
-// somewhere. The frame is fixed at width×height cells, whatever the terminal
-// size, and is drawn fullscreen (no inline anchoring, no runner).
+// directory and writes it to w. It is a development and theming aid ('<prog>
+// --preview'), and it is handy to compare themes side by side or to paste a
+// frame somewhere. The frame is fixed at width×height cells, whatever the
+// terminal size, and the picker draws it fullscreen (no inline anchoring, no
+// runner).
 func Preview(w io.Writer, opts Options, width, height int) error {
 	tasks, cfg, warnings := discover()
 	if len(tasks) == 0 {
 		return noTasksError(warnings)
 	}
-	// The rc theme is the starting look; --theme wins for a single run.
+	// The rc theme is the starting look. The --theme flag wins for a single
+	// run.
 	if opts.Theme == "" {
 		opts.Theme = cfg.Theme
 	}
@@ -266,11 +269,11 @@ func Preview(w io.Writer, opts Options, width, height int) error {
 	return nil
 }
 
-// inlineInputAvailable reports whether Bubble Tea will be able to read input
-// (including the terminal's reply to the cursor position query) when running
-// inline. Shell widgets (e.g. zle bindings) run commands with stdin not
-// connected to the terminal, in which case Bubble Tea opens /dev/tty itself,
-// so that counts too.
+// inlineInputAvailable reports whether Bubble Tea can read input when it runs
+// inline, including the reply of the terminal to the cursor position query.
+// Shell widgets (e.g. zle bindings) run commands with stdin not connected to
+// the terminal. In that case Bubble Tea opens /dev/tty itself, so that case
+// counts as available too.
 func inlineInputAvailable() bool {
 	if term.IsTerminal(os.Stdin.Fd()) {
 		return true
@@ -284,9 +287,10 @@ func inlineInputAvailable() bool {
 	return true
 }
 
-// restoreCursor returns the cursor from the bottom of the rendered block (where
-// Bubble Tea leaves it) to the block's first row and clears the block, so the
-// shell can redraw its prompt right below the line the user was typing on.
+// restoreCursor moves the cursor from the bottom of the rendered block, where
+// Bubble Tea leaves it, to the first row of the block and clears the block.
+// The shell can then redraw its prompt right below the line that the user was
+// typing on.
 func restoreCursor(w io.Writer, m model) {
 	h := m.areaHeight()
 	if h <= 1 {
@@ -296,9 +300,9 @@ func restoreCursor(w io.Writer, m model) {
 }
 
 // cursorPosTimeout is how long the inline layout waits for the terminal to
-// report the cursor row before falling back to fullscreen. Terminal emulators
-// answer the query immediately; a console without support (Windows conhost,
-// for example) never does, and the inline frame would stay blank forever.
+// report the cursor row before it falls back to fullscreen. Terminal emulators
+// answer the query immediately. A console without support (Windows conhost,
+// for example) never answers, and the inline frame would stay blank forever.
 const cursorPosTimeout = 250 * time.Millisecond
 
 // cursorPosTimeoutMsg reports that the cursor position query went unanswered.
@@ -311,11 +315,11 @@ type taskDoneMsg struct {
 	err  error
 }
 
-// model is the root Bubble Tea model: a filterable list of the project's
-// tasks.
+// model is the root Bubble Tea model. It is a filterable list of the tasks of
+// the project.
 type model struct {
 	opts Options
-	// shell is the command-line dialect, parsed once from opts.Shell: an
+	// shell is the command-line dialect, parsed once from opts.Shell. An
 	// unknown value warns and falls back to the platform default.
 	shell    core.ShellDialect
 	tasks    []core.Task
@@ -325,27 +329,26 @@ type model struct {
 	height int
 	ready  bool // true once the first tea.WindowSizeMsg has arrived
 
-	// startRow is the 0-based row the inline UI starts on: the line right
-	// below the shell prompt, as reported by the terminal.
+	// startRow is the 0-based row that the inline UI starts on: the line right
+	// below the shell prompt, as the terminal reports it.
 	startRow      int
 	startRowKnown bool // true once tea.CursorPositionMsg has arrived
 
 	// fullscreen reports that the inline picker was expanded to the whole
-	// screen with ctrl+f. It only applies to inline mode: the alternate
-	// screen hides the shell prompt and restores it when toggled back.
+	// screen with ctrl+f. It applies only to inline mode: the alternate screen
+	// hides the shell prompt and restores it when the picker toggles back.
 	fullscreen bool
 
 	// inlineUnavailable reports that the terminal never answered the cursor
-	// position query (a console without that support): the picker fell back
-	// to the fullscreen view and ctrl+f must not go back to a blank inline
-	// frame.
+	// position query (a console without that support). The picker fell back to
+	// the fullscreen view, and ctrl+f must not go back to a blank inline frame.
 	inlineUnavailable bool
 
-	// mainWidth remembers the main screen's width while the picker is
+	// mainWidth remembers the width of the main screen while the picker is
 	// expanded. Terminals can report a wider alternate screen (a scrollbar
-	// comes and goes, for example), and the first inline frame after
-	// toggling back must use the main screen's width: one column too many
-	// wraps every row, scrolls the frame and leaves the previous one on
+	// comes and goes, for example), and the first inline frame after the
+	// picker toggles back must use the width of the main screen. One column too
+	// many wraps every row, scrolls the frame and leaves the previous frame on
 	// screen.
 	mainWidth int
 
@@ -357,20 +360,20 @@ type model struct {
 	started time.Time  // when the current in-place run started
 	chosen  *core.Task // task chosen in inline mode, to run or insert after quitting
 
-	// notice is the transient confirmation shown as a toast (see notice.go);
-	// noticeID invalidates the timer of a replaced notice.
+	// notice is the transient confirmation that the picker shows as a toast
+	// (see notice.go), and noticeID invalidates the timer of a replaced notice.
 	notice   string
 	noticeID int
 
-	// chosenInsert reports that chosen was picked with tab: the command goes
-	// to the shell prompt instead of being executed.
+	// chosenInsert reports that the user picked chosen with tab, so the command
+	// goes to the shell prompt instead of being executed.
 	chosenInsert bool
 
-	// themeIdx is the active theme (an index into themes) and styles are
+	// themeIdx is the active theme (an index into themes), and styles holds
 	// its concrete styles. ctrl+t opens the theme picker: themeModal reports
-	// that it is open, themeBefore is the theme to restore when it is
-	// cancelled with esc, and themeOffset the first row shown while the
-	// list is windowed.
+	// that it is open, themeBefore is the theme to restore when esc cancels
+	// the choice, and themeOffset is the first row shown while the list is
+	// windowed.
 	themeIdx    int
 	styles      styles
 	termBg      color.Color
@@ -379,9 +382,9 @@ type model struct {
 	themeBefore int
 	themeOffset int
 
-	// warningModal reports that the warning box (ctrl+w, or opened at
-	// startup when a warning has not been dismissed) is shown over the
-	// list, and warningIdx is the warning currently displayed when there is
+	// warningModal reports that the warning box is shown over the list. The
+	// box opens with ctrl+w, or at startup when a warning has not been
+	// dismissed. warningIdx is the warning that the box displays when there is
 	// more than one.
 	warningModal bool
 	warningIdx   int
@@ -416,10 +419,10 @@ func newModel(opts Options, tasks []core.Task, warnings []error) model {
 func (m model) Init() tea.Cmd {
 	cmds := []tea.Cmd{tea.RequestBackgroundColor, tea.RequestForegroundColor}
 	if m.opts.Inline {
-		// Find out which row the UI starts on, i.e. which line to anchor the
-		// bottom part of the screen to. A terminal that never answers (a
+		// Find out which row the UI starts on, which is the line that anchors
+		// the bottom part of the screen. A terminal that never answers (a
 		// console without cursor position reports) must not leave the frame
-		// blank: the timeout falls back to fullscreen.
+		// blank, so the timeout falls back to fullscreen.
 		cmds = append(cmds, tea.RequestCursorPosition,
 			tea.Tick(cursorPosTimeout, func(time.Time) tea.Msg { return cursorPosTimeoutMsg{} }))
 	}
@@ -433,9 +436,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.ready = true
 		if !m.fullscreen {
-			// While the alternate screen is active the reported width is
-			// not necessarily the main screen's: keep the one the inline
-			// frame will return to.
+			// While the alternate screen is active, the reported width is not
+			// necessarily the width of the main screen. Keep the width that the
+			// inline frame returns to.
 			m.mainWidth = msg.Width
 		}
 		m.keepCursorVisible()
@@ -443,8 +446,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.CursorPositionMsg:
 		m.startRow = msg.Y
 		m.startRowKnown = true
-		// A late reply proves the terminal does support the query: the
-		// inline area can be used again with ctrl+f.
+		// A late reply proves that the terminal does support the query, so
+		// ctrl+f can use the inline area again.
 		m.inlineUnavailable = false
 		m.keepCursorVisible()
 
@@ -519,7 +522,7 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case "tab":
 		// Inline only: put the command in the shell prompt without running it.
-		// There is no prompt to fill in fullscreen mode, so tab does nothing.
+		// Fullscreen mode has no prompt to fill in, so tab does nothing.
 		if m.opts.Inline {
 			return m.pick(true)
 		}
@@ -548,15 +551,15 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.cursor, m.offset = 0, 0
 
 	case "ctrl+f":
-		// Inline only: expand the picker to the whole terminal (the
-		// alternate screen keeps the prompt and history safe), or go back
-		// to the inline area. There is no inline area to return to when
-		// the program was started fullscreen, or when the terminal cannot
-		// report the cursor row (see cursorPosTimeoutMsg).
+		// Inline only: expand the picker to the whole terminal, or go back to
+		// the inline area. The alternate screen keeps the prompt and the
+		// history safe. There is no inline area to return to when the program
+		// was started fullscreen, or when the terminal cannot report the cursor
+		// row (see cursorPosTimeoutMsg).
 		if m.opts.Inline && !m.inlineUnavailable {
 			if !m.fullscreen {
-				// Remember the main screen's width before the alternate
-				// screen starts reporting its own.
+				// Remember the width of the main screen before the alternate
+				// screen starts to report its own width.
 				m.mainWidth = m.width
 			}
 			m.fullscreen = !m.fullscreen
@@ -570,8 +573,8 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	// Open the theme picker over the list; the theme in use is kept if the
-	// choice is cancelled with esc.
+	// Open the theme picker over the list. The theme in use is kept when esc
+	// cancels the choice.
 	case "ctrl+t":
 		m.themeModal = true
 		m.themeBefore = m.themeIdx
@@ -582,7 +585,7 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.cursor, m.offset = 0, 0
 
 	default:
-		// Printable input goes into the filter: q types, it does not quit.
+		// Printable input goes into the filter, so q types and does not quit.
 		if msg.Text == "" || msg.Text == "\t" || msg.Mod&(tea.ModCtrl|tea.ModAlt) != 0 {
 			return m, nil
 		}
@@ -594,9 +597,10 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleWarningKey reacts to a key while the warning box is open: enter, esc
-// and ctrl+w close it, d marks the current warning as dismissed so future runs
-// do not pop the box open for it, and ↑/↓ step through multiple warnings.
+// handleWarningKey reacts to a key while the warning box is open. Enter, esc
+// and ctrl+w close the box, and d marks the current warning as dismissed, so
+// future runs do not pop the box open for it. The ↑/↓ keys step through
+// multiple warnings.
 func (m model) handleWarningKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "enter", "ctrl+w":
@@ -620,9 +624,10 @@ func (m model) handleWarningKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleThemeKey reacts to a key while the theme picker is open: ↑/↓ scroll
-// the list and preview each theme live, enter and ctrl+t keep the previewed
-// one, esc restores the theme that was active when the picker opened.
+// handleThemeKey reacts to a key while the theme picker is open. The ↑/↓ keys
+// scroll the list and preview each theme live, enter and ctrl+t keep the
+// previewed theme, and esc restores the theme that was active when the picker
+// opened.
 func (m model) handleThemeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -654,7 +659,7 @@ func (m model) handleThemeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.setTheme(len(themes) - 1)
 
 	default:
-		// The picker owns the keyboard: typing does not reach the filter.
+		// The picker owns the keyboard, so typing does not reach the filter.
 		return m, nil
 	}
 
@@ -668,8 +673,9 @@ func (m *model) setTheme(i int) {
 	m.styles = newStyles(m.themeAt(i))
 }
 
-// themeAt returns the theme at index i, resolving the "system" theme against
-// the terminal's detected background and foreground colors when available.
+// themeAt returns the theme at index i. It resolves the "system" theme against
+// the background and foreground colors that were detected for the terminal,
+// when they are available.
 func (m model) themeAt(i int) theme {
 	th := themes[i]
 	if th.name == "system" && (m.termBg != nil || m.termFg != nil) {
@@ -678,11 +684,11 @@ func (m model) themeAt(i int) theme {
 	return th
 }
 
-// persistTheme saves the previewed theme when it differs from the one that
-// was active when the picker opened (or when a theme warning is active). A
-// saved theme re-parses the rc files to clear resolved warnings and confirms
-// the save with a toast (showNotice); a failure is a status message, never
-// fatal, and stays there.
+// persistTheme saves the previewed theme when it differs from the theme that
+// was active when the picker opened, or when a theme warning is active. A saved
+// theme re-parses the rc files to clear the resolved warnings, and it confirms
+// the save with a toast (showNotice). A failure becomes a status message that
+// stays there, and it is never fatal.
 func (m *model) persistTheme() tea.Cmd {
 	if m.themeIdx == m.themeBefore && !m.hasThemeWarning() {
 		return nil
@@ -708,8 +714,8 @@ func (m model) hasThemeWarning() bool {
 	return false
 }
 
-// refreshConfigWarnings re-parses the rc files and task sources after an
-// action that modifies the config file, dropping resolved warnings.
+// refreshConfigWarnings re-parses the rc files and the task sources after an
+// action that modifies the config file, and it drops the resolved warnings.
 func (m *model) refreshConfigWarnings() {
 	old := m.warnings
 	tasks, _, warnings := discover()
@@ -736,7 +742,7 @@ func (m model) run() (tea.Model, tea.Cmd) {
 	t := vis[m.cursor]
 
 	if m.opts.Inline {
-		// The picker is only a launcher here: it quits and the shell (or Run,
+		// Here the picker is only a launcher: it quits, and the shell (or Run,
 		// when there is no widget) deals with the task afterwards.
 		return m.pick(false)
 	}
@@ -748,8 +754,8 @@ func (m model) run() (tea.Model, tea.Cmd) {
 	})
 }
 
-// pick marks the task under the cursor as the picker's result and quits.
-// insert selects the tab behaviour: the command goes to the prompt instead
+// pick marks the task under the cursor as the result of the picker and quits.
+// insert selects the behaviour of tab: the command goes to the prompt instead
 // of being executed.
 func (m model) pick(insert bool) (tea.Model, tea.Cmd) {
 	vis := m.visible()
@@ -768,8 +774,8 @@ func (m model) filterTokens() []string {
 	return strings.Fields(strings.ToLower(m.filter))
 }
 
-// visible returns the tasks matching the current filter, ranked from best to
-// worst match (ties keep discovery order).
+// visible returns the tasks that match the current filter, ranked from the best
+// match to the worst one. Ties keep the discovery order.
 func (m model) visible() []core.Task {
 	tokens := m.filterTokens()
 	if len(tokens) == 0 {
@@ -798,19 +804,20 @@ func (m model) visible() []core.Task {
 	return out
 }
 
-// taskMatches reports whether the task matches all tokens, as case-insensitive
-// subsequences of its name, command line or description: the rows show the
-// command and the description (e.g. a package.json script body), so typing
-// "npm", "tsc" or "vite" must find it.
+// taskMatches reports whether the task matches all tokens as case-insensitive
+// subsequences of its name, command line or description. The rows show the
+// command and the description (e.g. the body of a package.json script), so
+// typing "npm", "tsc" or "vite" must find the task.
 func taskMatches(t core.Task, tokens []string, shell core.ShellDialect) bool {
 	_, ok := taskMatchScore(t, tokens, shell)
 	return ok
 }
 
-// taskMatchScore scores how well t matches all tokens. Contiguous matches always
-// outrank non-contiguous subsequence matches, and within the same tier a
-// match in the task name or command line outranks one in the description. The
-// command line is quoted for shell, so the score is the same as the row shown.
+// taskMatchScore scores how well t matches all tokens. A contiguous match
+// always outranks a non-contiguous subsequence match, and within the same tier
+// a match in the task name or the command line outranks a match in the
+// description. The command line is quoted for shell, so the score refers to the
+// same text that the row shows.
 func taskMatchScore(t core.Task, tokens []string, shell core.ShellDialect) (int, bool) {
 	const (
 		contigCmdTier  = 2000
@@ -881,8 +888,9 @@ func scoreSubsequence(s, needle string) (int, bool, bool) {
 	return score, contig, true
 }
 
-// matchPositions returns a boolean mask over the runes of s marking the
-// characters matched by any token in tokens, or nil when no token matches s.
+// matchPositions returns a boolean mask over the runes of s that marks the
+// characters matched by any token in tokens. It returns nil when no token
+// matches s.
 func matchPositions(s string, tokens []string) []bool {
 	if s == "" || len(tokens) == 0 {
 		return nil
@@ -910,11 +918,11 @@ func matchPositions(s string, tokens []string) []bool {
 }
 
 // subsequenceMatch finds the best fzf-style alignment of needle (already
-// lowercase) in lower. It prefers contiguous substring matches first; when no
-// contiguous match exists, it falls back to a word-anchored subsequence
-// (starting at a word boundary, advancing within the same word or jumping to
-// later word boundaries) so scattered mid-word letters across unrelated words
-// do not produce false positives.
+// lowercase) in lower. It prefers a contiguous substring match first. When no
+// contiguous match exists, it falls back to a word-anchored subsequence that
+// starts at a word boundary and advances within the same word or jumps to a
+// later word boundary. In this way scattered mid-word letters across unrelated
+// words do not produce false positives.
 func subsequenceMatch(runes, lower, needle []rune) ([]int, int, bool) {
 	m, n := len(needle), len(lower)
 	if m == 0 || m > n {
@@ -959,9 +967,9 @@ func subsequenceMatch(runes, lower, needle []rune) ([]int, int, bool) {
 		return pos, bestScore, true
 	}
 
-	// 2. Fall back to a word-anchored subsequence: the match must start on a
-	// word boundary and may only skip characters within the same word or jump
-	// to the boundary of a later word.
+	// 2. Fall back to a word-anchored subsequence. The match must start on a
+	// word boundary, and it may skip characters only within the same word or
+	// jump to the boundary of a later word.
 	scores := make([]int, m*n)
 	prev := make([]int, m*n)
 	for i := range scores {
@@ -1033,8 +1041,9 @@ func subsequenceMatch(runes, lower, needle []rune) ([]int, int, bool) {
 	return pos, bestScore, false
 }
 
-// isWordBoundary reports whether rune j sits at the start of a word (start of
-// string, after a non-alphanumeric separator, or a camelCase transition).
+// isWordBoundary reports whether rune j sits at the start of a word. A word
+// starts at the start of the string, after a non-alphanumeric separator, or at
+// a camelCase transition.
 func isWordBoundary(runes []rune, j int) bool {
 	if j == 0 {
 		return true
@@ -1066,8 +1075,8 @@ func sameWord(runes []rune, start, end int) bool {
 	return true
 }
 
-// keepCursorVisible clamps the cursor and scrolls the list so that the
-// cursor row is inside the window.
+// keepCursorVisible clamps the cursor and scrolls the list, so that the cursor
+// row is inside the window.
 func (m *model) keepCursorVisible() {
 	vis := m.visible()
 	if len(vis) == 0 {
@@ -1101,8 +1110,8 @@ func (m model) View() tea.View {
 	if m.opts.Inline && !m.fullscreen {
 		h := m.areaHeight()
 		if h <= 0 {
-			// The terminal size or the cursor position is still unknown:
-			// render nothing rather than flash the UI in the wrong spot.
+			// The terminal size or the cursor position is still unknown, so
+			// render nothing instead of flashing the UI in the wrong spot.
 			return tea.NewView("")
 		}
 		if m.opts.DebugArea {
@@ -1117,8 +1126,8 @@ func (m model) View() tea.View {
 	return v
 }
 
-// viewHeight returns the number of rows the fullscreen view occupies, or the
-// natural size while the terminal size is still unknown.
+// viewHeight returns the number of rows that the fullscreen view occupies, or
+// the natural size while the terminal size is still unknown.
 func (m model) viewHeight() int {
 	if !m.ready {
 		return chromeRows + m.listHeight()
@@ -1126,11 +1135,11 @@ func (m model) viewHeight() int {
 	return m.height
 }
 
-// inlineWidth returns the columns the inline frame is laid out in. After
-// ctrl+f toggles back from the alternate screen it uses the main screen's
-// width, which the terminal may have reported differently in fullscreen;
-// rendering one column too many wraps every row and leaves the old frame on
-// screen.
+// inlineWidth returns the number of columns that the inline frame is laid out
+// in. After ctrl+f toggles back from the alternate screen, the frame uses the
+// width of the main screen, which the terminal may have reported differently in
+// fullscreen. Rendering one column too many wraps every row and leaves the old
+// frame on screen.
 func (m model) inlineWidth() int {
 	if m.fullscreen || m.mainWidth <= 0 {
 		return m.width
@@ -1150,8 +1159,8 @@ func (m model) listHeight() int {
 	}
 }
 
-// render lays the picker out in exactly h rows and w columns: title, filter
-// line, task list and help line, padded or trimmed to fit.
+// render lays the picker out in exactly h rows and w columns: the title, the
+// filter line, the task list and the help line, padded or trimmed to fit.
 func (m model) render(h, w int) string {
 	lines := make([]string, 0, h)
 	lines = append(lines,
@@ -1170,7 +1179,7 @@ func (m model) render(h, w int) string {
 	}
 	for i, line := range lines {
 		if w > 0 {
-			// One row per line, no wrapping, whatever the content.
+			// Each line stays on one row and does not wrap, whatever the content.
 			lines[i] = ansi.Truncate(line, w, "…")
 		}
 	}
@@ -1180,15 +1189,16 @@ func (m model) render(h, w int) string {
 	return strings.Join(lines, "\n")
 }
 
-// placedBox is a rendered box and the cell its first line starts on.
+// placedBox is a rendered box and the cell that its first line starts on.
 type placedBox struct {
 	lines []string
 	x, y  int
 }
 
-// overlay draws the boxes over the rendered lines with the canvas compositor:
-// it replaces cell by cell, so a background that crosses a box edge is not
-// broken (splicing styled lines manually would). Later boxes draw on top.
+// overlay draws the boxes over the rendered lines with the canvas compositor.
+// The compositor replaces cell by cell, so a background that crosses a box edge
+// is not broken. Splicing styled lines by hand would break it. A later box
+// draws on top of an earlier one.
 func overlay(lines []string, boxes ...placedBox) string {
 	layers := make([]*lipgloss.Layer, 0, len(boxes)+1)
 	layers = append(layers, lipgloss.NewLayer(strings.Join(lines, "\n")))
@@ -1226,10 +1236,10 @@ func (m model) boxes(h, w int) []placedBox {
 	return boxes
 }
 
-// warningModalY places the warning box so the bottom help line stays visible:
-// centered above the help line when the task list is tall enough, right below
-// it when only a couple of tasks are present, or centered in the view on tiny
-// terminals.
+// warningModalY places the warning box so that the bottom help line stays
+// visible. The box is centered above the help line when the task list is tall
+// enough, it sits right below the help line when only a couple of tasks are
+// present, and it is centered in the view on tiny terminals.
 func (m model) warningModalY(h, w, boxH int) int {
 	helpRow := min(3+len(m.listLines(w)), max(h-1, 0))
 	switch {
@@ -1242,7 +1252,7 @@ func (m model) warningModalY(h, w, boxH int) int {
 	}
 }
 
-// titleLine renders the picker's title: the invoked name.
+// titleLine renders the title of the picker, which is the invoked name.
 func (m model) titleLine() string {
 	return m.styles.title.Render(m.opts.prog())
 }
@@ -1258,13 +1268,13 @@ func (m model) filterLine() string {
 	return m.styles.filter.Render("» ") + m.filter + m.styles.filter.Render("▏")
 }
 
-// sourceInfos is the registry metadata, read once: the empty screen renders
-// on every frame.
+// sourceInfos is the registry metadata, read once, because the empty screen
+// renders it on every frame.
 var sourceInfos = core.Sources()
 
-// emptyStateLines explains a directory with nothing to run. The file list
-// comes from the source registry and wraps to the list width, so a narrow
-// terminal still shows every name; the rc hint on the last line does not wrap.
+// emptyStateLines explains a directory with nothing to run. The file list comes
+// from the source registry and wraps to the width of the list, so a narrow
+// terminal still shows every name. The rc hint on the last line does not wrap.
 func (m model) emptyStateLines(w int) []string {
 	files := make([]string, 0, len(sourceInfos))
 	seen := make(map[string]bool, len(sourceInfos))
@@ -1286,8 +1296,8 @@ func (m model) emptyStateLines(w int) []string {
 		"add [[tasks]] to .what-to-run.toml for custom commands"))
 }
 
-// joinAnd joins names the way the empty-state sentence reads: "a", "a and b",
-// "a, b and c".
+// joinAnd joins names the way that the empty-state sentence reads: "a",
+// "a and b", "a, b and c".
 func joinAnd(items []string) string {
 	switch len(items) {
 	case 0:
@@ -1326,8 +1336,8 @@ func (m model) listLines(w int) []string {
 	return rows
 }
 
-// flattenDesc puts a description on the single row the picker gives a task:
-// task files allow multi-line descriptions (a Taskfile `desc: |` block, a
+// flattenDesc puts a description on the single row that the picker gives a
+// task. Task files allow multi-line descriptions (a Taskfile `desc: |` block, a
 // just `[doc("a\nb")]`), and a run of CR and LF becomes one space, as
 // `task --list` does.
 func flattenDesc(s string) string {
@@ -1353,10 +1363,10 @@ func flattenDesc(s string) string {
 
 // taskRow renders one list row: the cursor marker, the command line that will
 // run, the description and the source file, right-aligned. The command comes
-// first and keeps its whole text — it already contains the task name for
-// every runner — then the description takes the room that is left, and is
-// dropped before the command shrinks. The whole selected row carries the
-// theme's tint, or reverse video in the colorless theme.
+// first and keeps its whole text, because it already contains the task name for
+// every runner. Then the description takes the room that is left, and it is
+// dropped before the command shrinks. The whole selected row carries the tint
+// of the theme, or reverse video in the colorless theme.
 func (m model) taskRow(t core.Task, selected bool, w int) string {
 	badge := t.Source
 	badgeW := lipgloss.Width(badge)
@@ -1377,8 +1387,8 @@ func (m model) taskRow(t core.Task, selected bool, w int) string {
 
 	desc := t.Desc
 	if t.Source == "rc" && slices.Contains(t.Args, desc) {
-		// The command already says it: rc tasks without a custom
-		// description default to their own command (sh -c <cmd>).
+		// The command already says it. An rc task without a custom
+		// description defaults to its own command (sh -c <cmd>).
 		desc = ""
 	}
 	desc = flattenDesc(desc)
@@ -1396,8 +1406,10 @@ func (m model) taskRow(t core.Task, selected bool, w int) string {
 	}
 
 	if selected {
-		// The marker in the accent color, the rest of the row in the
-		// theme's light tone over its tint (reverse video, in mono).
+		// The marker takes the accent color, and the rest of the row takes the
+		// light tone of the theme over its tint (reverse video, in mono). The
+		// row never takes the dim color, because the dim color can be nearly
+		// identical to the tint.
 		left := m.styles.marker.Render(marker) +
 			renderMatched(cmd, cmdMatch, m.styles.selectedName, m.styles.selectedMatch)
 		if descLine != "" {
@@ -1418,9 +1430,9 @@ func (m model) taskRow(t core.Task, selected bool, w int) string {
 	return left + pad + " " + m.styles.dim.Render(badge)
 }
 
-// truncateMatched fits s within maxW terminal columns while keeping any
-// matched runes visible: if right-truncating would cut off a match, the
-// visible window shifts toward the matched span with a leading ellipsis.
+// truncateMatched fits s within maxW terminal columns while it keeps the
+// matched runes visible. When a right truncation would cut off a match, the
+// visible window shifts toward the matched span and gets a leading ellipsis.
 func truncateMatched(s string, matched []bool, maxW int) (string, []bool) {
 	if maxW <= 0 || s == "" {
 		return "", nil
@@ -1460,8 +1472,9 @@ func truncateMatched(s string, matched []bool, maxW int) (string, []bool) {
 		return string(runes[:end]) + "…", m
 	}
 
-	// A match lies past the right truncation point: try a suffix anchored
-	// to the end of s first, then a middle window framed by two ellipses.
+	// A match lies past the right truncation point. Try a suffix that is
+	// anchored to the end of s first, then a middle window framed by two
+	// ellipses.
 	suffixW := 0
 	start := len(runes)
 	for start > 0 {
@@ -1506,9 +1519,9 @@ func truncateMatched(s string, matched []bool, maxW int) (string, []bool) {
 	return "…" + string(runes[start:end]) + "…", m
 }
 
-// renderMatched renders s applying highlight to the runes marked in matched
-// and base to the rest. Adjacent runes with the same state are grouped into a
-// single segment so no unnecessary ANSI resets are emitted.
+// renderMatched renders s and applies highlight to the runes marked in matched
+// and base to the other runes. Adjacent runes with the same state are grouped
+// into a single segment, so the renderer emits no unnecessary ANSI resets.
 func renderMatched(s string, matched []bool, base, highlight lipgloss.Style) string {
 	if s == "" {
 		return ""
@@ -1538,8 +1551,9 @@ func renderMatched(s string, matched []bool, base, highlight lipgloss.Style) str
 }
 
 // commandWidth returns the width of the command column: the widest visible
-// command line, so the descriptions of all rows start together. taskRow caps
-// it to the room the row has; only a command longer than that is truncated.
+// command line, so that the descriptions of all rows start together. taskRow
+// caps it to the room that the row has, and only a command longer than that is
+// truncated.
 func (m model) commandWidth() int {
 	shell := m.shell
 	cmdW := 0
@@ -1549,11 +1563,11 @@ func (m model) commandWidth() int {
 	return cmdW
 }
 
-// helpLine renders the bottom line in w columns: the outcome of the last
-// in-place run if there is one, otherwise the task count (and warning count,
-// when present) followed by the key hints. Optional hints are dropped when the
-// line would not fit (inline mode or narrow terminals), so the keys before
-// them stay readable.
+// helpLine renders the bottom line in w columns. It shows the outcome of the
+// last in-place run when there is one, and otherwise the task count (and the
+// warning count, when present) followed by the key hints. Optional hints are
+// dropped when the line does not fit (inline mode or narrow terminals), so that
+// the keys before them stay readable.
 func (m model) helpLine(w int) string {
 	if m.status != "" {
 		return m.status
@@ -1593,9 +1607,10 @@ func (m model) helpLine(w int) string {
 	}
 	hints = append(hints, "ctrl+t theme")
 
-	// Hints are added in priority order while they fit. When the first one
-	// does not fit, drop the filter hint to make room for the keys that
-	// matter most (the warning count and the mode toggle) before giving up.
+	// Hints are added in priority order while they fit. When the first hint
+	// does not fit, drop the filter hint to make room for the keys that matter
+	// most: the warning count and the mode toggle. A hint that still does not
+	// fit is dropped, together with the ones after it.
 	fits := func(hint string) bool {
 		return w <= 0 || ansi.StringWidth(leftPlain+"   "+keys+" · "+hint) <= w
 	}
@@ -1612,11 +1627,11 @@ func (m model) helpLine(w int) string {
 	return left + m.styles.dim.Render("   "+keys)
 }
 
-// areaHeight returns the number of rows the inline UI occupies: the space
+// areaHeight returns the number of rows that the inline UI occupies: the space
 // between the line below the prompt and the bottom of the screen. When fewer
-// than minInlineHeight rows are free, the minimum is used and the terminal
-// scrolls up to make room. It returns 0 while the terminal size or the start
-// row is still unknown.
+// than minInlineHeight rows are free, the layout uses the minimum and the
+// terminal scrolls up to make room. It returns 0 while the terminal size or the
+// start row is still unknown.
 func (m model) areaHeight() int {
 	if !m.ready || !m.startRowKnown {
 		return 0

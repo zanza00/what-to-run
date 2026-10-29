@@ -9,36 +9,39 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// theme is one named look of the picker: the palette plus the tint of the row
-// under the cursor. Every theme shares the same selection style (an accent
-// bar and name over a tinted row); the colorless one tints with reverse
-// video. Themes are pure data: newStyles turns one into the styles a model
-// renders with.
+// theme is one named look of the picker. It holds the palette and the tint of
+// the row under the cursor. Every theme shares the same selection style: an
+// accent bar and the name over a tinted row. The colorless theme tints with
+// reverse video instead. A theme is pure data, and newStyles turns it into the
+// styles that a model renders with.
 type theme struct {
 	name string
 	desc string
 	// accent highlights the title, the filter prompt and the marker of the
-	// selected row; nil means the terminal's own foreground (the mono variant).
+	// selected row. A nil value means the foreground of the terminal itself,
+	// as in the mono variant.
 	accent color.Color
-	// dim, ok and err colour secondary text, task success and task failure;
-	// a nil colour leaves the terminal's own foreground.
+	// dim, ok and err colour the secondary text, a task success and a task
+	// failure. A nil colour leaves the foreground of the terminal itself.
 	dim, ok, err color.Color
-	// selBg is the background of the whole selected row: a lighter surface
-	// tone, so the row reads as selected without a saturated accent
-	// background. nil in the colorless theme, which tints with reverse video.
+	// selBg is the background of the whole selected row. It is a lighter
+	// surface tone, so the row reads as selected without a saturated accent
+	// background. It is nil in the colorless theme, which tints with reverse
+	// video.
 	selBg color.Color
 	// selFg is the foreground of the name, description and badge on that
-	// tinted row: the palette's light tone, kept readable on selBg (the
-	// dim color may be nearly identical to it, e.g. nord). nil in mono.
+	// tinted row. It is the light tone of the palette, and it stays readable on
+	// selBg. The dim color may be nearly identical to it, as in nord. It is nil
+	// in mono.
 	selFg color.Color
 }
 
-// defaultTheme is the theme used when none is requested.
+// defaultTheme is the theme that the picker uses when the user requests none.
 const defaultTheme = "classic"
 
-// themes is the registry, in the order ctrl+t cycles through it. The first
-// entry is the default, so the picker looks exactly the same when no theme
-// is requested.
+// themes is the registry, in the order that ctrl+t cycles through it. The
+// first entry is the default, so the picker looks exactly the same when the
+// user requests no theme.
 var themes = []theme{
 	{
 		name:   "classic",
@@ -167,11 +170,11 @@ var themes = []theme{
 	},
 }
 
-// systemTheme builds the "system" theme like OpenCode's generateSystem:
-// ANSI palette slots for chromatic roles (cyan accent, green ok, red err) and
-// a surface tint and muted gray derived from the terminal's background and
-// foreground colors (falling back to dark ANSI defaults before the terminal
-// reports them).
+// systemTheme builds the "system" theme the way that OpenCode's generateSystem
+// does. It uses ANSI palette slots for the chromatic roles (cyan accent, green
+// ok, red err), and it derives the surface tint and the muted gray from the
+// background and foreground colors of the terminal. Before the terminal
+// reports those colors, it falls back to the dark ANSI defaults.
 func systemTheme(bg, fg color.Color) theme {
 	bgR, bgG, bgB := 0.0, 0.0, 0.0
 	if bg != nil {
@@ -191,21 +194,22 @@ func systemTheme(bg, fg color.Color) theme {
 	}
 }
 
-// rgb8 returns the 0..255 sRGB channels of c.
+// rgb8 returns the three sRGB channels of c in the range 0..255.
 func rgb8(c color.Color) (r, g, b float64) {
 	r16, g16, b16, _ := c.RGBA()
 	return float64(r16 >> 8), float64(g16 >> 8), float64(b16 >> 8)
 }
 
-// colorLuminance returns the perceived brightness of an 8-bit RGB color
-// (OpenCode's 0.299*R + 0.587*G + 0.114*B formula in 0..255).
+// colorLuminance returns the perceived brightness of an 8-bit RGB color. It
+// uses OpenCode's 0.299*R + 0.587*G + 0.114*B formula and returns a value in
+// the range 0..255.
 func colorLuminance(r, g, b float64) float64 {
 	return 0.299*r + 0.587*g + 0.114*b
 }
 
-// systemGray returns step i (1..12) of OpenCode's generateGrayScale: a surface
-// shade shifted toward white on dark backgrounds or toward black on light ones
-// while preserving the background's hue.
+// systemGray returns step i (1..12) of OpenCode's generateGrayScale. It is a
+// surface shade that moves toward white on a dark background or toward black
+// on a light one, and it keeps the hue of the background.
 func systemGray(bgR, bgG, bgB float64, isDark bool, step int) color.Color {
 	factor := float64(step) / 12.0
 	lum := colorLuminance(bgR, bgG, bgB)
@@ -230,8 +234,8 @@ func systemGray(bgR, bgG, bgB float64, isDark bool, step int) color.Color {
 	return hexColor(clamp(bgR*ratio), clamp(bgG*ratio), clamp(bgB*ratio))
 }
 
-// systemMutedColor ports OpenCode's generateMutedTextColor: a neutral gray
-// scaled to stay legible against the terminal background.
+// systemMutedColor ports OpenCode's generateMutedTextColor. It returns a
+// neutral gray that stays legible against the background of the terminal.
 func systemMutedColor(bgR, bgG, bgB float64, isDark bool) color.Color {
 	lum := colorLuminance(bgR, bgG, bgB)
 	if isDark {
@@ -249,9 +253,9 @@ func systemMutedColor(bgR, bgG, bgB float64, isDark bool) color.Color {
 }
 
 // systemSelectedFg chooses the foreground for the selected row in the system
-// theme: the terminal's own foreground (or OpenCode's ANSI 7/0 fallback),
-// falling back to pure white or black if a mid-tone background leaves the
-// contrast below WCAG AA (4.5:1).
+// theme. It starts from the foreground of the terminal, or from OpenCode's
+// ANSI 7/0 fallback. If a mid-tone background leaves the contrast below WCAG
+// AA (4.5:1), it falls back to pure white or black.
 func systemSelectedFg(fg, selBg color.Color, isDark bool) color.Color {
 	var candidate color.Color
 	if fg != nil {
@@ -273,7 +277,7 @@ func systemSelectedFg(fg, selBg color.Color, isDark bool) color.Color {
 	return black
 }
 
-// hexColor formats 8-bit RGB channels as a lipgloss hex color.
+// hexColor formats the three 8-bit RGB channels as a lipgloss hex color.
 func hexColor(r, g, b int) color.Color {
 	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", r, g, b))
 }
@@ -289,7 +293,7 @@ func contrastRatio(a, b color.Color) float64 {
 
 // relativeLuminance returns the WCAG relative luminance of a color.
 func relativeLuminance(c color.Color) float64 {
-	r, g, b, _ := c.RGBA() // 16-bit channels
+	r, g, b, _ := c.RGBA() // The channels are 16-bit.
 	linear := func(v uint32) float64 {
 		s := float64(v) / 0xFFFF
 		if s <= 0.04045 {
@@ -300,8 +304,8 @@ func relativeLuminance(c color.Color) float64 {
 	return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
 }
 
-// themeIndex returns the index of the named theme; an empty name means the
-// default one, and an unknown name reports false.
+// themeIndex returns the index of the named theme. An empty name means the
+// default theme, and an unknown name reports false.
 func themeIndex(name string) (int, bool) {
 	if name == "" {
 		return 0, true
@@ -314,8 +318,8 @@ func themeIndex(name string) (int, bool) {
 	return 0, false
 }
 
-// ListThemes writes the available themes to w, one per line, with the
-// default marked. It backs '<prog> --list-themes'.
+// ListThemes writes the available themes to w, one per line, with the default
+// marked. It backs '<prog> --list-themes'.
 func ListThemes(w io.Writer) {
 	width := 0
 	for _, t := range themes {
@@ -330,25 +334,25 @@ func ListThemes(w io.Writer) {
 	}
 }
 
-// styles are the concrete lipgloss styles a model renders with. They are
-// derived from a theme and stateless once built, so a model can swap them
+// styles are the concrete lipgloss styles that a model renders with. They come
+// from a theme, and they are stateless once built, so a model can swap them
 // (ctrl+t) without touching anything else.
 type styles struct {
 	title         lipgloss.Style // the program name
 	filter        lipgloss.Style // the filter prompt and its cursor
 	selectedName  lipgloss.Style // the command on the selected row
-	selectedText  lipgloss.Style // desc and badge on the selected row
-	selectedMatch lipgloss.Style // matched filter characters on the selected row
+	selectedText  lipgloss.Style // the description and the badge on the selected row
+	selectedMatch lipgloss.Style // the matched filter characters on the selected row
 	selectedPad   lipgloss.Style // the padding between them
 	marker        lipgloss.Style // the cursor marker
-	match         lipgloss.Style // matched filter characters on unselected rows
+	match         lipgloss.Style // the matched filter characters on an unselected row
 	dim           lipgloss.Style
 	ok            lipgloss.Style
 	err           lipgloss.Style
 }
 
-// newStyles builds the styles for a theme. A nil color leaves the
-// terminal's own foreground (or faint, for dim).
+// newStyles builds the styles for a theme. A nil color leaves the foreground of
+// the terminal itself, and it leaves dim faint.
 func newStyles(t theme) styles {
 	accent := lipgloss.NewStyle()
 	if t.accent != nil {
@@ -367,10 +371,9 @@ func newStyles(t theme) styles {
 		return lipgloss.NewStyle().Foreground(c)
 	}
 
-	// Every segment of the selected row carries the highlight itself: a
-	// nested style's reset would otherwise drop it before the pads. The
-	// highlight is the theme's tint, or reverse video for the colorless
-	// theme.
+	// Every segment of the selected row carries the highlight itself. A nested
+	// style reset would otherwise drop it before the pads. The highlight is the
+	// tint of the theme, or reverse video for the colorless theme.
 	onRow := func(fg color.Color, bold bool) lipgloss.Style {
 		st := lipgloss.NewStyle()
 		if t.selBg != nil {

@@ -334,8 +334,8 @@ def main():
             # packages the release would publish.
             assets = args.artifact.parent
             checksums = args.artifact
-        publisher.verify_checksums(checksums.read_text(), version)
         packages = publisher.render(args.tag)
+        publisher.verify_checksums(checksums.read_text(), packages)
         destination = assets / "npm"
         publisher.stage(destination, packages, assets)
         print(f"Staged {len(packages)} packages in {destination}")

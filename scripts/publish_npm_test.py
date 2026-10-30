@@ -25,7 +25,7 @@ def tarball(path, members):
             archive.addfile(info, io.BytesIO(content))
 
 
-def page():
+def fake_binary():
     return '#!/bin/sh\necho "wtr $@"; exit 0\n'.encode()
 
 
@@ -37,11 +37,11 @@ class PublisherTest(unittest.TestCase):
             path = self.directory / name
             if goos == "windows":
                 with zipfile.ZipFile(path, "w") as archive:
-                    archive.writestr("wtr.exe", page())
+                    archive.writestr("wtr.exe", fake_binary())
             else:
                 # A release archive also carries the docs; the publisher has to
                 # find the binary among the other members.
-                tarball(path, {"LICENSE": b"MIT\n", "wtr": page()})
+                tarball(path, {"LICENSE": b"MIT\n", "wtr": fake_binary()})
         self.checksums = "\n".join(
             f"{index:064x}  {publisher.asset_name(goos, goarch, '1.2.3')}"
             for index, (goos, goarch) in enumerate(publisher.TARGETS, 1)
@@ -51,7 +51,7 @@ class PublisherTest(unittest.TestCase):
         packages = publisher.render("v1.2.3")
         self.assertEqual(list(packages)[-1], publisher.NAME)
         self.assertEqual(len(packages), len(publisher.TARGETS) + 1)
-        root = packages[publisher.NAME]
+        root = packages[publisher.NAME].manifest
         self.assertEqual(root["version"], "1.2.3")
         self.assertNotIn("private", root)
         self.assertEqual(root["bin"], {"wtr": "bin/wtr.js"})
@@ -66,23 +66,24 @@ class PublisherTest(unittest.TestCase):
                 "what-to-run-windows-arm64": "1.2.3",
             },
         )
-        for name, manifest in packages.items():
+        for name, package in packages.items():
             if name == publisher.NAME:
                 continue
+            manifest = package.manifest
             self.assertEqual(manifest["version"], "1.2.3")
             self.assertNotIn("bin", manifest)
             self.assertNotIn("private", manifest)
             self.assertEqual(len(manifest["os"]), 1)
             self.assertEqual(len(manifest["cpu"]), 1)
-        self.assertEqual(packages["what-to-run-windows-arm64"]["os"], ["win32"])
-        self.assertEqual(packages["what-to-run-windows-arm64"]["cpu"], ["arm64"])
-        self.assertEqual(packages["what-to-run-darwin-x64"]["cpu"], ["x64"])
+        self.assertEqual(packages["what-to-run-windows-arm64"].manifest["os"], ["win32"])
+        self.assertEqual(packages["what-to-run-windows-arm64"].manifest["cpu"], ["arm64"])
+        self.assertEqual(packages["what-to-run-darwin-x64"].manifest["cpu"], ["x64"])
         self.assertEqual(
-            packages["what-to-run-windows-arm64"]["files"], ["bin/wtr.exe"]
+            packages["what-to-run-windows-arm64"].manifest["files"], ["bin/wtr.exe"]
         )
 
     def test_versions_are_pinned_to_the_release(self):
-        root = publisher.render("v9.8.7")[publisher.NAME]
+        root = publisher.render("v9.8.7")[publisher.NAME].manifest
         self.assertEqual(root["version"], "9.8.7")
         self.assertEqual(set(root["optionalDependencies"].values()), {"9.8.7"})
 
@@ -92,33 +93,34 @@ class PublisherTest(unittest.TestCase):
                 publisher.render(tag)
 
     def test_checksums_must_describe_every_platform(self):
-        publisher.verify_checksums(self.checksums, "1.2.3")
+        packages = publisher.render("v1.2.3")
+        publisher.verify_checksums(self.checksums, packages)
         with self.assertRaises(ValueError):
-            publisher.verify_checksums(self.checksums.replace(f"{1:064x}", "invalid"), "1.2.3")
+            publisher.verify_checksums(self.checksums.replace(f"{1:064x}", "invalid"), packages)
         with self.assertRaises(ValueError):
             publisher.verify_checksums(
-                self.checksums + "\n" + self.checksums.splitlines()[0], "1.2.3"
+                self.checksums + "\n" + self.checksums.splitlines()[0], packages
             )
         with self.assertRaises(ValueError):
-            publisher.verify_checksums("\n".join(self.checksums.splitlines()[:-1]), "1.2.3")
+            publisher.verify_checksums("\n".join(self.checksums.splitlines()[:-1]), packages)
         with self.assertRaises(ValueError):
-            publisher.verify_checksums(self.checksums, "9.9.9")
+            publisher.verify_checksums(self.checksums, publisher.render("v9.9.9"))
 
     def test_stage_writes_the_binaries_and_the_launcher(self):
         packages = publisher.render("v1.2.3")
         staged = publisher.stage(self.directory / "npm", packages, self.directory)
         self.assertEqual(len(staged), len(publisher.TARGETS) + 1)
-        for name, manifest in packages.items():
-            package = self.directory / "npm" / name
-            self.assertEqual(json.loads((package / "package.json").read_text()), manifest)
-            self.assertTrue((package / "LICENSE").is_file())
+        for name, package in packages.items():
+            target = self.directory / "npm" / name
+            self.assertEqual(json.loads((target / "package.json").read_text()), package.manifest)
+            self.assertTrue((target / "LICENSE").is_file())
         launcher = self.directory / "npm" / publisher.NAME / "bin" / "wtr.js"
         self.assertTrue(launcher.is_file())
         linux = self.directory / "npm" / "what-to-run-linux-arm64" / "bin" / "wtr"
-        self.assertEqual(linux.read_bytes(), page())
+        self.assertEqual(linux.read_bytes(), fake_binary())
         self.assertTrue(linux.stat().st_mode & 0o111)
         windows = self.directory / "npm" / "what-to-run-windows-x64" / "bin" / "wtr.exe"
-        self.assertEqual(windows.read_bytes(), page())
+        self.assertEqual(windows.read_bytes(), fake_binary())
 
     def test_a_release_archive_without_the_binary_is_an_error(self):
         tarball(self.directory / "what-to-run_1.2.3_linux_amd64.tar.gz", {"LICENSE": b"MIT\n"})
@@ -144,6 +146,24 @@ class PublisherTest(unittest.TestCase):
             {(platform, architecture) for platform in platforms for architecture in architectures},
             set(publisher.TARGETS),
         )
+
+    def test_the_launcher_platform_table_matches_the_publisher(self):
+        # The launcher carries the same mapping in its own table, spelled
+        # the way Node reports the machine: the keys join `process.platform`
+        # and `process.arch`, and the values are the package name suffixes.
+        # Parse that table and hold it against the publisher's spellings,
+        # so a drift between the two files fails here, not on a machine
+        # the release does not cover.
+        source = (Path(__file__).resolve().parent.parent / "npm" / "bin" / "wtr.js").read_text()
+        table = re.search(r"const SUFFIXES = \{[^}]*\}", source)
+        self.assertIsNotNone(table, "the launcher no longer declares SUFFIXES")
+        entries = dict(re.findall(r'"([^"]+)":\s*"([^"]+)"', table.group(0)))
+        named = {key: f"{publisher.NAME}-{suffix}" for key, suffix in entries.items()}
+        expected = {
+            f"{publisher.NPM_OS[goos]}-{publisher.NPM_CPU[goarch]}": publisher.package_name(goos, goarch)
+            for goos, goarch in publisher.TARGETS
+        }
+        self.assertEqual(named, expected)
 
     def test_publish_skips_versions_already_on_the_registry(self):
         packages = publisher.render("v1.2.3")

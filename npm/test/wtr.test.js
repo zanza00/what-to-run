@@ -22,7 +22,7 @@ const posix = { skip: process.platform === "win32" ? "needs a POSIX shell" : fal
 // A global install of what-to-run as npm lays it out: the package with the
 // launcher, and next to it the platform package with the binary. `binary`
 // omitted leaves the optional dependency out, the way `--omit=optional` does.
-function stage(binary, mode = 0o755) {
+function installTree(binary, mode = 0o755) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "wtr-npm-"));
   const entry = path.join(root, "bin", "wtr.js");
   fs.mkdirSync(path.dirname(entry), { recursive: true });
@@ -130,7 +130,7 @@ test("an empty platform package is not silently accepted", () => {
 });
 
 test("the launcher forwards arguments, output and the exit code", posix, () => {
-  const entry = stage('#!/bin/sh\nprintf "args=%s\\n" "$*"\nexit 7\n');
+  const entry = installTree('#!/bin/sh\nprintf "args=%s\\n" "$*"\nexit 7\n');
   const result = spawnSync(process.execPath, [entry, "one two", "three"], { encoding: "utf8" });
   assert.equal(result.status, 7);
   assert.equal(result.stdout, "args=one two three\n");
@@ -138,21 +138,21 @@ test("the launcher forwards arguments, output and the exit code", posix, () => {
 });
 
 test("the launcher fails with a message when the platform package is missing", posix, () => {
-  const entry = stage(undefined);
+  const entry = installTree(undefined);
   const result = spawnSync(process.execPath, [entry, "--version"], { encoding: "utf8" });
   assert.equal(result.status, 1);
   assert.match(result.stderr, new RegExp(`what-to-run: ${packageName()} is not installed`));
 });
 
 test("the launcher leaves stdin attached", posix, () => {
-  const entry = stage('#!/bin/sh\nread line\nprintf "stdin=%s\\n" "$line"\n');
+  const entry = installTree('#!/bin/sh\nread line\nprintf "stdin=%s\\n" "$line"\n');
   const result = spawnSync(process.execPath, [entry], { encoding: "utf8", input: "hello\n" });
   assert.equal(result.status, 0);
   assert.equal(result.stdout, "stdin=hello\n");
 });
 
 test("a binary that cannot be executed is reported, not thrown", posix, () => {
-  const entry = stage('#!/bin/sh\nexit 0\n', 0o644);
+  const entry = installTree('#!/bin/sh\nexit 0\n', 0o644);
   const result = spawnSync(process.execPath, [entry], { encoding: "utf8" });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /^what-to-run: cannot run /);
@@ -160,7 +160,7 @@ test("a binary that cannot be executed is reported, not thrown", posix, () => {
 });
 
 test("the launcher dies of the same signal as the task", posix, () => {
-  const entry = stage("#!/bin/sh\nkill -TERM $$\n");
+  const entry = installTree("#!/bin/sh\nkill -TERM $$\n");
   const result = spawnSync(process.execPath, [entry], { encoding: "utf8" });
   assert.equal(result.signal, "SIGTERM");
   assert.equal(result.status, null);
@@ -169,7 +169,7 @@ test("the launcher dies of the same signal as the task", posix, () => {
 test("a signal aimed at the launcher takes the child with it, and the shell sees the signal", posix, async (t) => {
   for (const signal of ["SIGINT", "SIGTERM", "SIGUSR2"]) {
     await t.test(signal, async () => {
-      const entry = stage("#!/bin/sh\necho $$\nexec sleep 30\n");
+      const entry = installTree("#!/bin/sh\necho $$\nexec sleep 30\n");
       const proc = spawn(process.execPath, [entry], { stdio: ["ignore", "pipe", "pipe"] });
       let diagnostics = "";
       proc.stderr.setEncoding("utf8");
@@ -190,7 +190,7 @@ test("a signal aimed at the launcher takes the child with it, and the shell sees
 
 test("the launcher stays alive until a child that traps the signal exits", posix, async () => {
   const marker = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "wtr-npm-sig-")), "seen");
-  const entry = stage(
+  const entry = installTree(
     "#!/bin/sh\n" +
       'trap \'touch "$WTR_TEST_SIGNAL_MARKER"; exit 5\' USR2\n' +
       "echo ready\n" +

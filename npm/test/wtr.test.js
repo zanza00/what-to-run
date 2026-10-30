@@ -7,7 +7,7 @@
 // not this repository's.
 "use strict";
 
-const { spawnSync } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -35,6 +35,51 @@ function stage(binary, mode = 0o755) {
     fs.writeFileSync(path.join(directory, "bin", "wtr"), binary, { mode });
   }
   return entry;
+}
+
+// Resolves with what the shell sees when the launcher exits: the status, the
+// signal, or both.
+function exitOf(proc) {
+  return new Promise((resolve) => {
+    proc.on("exit", (status, signal) => resolve({ status, signal }));
+  });
+}
+
+// Resolves with the first line a launcher's stream prints, so a test can wait
+// for the child inside it to be ready.
+function firstLine(stream) {
+  return new Promise((resolve, reject) => {
+    let buffered = "";
+    stream.on("data", (chunk) => {
+      buffered += chunk;
+      const end = buffered.indexOf("\n");
+      if (end !== -1) {
+        resolve(buffered.slice(0, end));
+      }
+    });
+    stream.on("error", reject);
+  });
+}
+
+// Resolves when no process answers for pid anymore. A signal aimed at the
+// launcher must take the child with it, and this is how a test sees that.
+function gone(pid) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + 5000;
+    (function poll() {
+      try {
+        process.kill(pid, 0);
+      } catch {
+        resolve();
+        return;
+      }
+      if (Date.now() > deadline) {
+        reject(new Error(`pid ${pid} is still running after the launcher exited`));
+        return;
+      }
+      setTimeout(poll, 25);
+    })();
+  });
 }
 
 test("packageName covers every released platform", () => {
@@ -119,4 +164,53 @@ test("the launcher dies of the same signal as the task", posix, () => {
   const result = spawnSync(process.execPath, [entry], { encoding: "utf8" });
   assert.equal(result.signal, "SIGTERM");
   assert.equal(result.status, null);
+});
+
+test("a signal aimed at the launcher takes the child with it, and the shell sees the signal", posix, async (t) => {
+  for (const signal of ["SIGINT", "SIGTERM", "SIGUSR2"]) {
+    await t.test(signal, async () => {
+      const entry = stage("#!/bin/sh\necho $$\nexec sleep 30\n");
+      const proc = spawn(process.execPath, [entry], { stdio: ["ignore", "pipe", "pipe"] });
+      let diagnostics = "";
+      proc.stderr.setEncoding("utf8");
+      proc.stderr.on("data", (chunk) => {
+        diagnostics += chunk;
+      });
+      const child = Number.parseInt(await firstLine(proc.stdout), 10);
+      assert.ok(Number.isInteger(child), `the child printed no pid: ${child}`);
+
+      process.kill(proc.pid, signal);
+
+      assert.deepEqual(await exitOf(proc), { status: null, signal });
+      await gone(child);
+      assert.equal(diagnostics, "");
+    });
+  }
+});
+
+test("the launcher stays alive until a child that traps the signal exits", posix, async () => {
+  const marker = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "wtr-npm-sig-")), "seen");
+  const entry = stage(
+    "#!/bin/sh\n" +
+      'trap \'touch "$WTR_TEST_SIGNAL_MARKER"; exit 5\' USR2\n' +
+      "echo ready\n" +
+      'i=0\nwhile [ "$i" -lt 100 ]; do sleep 0.1; i=$((i+1)); done\n',
+  );
+  const proc = spawn(process.execPath, [entry], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, WTR_TEST_SIGNAL_MARKER: marker },
+  });
+  let diagnostics = "";
+  proc.stderr.setEncoding("utf8");
+  proc.stderr.on("data", (chunk) => {
+    diagnostics += chunk;
+  });
+  // The trap is installed before the child says it is ready.
+  await firstLine(proc.stdout);
+
+  process.kill(proc.pid, "SIGUSR2");
+
+  assert.deepEqual(await exitOf(proc), { status: 5, signal: null });
+  assert.ok(fs.existsSync(marker), "the child saw the signal");
+  assert.equal(diagnostics, "");
 });

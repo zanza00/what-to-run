@@ -63,9 +63,16 @@ jobs:
           GOARCH: amd64
           CGO_ENABLED: "0"
         run: go vet ./...
-      - name: Test Homebrew publisher
-        # Python is used only by the release publisher, not by the CLI.
+      - name: Test release publishers
+        # Python is used only by the release publishers, not by the CLI.
         run: python3 -m unittest discover -s scripts -p '*_test.py'
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Test the npm launcher
+        # The launcher is the only JavaScript the project ships: the npm
+        # packages are a release channel, not a runtime dependency.
+        run: node --test 'npm/test/*.test.js'
       - name: Test the setup scripts as root
         # The scripts refuse to run without root; the stub tools and the WTR_*
         # paths keep this run inside a temporary directory.

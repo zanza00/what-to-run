@@ -38,6 +38,10 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      # npm trusted publishing: the runner's OIDC token authenticates the
+      # publish and signs the provenance attestation, so no registry token is
+      # stored as a secret.
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -46,6 +50,11 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          # npm 11.5 or later is what speaks trusted publishing; the version
+          # bundled with the runner image can be older.
+          node-version: '24'
       - name: Prepare release publishing
         id: credentials
         env:
@@ -53,6 +62,7 @@ jobs:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          NPM_PUBLISH: ${{ vars.NPM_PUBLISH }}
         run: |
           if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
             echo 'Configure the HOMEBREW_TAP_TOKEN Actions secret before releasing.' >&2
@@ -91,6 +101,13 @@ jobs:
           echo "GORELEASER_SKIP=$skips" >> "$GITHUB_ENV"
           echo "scoop_enabled=$([ -n "$SCOOP_BUCKET_TOKEN" ] && echo true || echo false)" \
             >> "$GITHUB_OUTPUT"
+          echo "npm_enabled=$([ "$NPM_PUBLISH" = "true" ] && echo true || echo false)" \
+            >> "$GITHUB_OUTPUT"
+          # npm publishing is opt-in: the channel is skipped, like the AUR,
+          # until the packages are on the registry.
+          if [ "$NPM_PUBLISH" != "true" ]; then
+            echo '::warning title=npm publishing skipped::Set the NPM_PUBLISH repository variable to "true" to publish what-to-run to npm.'
+          fi
 
       - name: Install repository tools
         # The publisher shells out to reprepro and createrepo_c, which the
@@ -106,6 +123,12 @@ jobs:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           APT_GPG_KEY_FILE: ${{ env.APT_GPG_KEY_FILE }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+      - name: Publish to npm
+        # A step of its own rather than a GoReleaser publisher: trusted
+        # publishing reads the runner's OIDC token, and a GoReleaser publisher
+        # only receives the variables listed in .goreleaser.yaml.
+        if: steps.credentials.outputs.npm_enabled == 'true'
+        run: python3 scripts/publish-npm.py --tag "$GITHUB_REF_NAME" --artifact dist/checksums.txt
       - name: Verify published release
         shell: bash
         env:
@@ -172,3 +195,46 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/contents/$script?ref=gh-pages" \
               -H "Accept: application/vnd.github.raw" | diff -u "scripts/$script" -
           done
+
+  verify-npm:
+    # The channel is skipped while the repository variable is unset, so there
+    # is nothing to verify then. This job cannot read
+    # steps.credentials.outputs.npm_enabled: that output belongs to the publish
+    # job, so the variable is read again here.
+    needs: publish
+    if: vars.NPM_PUBLISH == 'true'
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows is the interesting one: npm runs the launcher through the
+        # shims it generates for .cmd and PowerShell.
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Install and run the published package
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          # The registry is eventually consistent: a version that was just
+          # published can answer 404 for a few seconds.
+          ready=""
+          for attempt in $(seq 10); do
+            if npm view "what-to-run@$version" version >/dev/null 2>&1; then
+              ready=yes
+              break
+            fi
+            sleep 6
+          done
+          if [ -z "$ready" ]; then
+            echo "what-to-run@$version is not on the registry after 60 seconds." >&2
+            exit 1
+          fi
+          output=$(npx --yes "what-to-run@$version" --version)
+          echo "$output"
+          test "$output" = "wtr $version"

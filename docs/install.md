@@ -21,6 +21,33 @@ mise use -g github:zanza00/what-to-run
 
 mise installs `wtr` from the GitHub releases.
 
+## npm
+
+With [Node.js](https://nodejs.org/) 22 or later:
+
+```sh
+npm install -g what-to-run
+```
+
+Publishing is opt-in for this project: releases reach npm only while the
+maintainer has enabled the channel, so a version that is missing from the
+registry is not a packaging bug — use one of the other methods below.
+
+The command is `wtr`, like every other method, and npm puts it in the global
+bin directory (`npm prefix -g` to see where). This is the shortest path on
+Windows, where npm needs no separate package manager.
+
+The package runs no install script: the release archive for your platform is
+an optional dependency npm picks by itself, so `--ignore-scripts` is safe and
+`pnpm`'s build allowlist cannot block it. With `--omit=optional` the launcher
+explains what is missing instead of failing silently.
+
+To run it without installing:
+
+```sh
+npx what-to-run@latest
+```
+
 ## Debian and Ubuntu
 
 ### apt repository

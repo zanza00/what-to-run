@@ -1,8 +1,5 @@
 # Development
 
-This page covers the tools you need to work on `wtr`, the development tasks and
-the release pipeline.
-
 ## Prerequisites
 
 Install Go 1.27.2 or later and [`task`](https://taskfile.dev) (go-task 3.x):
@@ -11,13 +8,8 @@ Install Go 1.27.2 or later and [`task`](https://taskfile.dev) (go-task 3.x):
 go install github.com/go-task/task/v3/cmd/task@v3.54.0
 ```
 
-`go install` writes the `task` binary to `$(go env GOPATH)/bin`, or to `$GOBIN`
-when that is set. That directory must be on `PATH`: if `task` is not found
-after installing, add it to the `PATH` in your shell rc file.
-
-`task` is a contributor prerequisite, not a runtime dependency of `wtr`. When
-it is not installed, run the Go commands from `.github/workflows/checks.yml`
-directly.
+Make sure `$(go env GOPATH)/bin` (or `$GOBIN`) is on your `PATH`. If `task` is
+not installed, run the Go commands from `.github/workflows/checks.yml` directly.
 
 ## Commands
 
@@ -31,94 +23,28 @@ task check-md # check the Markdown formatting
 task all      # format (Go and Markdown), vet, test, and build
 ```
 
-`task` with no arguments lists every task.
+`task` with no arguments lists every task. `task fmt-md` and `task check-md`
+download the pinned `dprint` binary into `bin/tools` on first run.
 
-`task fmt-md` and `task check-md` download the pinned dprint release into
-`bin/tools` on first use. There is no global dprint install, and every machine
-uses the same version. The first run needs network access for the binary and
-the Markdown plugin, which dprint stores in its user cache. Later runs work
-offline. `task all` runs `task fmt-md` in its format step, and `task clean`
-deletes `bin/tools`, so the next run downloads the binary again.
+## Local build
 
-dprint skips the Markdown under `.agents/skills/`. Those files are vendored and
-keep the upstream formatting. Tables stay as written too: aligning the cells
-would turn the longer rows into very wide lines.
-
-## README demo
-
-`docs/demo/demo.tape` records the demo in the README. Regenerate the GIF with:
+To test your checkout in daily use, prepend its `bin/` directory to `PATH`
+after any package manager setup (`brew shellenv`, `mise activate`) in your
+shell rc file:
 
 ```sh
-task demo
-```
-
-The tape drives `docs/demo/fixture` through the zsh widget. Ctrl-O opens the
-inline picker, and typing `buld` narrows the list to `make build`, because the
-filter matches subsequences. Enter runs the command.
-
-VHS draws the window chrome (`Set WindowBar Colorful` adds the
-close/minimize/maximize dots) over the wallpaper in
-`docs/demo/background.webp`. The wallpaper is a crop of
-[Pawel Czerwinski's photo on
-Unsplash](https://unsplash.com/photos/a-painting-of-a-black-and-blue-swirl-lt891TUy6iw),
-cut to the recording size. VHS stretches `MarginFill` to the canvas, so the
-image must have the same aspect ratio. It is WebP and not JPEG because ffmpeg
-decodes JPEG as full-range, while VHS fills `Padding` with a limited-range
-color. A JPEG would show a lighter band around the terminal.
-
-`docs/demo/make-keys.sh` draws the keycaps. `docs/demo/make-demo.sh` overlays
-them inside the window, near its bottom edge, and encodes the GIF with gifski.
-
-`task demo` needs `vhs` (with its `ttyd` and ffmpeg dependencies), ImageMagick
-7 (`magick`), gifski and the JetBrainsMono Nerd Font (`DEMO_FONT` overrides the
-font file). VHS downloads a headless Chromium on first use. The GIF is
-committed, and the target is not part of `task all` or CI. You need these tools
-only when you change the demo.
-
-## Use the local build instead of a release
-
-`wtr` is found through `PATH`, and the first match wins. If you installed a
-release with Homebrew, apt, mise or any of the official install methods, a bare
-`wtr` runs that copy. To make the checkout win, put its `bin/` directory first
-in `PATH`. Put the line after the rc file lines that prepend an installer's
-directory (`brew shellenv`, `mise activate` and similar add to the front
-themselves):
-
-```sh
-# ~/.zshrc or ~/.bashrc, with the path of your checkout
-if [ -x "$HOME/path/to/checkout/what-to-run/bin/wtr" ]; then
-  PATH="$HOME/path/to/checkout/what-to-run/bin:$PATH"
+if [ -x "$HOME/path/to/what-to-run/bin/wtr" ]; then
+  PATH="$HOME/path/to/what-to-run/bin:$PATH"
 fi
 ```
 
-The `-x` guard keeps the rc file quiet when the checkout is not there. In a new
-shell, check which binary is resolved:
+Check which binary is active:
 
 ```sh
-command -v wtr
 wtr --version # wtr 0.9.0 (release) or wtr v0.9.0-18-g1ff1695 (local build)
 ```
 
-A release prints the version after the command name. A local `task build`
-appends the commit distance from `git describe`, so `--version` tells the two
-apart. From then on `task build` replaces the binary the shell runs, and
-`task install` is not needed for local development.
-
-Start the widget with the bare command name, not with `bin/wtr`:
-
-```sh
-eval "$(wtr init zsh)"
-```
-
-The generated script keeps `WTR_BIN` as that bare name and resolves it through
-`PATH` at every keypress. A later `task build` is picked up immediately, without
-evaluating `init` again. Shells opened before the `PATH` change need a restart
-(or the snippet above run again) first. If the old command is still cached, run
-`hash -r` in bash or `rehash` in zsh. For a one-off, `WTR_BIN=/path/to/wtr`
-pins a specific binary for the session.
-
-`task bind` and `task bind-bash` remain available for trying the widget from a
-checkout:
+For a one-off widget test without changing `PATH`:
 
 ```sh
 eval "$(task bind)"                  # zsh, Ctrl-O
@@ -126,12 +52,6 @@ eval "$(task bind-bash)"             # bash, Ctrl-O
 eval "$(task bind KEY=ctrl-g)"       # zsh on another key
 eval "$(task bind-bash KEY=ctrl-g)"  # bash on another key
 ```
-
-They build and then invoke `bin/wtr init ...`, so the generated `WTR_BIN` is
-the absolute path of `bin/wtr`, fixed when you evaluate it. That is convenient
-for a one-off test, but later `task build` runs are not picked up until you
-evaluate the output again. Use the bare-name `init` above when the shell should
-always follow the checkout.
 
 ## Windows
 
@@ -141,137 +61,21 @@ Cross-build the Windows binary from any platform:
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/wtr.exe ./cmd/wtr
 ```
 
-To try the PowerShell widget from the checkout, run this in an interactive
-PowerShell from the repository root:
+To test the PowerShell widget from the repository root:
 
 ```powershell
 $env:Path = "$PWD\bin;$env:Path"
 wtr.exe init powershell | Out-String | Invoke-Expression
 ```
 
-`Out-String` keeps the script's newlines and `#` comments, which
-`Invoke-Expression` needs. There are no PTY tests for Windows: try the widget by
-hand in Windows Terminal and in conhost. Both answer the cursor position query
-on Windows 11, so the inline frame works there. Consoles that do not answer
-fall back to the fullscreen picker after 250 ms.
+## README demo
 
-## Release
-
-Releases are automated. Push a `vX.Y.Z` tag on a commit in `main`.
-`.github/workflows/release.yml` runs the checks and builds the archives and the
-`.deb` and `.rpm` packages. It creates the GitHub release and updates the
-Homebrew, Scoop, npm, apt, RPM and AUR channels. The workflow is the source of
-truth for the steps, and its publishers are the scripts in `scripts/`.
-
-### Secrets
-
-Four repository secrets configure the channels. `HOMEBREW_TAP_TOKEN` is the
-only required one: the release fails without it.
-
-- `HOMEBREW_TAP_TOKEN` is a token with Contents read/write on
-  [zanza00/homebrew-tap](https://github.com/zanza00/homebrew-tap). It publishes
-  `Formula/what-to-run.rb`.
-- `SCOOP_BUCKET_TOKEN` is a token with Contents read/write on
-  [zanza00/scoop-bucket](https://github.com/zanza00/scoop-bucket). The bucket
-  must already exist with a commit on `main`, because GoReleaser creates
-  `bucket/what-to-run.json` on that branch.
-- `AUR_SSH_PRIVATE_KEY` is an unencrypted ed25519 private key whose public half
-  is registered on your [AUR account](https://aur.archlinux.org/account).
-  Generate one with
-  `ssh-keygen -t ed25519 -f aur -C what-to-run-release`, add `aur.pub` to the
-  account, and save the private `aur` file as the secret. The first release
-  with this key creates the package.
-- `APT_GPG_PRIVATE_KEY` is the armored private key that signs the apt
-  repository, the RPM repository metadata and the RPM packages. Generate it
-  with `gpg --batch --gen-key`. The first release with this key populates both
-  repositories.
-
-While an optional secret is unset, the release skips that channel with a
-warning instead of failing. The Scoop step in GoReleaser has no "do nothing
-without a token" mode, so the workflow passes `--skip=scoop`.
-
-After the first AUR release, update the Arch Linux section in `docs/install.md`
-to advertise `yay -S what-to-run-bin`.
-
-### npm
-
-`npm/package.json` is the private template of the root package.
-`scripts/publish-npm.py` strips `private`, fills in the version and the six
-exact `optionalDependencies` (`what-to-run-<os>-<arch>`, one prebuilt binary
-each), and builds the platform manifests in `render` with `os`, `cpu`, `files`
-and `preferUnplugged`, so npm keeps only the matching one. The publisher
-stages every package from the archives in `dist/` and publishes the platform
-ones before the root one, so no consumer resolves a root package whose
-optional dependency is still missing; a re-run skips the versions already on
-the registry. The launcher in `npm/bin/wtr.js` is the command npm links as
-`wtr`: it resolves the platform package and runs the Go binary with the
-terminal and exit code untouched. `node --test 'npm/test/*.test.js'` covers
-it (Node 24; `task all` does not run it because the CLI itself needs no Node).
-
-A smoke gate proves the channel before the publish step.
-`scripts/smoke-npm.py` stages the same packages the publisher assembles,
-publishes them to a Verdaccio registry that runs on the machine, and checks
-the install three ways: a global npm install runs `wtr --version` and prints
-the release version, pnpm installs with `--ignore-scripts` and asks for no
-build approval, and `npm --omit=optional` fails with the launcher error that
-names the platform package. Nothing reaches npmjs.com: the local registry has
-no uplink, and it serves no package it was not given. Only the Verdaccio
-download itself comes from npmjs.com.
-
-The workflow runs the gate on every release, also while the channel is
-opt-in, and gives it the real archives with `--artifact dist/checksums.txt`.
-From a checkout, `task smoke-npm` runs it without arguments: it needs Node and
-pnpm on the `PATH`, it builds the six release binaries and packs the archives
-itself, and it publishes only to the registry it started.
-
-The channel is opt-in: it runs only when the `NPM_PUBLISH` repository variable
-is `true`, and otherwise the release skips it with a warning. There is no npm
-secret: the step authenticates with trusted publishing, using the runner's
-OIDC token, and signs the provenance attestation. A trusted publisher is
-configured per package on npmjs.com (repository `zanza00/what-to-run`,
-workflow `release.yml`), so the packages must exist before the variable is set
-and the first publication is by hand:
+`docs/demo/demo.tape` records the GIF in the README:
 
 ```sh
-gh release download vX.Y.Z --dir dist
-npm login
-python3 scripts/publish-npm.py --tag vX.Y.Z --artifact dist/checksums.txt
+task demo
 ```
 
-Add the trusted publisher to all seven packages, then
-`gh variable set NPM_PUBLISH --body true`.
-
-Before setting `NPM_PUBLISH`, install the package and check the widget
-once: `eval "$(wtr init zsh)"` in a fresh shell, then press the key and
-confirm the picker opens and the chosen task runs. The launcher inherits
-the terminal and the exit code, and the widget captures stdout, so this
-is the same tmux check the other widget changes need (`bash` and
-PowerShell have their own widgets, `init bash` and `init powershell`).
-
-### Check the setup
-
-To check the release setup without publishing:
-
-```sh
-goreleaser check                      # validate .goreleaser.yaml
-goreleaser release --snapshot --clean # build dist/ locally
-python3 -m unittest discover -s scripts -p '*_test.py'
-```
-
-A snapshot writes `dist/scoop/bucket/what-to-run.json` with a `SNAPSHOT`
-version. The Scoop pipe runs in the build phase, so the manifest is generated
-without being published. The Homebrew formula comes from a custom publisher, so
-only a real release writes it. `goreleaser check` catches a broken `scoops`
-block before the tag.
-
-### Recover a failed repository step
-
-If the repository step fails after the GitHub release exists, run the
-`republish packages` workflow with the tag as input. It updates `gh-pages`, the
-branch GitHub Pages serves, from the released assets without recreating the
-release.
-
-The repository step also copies `scripts/setup.deb.sh` and
-`scripts/setup.rpm.sh` to the root of `gh-pages`, where the one-liners in
-`docs/install.md` fetch them from. The scripts are not tied to a version, so an
-edit reaches the site with the next release or a `republish packages` run.
+`task demo` requires `vhs` (with `ttyd` and `ffmpeg`), ImageMagick 7
+(`magick`), `gifski` and JetBrainsMono Nerd Font (`DEMO_FONT` overrides the
+font path).

@@ -41,20 +41,19 @@ the task needs.
   `os/exec` for `Task.Command`, and keeps the Windows `SysProcAttr` in
   `command_windows.go`; `shellCommandFor(goos, ...)` keeps the platform shell
   testable.
-- Adding a source: a `SourceInfo` literal (the ID from
-  [Source IDs](docs/task-sources.md#source-ids), plus `Label`, `Files`,
+- Adding a source: a `SourceInfo` literal (a lowercase kebab-case `ID` naming
+  the tool, plus `Label`, `Files`,
   `SearchParents`, and `DisplayFileOverride` when the empty screen shows another
   file), its parser in `internal/core/source_<name>.go`, one line in
   `defaultSources`, and table-driven tests. `TestRegistryInvariants` enforces the
-  metadata. The docs row and the README bullet are in the docs skill, and
+  metadata. The docs row and the README bullet are in the `docs-writing` skill, and
   `cmd/wtr/docs_test.go` fails until both exist. An unknown `package.json` shape
   belongs in the matching `source_*.go`.
 - `task build` compiles `cmd/wtr` into `bin/wtr`. The invoked name appears in
   usage, messages and the picker title, and the three `init` commands embed it in
   `WTR_BIN`; `cmd/wtr/main_test.go` pins the helpers.
-- Releasing: [docs/development.md](docs/development.md) owns the pipeline,
-  secrets and recovery, and the `release` skill walks the tag-to-verification
-  flow.
+- Releasing: the `release` skill owns the pipeline, secrets, tag-to-verification
+  flow and recovery.
 - `.agents/skills/` is committed on purpose (`skills-lock.json`). `release/` and
   `docs-writing/` are this repo's own skills and have no lock entry;
   `bubbletea-tfe` is a manual rename of `ggprompts/tfe`, so reinstall it only

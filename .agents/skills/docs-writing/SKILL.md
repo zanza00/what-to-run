@@ -14,9 +14,9 @@ Every fact has a **single source of truth**: one file states it in full, and eve
 | `README.md` | pitch, install shortcuts, widget one-liner, source bullet list, config summary, inspiration, license |
 | `docs/install.md` | install channels, setup scripts, release file naming |
 | `docs/widget.md` | zsh, bash and PowerShell widget setup, key binding, fullscreen toggle, direct runs |
-| `docs/config.md` | rc schema, per-project overrides, precedence, best-effort parsing, warnings, themes and theme flags |
+| `docs/config.md` | rc schema, per-project overrides, precedence, themes and warnings |
 | `docs/task-sources.md` | source registry table and per-source caveats |
-| `docs/development.md` | prerequisites, dev tasks, local build, README demo |
+| `docs/development.md` | contributor prerequisites, dev tasks, local build, README demo |
 
 When adding a task source, add one row to `docs/task-sources.md` and one bullet to `README.md` (`## Task sources`) in `defaultSources` registry order. Add a `##` section in `docs/task-sources.md` only when the table cannot hold the caveats.
 
@@ -28,7 +28,6 @@ Use these exact domain terms across all docs.
 | --- | --- |
 | task | a runnable command that a source declares |
 | source | one family of project files that the picker reads |
-| discovery | the process that finds a source file and parses its tasks |
 | picker | the TUI list of tasks |
 | row | one line of the picker, for one task |
 | badge | the source file shown at the right of a row |
@@ -38,21 +37,24 @@ Use these exact domain terms across all docs.
 | rc file | the TOML files the picker reads: the global file and the project file |
 | global file | `$XDG_CONFIG_HOME/what-to-run/config.toml`, or `%AppData%\what-to-run\config.toml` on Windows |
 | project file | `.what-to-run.toml` in a project |
-| shell dialect | the quoting rules for `sh`, `cmd` and `powershell` |
 | theme | a named look from the registry |
 
 ## Structure and voice
 
-Order sections by what the reader does. Read `docs/widget.md` as the structural and stylistic model.
+Read `docs/install.md`, `docs/widget.md` and `docs/config.md` as the structural and stylistic models:
+
+- **Start directly with what the reader needs**: a reader on `docs/*.md` already knows what `wtr` is. Open with the action, the key shortcuts or a summary table rather than re-introducing the tool.
+- **Flat `##` sections**: keep one level of `##` headings ordered by how the reader uses the feature, and use tables to compare options (install methods, merge rules, task sources).
+- **User-visible behavior only**: document what the user writes, presses or sees. Leave out Go implementation details, internal parser mechanics, release internals (owned by the `release` skill) and prompts that the TUI already shows on screen.
 
 Write in **CEFR B2** American English:
 
-- **One idea per sentence**, most under 25 words, with varied sentence length. Keep a cause with its effect in one sentence ("`cmd.exe` handles quotes in a limited way, so some arguments can change.").
+- **One idea per sentence**, most under 25 words, with varied sentence length. Keep a cause with its effect in one sentence ("On Windows, wrap the path in single quotes so backslashes are not parsed as TOML escapes.").
 - **Active voice** with the component as subject or "you" as the reader: "The picker reads the rc file." / "Add this line to your rc file."
-- **Condition first**: "If there are no tasks in the current directory, the inline picker stays open."
-- **Action in the verb**: "Ctrl-O opens the widget by default." / "To change the key, add `--key` to the `init` command."
-- **Plain verbs and full forms**: write "shows", "puts", "add", "stay the same", and full forms ("do not", "it is") with periods instead of semicolons.
-- **Command name**: write `wtr` in user docs (`./bin/wtr` belongs only in `docs/development.md`).
+- **Condition first**: "When multiple entries match the current directory, the deepest path wins."
+- **Action in the verb**: "Press `ctrl-o` to open the inline picker." / "To change the shortcut, pass `--key` to `init`."
+- **Plain verbs and full forms**: write "shows", "puts", "add", and full forms ("do not", "it is") with periods instead of semicolons.
+- **Command name**: write `wtr` in user docs (`bin/wtr` belongs only in `docs/development.md`).
 
 ## Completion criteria
 

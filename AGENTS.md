@@ -24,12 +24,15 @@ Load the `golang-how-to` skill before any Go task: it routes to the Go skills
 the task needs.
 
 - `task all` is the full check and runs before every commit. CI
-  (`.github/workflows/checks.yml`) runs the same commands plus gofmt and dprint
-  on Linux and macOS, and builds and vets for Windows. Its `cross` job also
-  runs the launcher's Node tests, so run `task test-npm` when touching `npm/`
-  (Node 24). If `task` is missing, run the commands in `checks.yml` by hand.
-  Prerequisites, the dprint download and the task list are in
-  [docs/development.md](docs/development.md).
+  (`.github/workflows/checks.yml`) runs `go build ./...`, `gofmt -l`,
+  `dprint check`, `go vet ./...` and `go test -race -shuffle=on ./...` on
+  Linux and macOS. Its `cross` job adds the GoReleaser check, the six
+  cross-builds, the Windows vet, the Python tests of the release publishers
+  and of the setup scripts, and the launcher's Node tests (`node --test`,
+  Node 24). The Node tests are not in `task all`, so run `task test-npm`
+  when touching `npm/`. If `task` is missing, run the commands in
+  `checks.yml` by hand. Prerequisites, the dprint download and the task list
+  are in [docs/development.md](docs/development.md).
 - One test: `go test -race ./internal/tui -run TestViewInlineHeight`.
 - Packages: `internal/core` is the task domain, `internal/tui` is the picker,
   `internal/shell` holds the three widgets, and `cmd/wtr` parses flags and

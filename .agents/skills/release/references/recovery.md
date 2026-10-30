@@ -10,9 +10,11 @@ gh run view "$run_id" --json jobs \
 gh run view "$run_id" --log-failed
 ```
 
-The workflow has three jobs: `validate`, `checks` (the reusable `checks.yml`)
-and `publish`. Only `publish` creates the GitHub release and updates the
-package channels.
+The workflow jobs are `validate`, `checks` (the reusable `checks.yml`) and
+`publish`, plus `verify-npm` when `NPM_PUBLISH` is `true`. Only `publish`
+creates the GitHub release and updates the package channels; `verify-npm`
+only checks the npm channel after `publish` succeeded, so a failure there
+changes nothing — repair npm as in its section below.
 
 First question: does the release exist?
 
@@ -104,6 +106,20 @@ git -C "$tmp/bucket" commit -am "what-to-run: add vX.Y.Z"
 git -C "$tmp/bucket" push
 ```
 
+### npm
+
+The workflow skips the channel with a warning while the `NPM_PUBLISH`
+repository variable is not `true`, so a release without npm is expected, not a
+failure. Turning the channel on is a one-time setup, and only the maintainer
+can perform it: registering trusted publishing for all seven packages on
+npmjs.com is a human step. The npm section of `docs/development.md` owns the
+whole procedure. Never attempt that registration.
+
+When the variable is `true` and the publish step stopped partway, rerun the
+publisher with the commands in the npm section of `docs/development.md`. It is
+idempotent: every version already on the registry is skipped, so only the
+missing packages publish.
+
 After any repair, run the verifier again:
 
 ```sh
@@ -140,13 +156,13 @@ still published.
 
 The CI release verification checks the asset names, the Scoop bucket and the
 repository indexes, so a successful run is good evidence, but the bundled
-verifier is the source of truth for every channel. For a channel whose secret
-is set:
+verifier is the source of truth for every channel. For a channel that is on:
 
 - apt or RPM stale → run the `republish packages` workflow above;
 - Homebrew stale → run `publish-homebrew.py` locally;
 - AUR stale → run `publish-aur.py` locally with the key;
-- Scoop stale → update `bucket/what-to-run.json` in the bucket as above.
+- Scoop stale → update `bucket/what-to-run.json` in the bucket as above;
+- npm stale → rerun the publisher as above;
 
 If a secret was rotated or removed, this shows what the workflow will actually
 do next time:

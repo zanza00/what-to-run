@@ -1,10 +1,10 @@
 // Tests for the npm launcher.
 //
-// They run on Linux and macOS only: the fixtures are shell scripts, which is
+// They run on Linux and macOS only. The fixtures are shell scripts, which is
 // what the launcher spawns there. Windows is covered by the smoke test the
-// release workflow runs against the published package (`npx what-to-run`),
-// because the shims npm generates for `.cmd` and PowerShell are npm's code,
-// not this repository's.
+// release workflow runs against the published package (`npx what-to-run`).
+// The shims npm generates for `.cmd` and PowerShell are npm's code, not this
+// repository's.
 "use strict";
 
 const { spawn, spawnSync } = require("node:child_process");
@@ -19,9 +19,10 @@ const { binaryPath, packageName } = require("../bin/wtr.js");
 const launcher = path.join(__dirname, "..", "bin", "wtr.js");
 const posix = { skip: process.platform === "win32" ? "needs a POSIX shell" : false };
 
-// A global install of what-to-run as npm lays it out: the package with the
-// launcher, and next to it the platform package with the binary. `binary`
-// omitted leaves the optional dependency out, the way `--omit=optional` does.
+// A global install of what-to-run, as npm lays it out. The package with the
+// launcher sits at the root. The platform package with the binary sits next
+// to it. Leave `binary` out to skip the optional dependency, the way
+// `--omit=optional` does.
 function installTree(binary, mode = 0o755) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "wtr-npm-"));
   const entry = path.join(root, "bin", "wtr.js");
@@ -62,7 +63,7 @@ function firstLine(stream) {
 }
 
 // Resolves when no process answers for pid anymore. A signal aimed at the
-// launcher must take the child with it, and this is how a test sees that.
+// launcher must take the child with it. This is how a test sees that.
 function gone(pid) {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + 5000;

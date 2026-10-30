@@ -16,8 +16,8 @@ smoke_spec.loader.exec_module(smoke)
 class PackArchivesTest(unittest.TestCase):
     def setUp(self):
         self.directory = Path(tempfile.mkdtemp())
-        # A stub binary per target, each with different content: what the
-        # staged packages contain must be this content, one to one.
+        # A stub binary per target, each with different content. The staged
+        # packages must contain this content, one to one.
         self.binaries = {}
         for goos, goarch in publisher.TARGETS:
             binary = self.directory / f"wtr-{goos}-{goarch}"

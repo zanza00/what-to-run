@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """Release publisher for the npm packages.
 
-npm installs programs written in any language: a package only has to declare a
-`bin` entry, and npm links it into the global bin directory. what-to-run
-publishes one small launcher (`npm/bin/wtr.js`) plus one package per platform
-with the Go binary, wired through optional dependencies. npm keeps the package
-that matches the machine and drops the others, so the install runs no script
-at all: `--ignore-scripts` (and pnpm's build allowlist) cannot break it, and
-`npm --omit=optional` fails in the launcher with a clear message.
+npm installs programs written in any language. A package only has to declare
+a `bin` entry, and npm links it into the global bin directory. what-to-run
+publishes one small launcher (`npm/bin/wtr.js`) and one package per platform
+with the Go binary. The root package wires the platform packages together
+through optional dependencies. npm keeps the package that matches the
+machine and drops the others, so the install runs no script at all.
+`--ignore-scripts` cannot break the install. pnpm's build allowlist cannot
+block it either. `npm --omit=optional` fails in the launcher with a clear
+message.
 
 Publishing is a step of its own in the release workflow rather than a
-GoReleaser publisher: GoReleaser passes a publisher only the environment
-variables listed in `.goreleaser.yaml`, and trusted publishing needs the
-runner's OIDC token (`ACTIONS_ID_TOKEN_REQUEST_*`) in the environment. The
-workflow keeps the channel opt-in with the `NPM_PUBLISH` repository variable,
-until the packages exist on the registry.
+GoReleaser publisher. GoReleaser passes a publisher only the environment
+variables listed in `.goreleaser.yaml`. Trusted publishing needs the runner's
+OIDC token (`ACTIONS_ID_TOKEN_REQUEST_*`) in the environment. The workflow
+keeps the channel opt-in with the `NPM_PUBLISH` repository variable, until
+the packages exist on the registry.
 """
 
 import argparse
@@ -39,8 +41,9 @@ TARGETS = (
     ("windows", "amd64"),
     ("windows", "arm64"),
 )
-# npm's spelling of the same platforms, for the `os` and `cpu` fields npm uses
-# to decide which optional dependency belongs on the machine.
+# npm spells the platforms differently from Go. The `os` and `cpu` fields
+# carry npm's spelling. npm reads them to decide which optional dependency
+# belongs on the machine.
 NPM_OS = {"linux": "linux", "darwin": "darwin", "windows": "win32"}
 NPM_CPU = {"amd64": "x64", "arm64": "arm64"}
 
@@ -76,8 +79,8 @@ class Package:
 
     The helpers below take this concept instead of a (goos, goarch) pair
     for the platform and a (name, version) pair for the registry. The
-    root package is the one npm links as `wtr`: it has no platform, and
-    it ships the launcher instead of a binary.
+    root package is the one npm links as `wtr`. It has no platform. It
+    ships the launcher instead of a binary.
     """
 
     name: str
@@ -104,8 +107,8 @@ class Package:
                 "os": [NPM_OS[goos]],
                 "cpu": [NPM_CPU[goarch]],
                 "files": [f"bin/{binary}"],
-                # Yarn PnP must unpack the binary, which the launcher spawns by
-                # path; npm and pnpm ignore the field.
+                # Yarn PnP must unpack the binary, which the launcher spawns
+                # by path. npm and pnpm ignore the field.
                 "preferUnplugged": True,
             },
             goos,
@@ -116,10 +119,10 @@ class Package:
     def root(cls, version, template):
         """The package npm links as `wtr`.
 
-        The manifest comes from `npm/package.json`, which is marked
-        private so it cannot be published by accident; only the version
-        and the optional dependencies are filled in here, so the
-        metadata has one home.
+        The manifest comes from `npm/package.json`. That file is private,
+        so npm cannot publish it by accident. The publisher fills in only
+        the version and the optional dependencies, so the metadata has
+        one home.
         """
         manifest = {key: value for key, value in template.items() if key != "private"}
         manifest["version"] = version
@@ -139,7 +142,7 @@ class Package:
 
     @property
     def asset_name(self):
-        """The release archive the binary is extracted from."""
+        """The release archive the binary comes from."""
         return asset_name(self.goos, self.goarch, self.version)
 
 
@@ -196,8 +199,8 @@ def stage(directory, packages, assets):
         shutil.copy(LICENSE, target / "LICENSE")
         if package.is_root:
             shutil.copy(LAUNCHER, target / "bin" / "wtr.js")
-            # npm renders the package README on the registry, and always
-            # includes it regardless of `files`.
+            # npm renders the package README on the registry. The `files`
+            # field cannot keep the README out of the tarball.
             shutil.copy(ROOT / "README.md", target / "README.md")
         else:
             content = extract_binary(assets / package.asset_name, package.binary)
@@ -224,7 +227,8 @@ def publish(packages, directory, provenance):
             continue
         command = ["npm", "publish", str(directory / package.name), "--access", "public"]
         if provenance:
-            # The runner's OIDC token also proves the tarball was built here.
+            # The runner's OIDC token also proves that the workflow built
+            # the tarball.
             command.append("--provenance")
         result = subprocess.run(command)
         if result.returncode != 0:
@@ -241,7 +245,7 @@ def main():
         "--artifact",
         type=Path,
         required=True,
-        help="checksums.txt of the release; the archives are read from its directory",
+        help="checksums.txt of the release (the archives are read from its directory)",
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()

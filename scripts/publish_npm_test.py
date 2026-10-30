@@ -39,8 +39,8 @@ class PublisherTest(unittest.TestCase):
                 with zipfile.ZipFile(path, "w") as archive:
                     archive.writestr("wtr.exe", fake_binary())
             else:
-                # A release archive also carries the docs; the publisher has to
-                # find the binary among the other members.
+                # A release archive also carries the docs. The publisher has
+                # to find the binary among the other members.
                 tarball(path, {"LICENSE": b"MIT\n", "wtr": fake_binary()})
         self.checksums = "\n".join(
             f"{index:064x}  {publisher.asset_name(goos, goarch, '1.2.3')}"
@@ -136,8 +136,9 @@ class PublisherTest(unittest.TestCase):
 
     def test_the_platform_matrix_matches_goreleaser(self):
         config = (Path(__file__).resolve().parent.parent / ".goreleaser.yaml").read_text()
-        # Only the builds block lists the matrix in brackets: the archives block
-        # spells a bare `goos: windows`, which this pattern must not pick up.
+        # Only the builds block lists the matrix in brackets. The archives
+        # block spells a bare `goos: windows`, which this pattern must not
+        # pick up.
         lists = re.findall(r"^\s+go(?:os|arch): \[([^\]]*)\]", config, re.MULTILINE)
         self.assertEqual(len(lists), 2)
         platforms = [value.strip() for value in lists[0].split(",")]
@@ -148,12 +149,11 @@ class PublisherTest(unittest.TestCase):
         )
 
     def test_the_launcher_platform_table_matches_the_publisher(self):
-        # The launcher carries the same mapping in its own table, spelled
-        # the way Node reports the machine: the keys join `process.platform`
-        # and `process.arch`, and the values are the package name suffixes.
-        # Parse that table and hold it against the publisher's spellings,
-        # so a drift between the two files fails here, not on a machine
-        # the release does not cover.
+        # The launcher carries the same mapping in its own table. The keys
+        # join `process.platform` and `process.arch`, and the values are the
+        # package name suffixes. This test parses that table and holds it
+        # against the publisher's spellings. A drift between the two files
+        # fails here, not on a machine the release does not cover.
         source = (Path(__file__).resolve().parent.parent / "npm" / "bin" / "wtr.js").read_text()
         table = re.search(r"const SUFFIXES = \{[^}]*\}", source)
         self.assertIsNotNone(table, "the launcher no longer declares SUFFIXES")

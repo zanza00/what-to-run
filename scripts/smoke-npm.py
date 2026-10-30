@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """Smoke test the npm channel against a registry that runs on the machine.
 
-The gate assembles the same packages the publisher stages, publishes them to
-a private Verdaccio registry, and proves the install three ways: a global npm
-install runs `wtr --version` and prints the release version, pnpm installs
-under `--ignore-scripts` because the packages declare no scripts, and npm with
-`--omit=optional` fails with the launcher error that names the missing
-platform package. A release runs it before the real publish, so a broken
-channel stops the release before anything reaches npmjs.com.
+The gate assembles the same packages the publisher stages, and publishes
+them to a private Verdaccio registry. It proves the install three ways. A
+global npm install runs `wtr --version` and prints the release version.
+pnpm installs under `--ignore-scripts`, because the packages declare no
+scripts. npm with `--omit=optional` fails with the launcher error that
+names the missing platform package. A release runs it before the real
+publish, so a broken channel stops the release before anything reaches
+npmjs.com.
 
-Nothing reaches npmjs.com. The registry is a local process with no uplink, and
-it never serves a package the gate did not publish to it. Only the Verdaccio
-server itself is downloaded from npmjs.com.
+Nothing reaches npmjs.com. The registry is a local process with no uplink.
+It never serves a package the gate did not publish to it. Only the
+Verdaccio download itself comes from npmjs.com.
 
-With `--artifact` the gate stages the packages from real release archives, the
-way the release workflow does with `dist/checksums.txt`. Without it, the gate
-builds the binaries from the checkout and packs the archives itself.
+With `--artifact` the gate stages the packages from real release archives,
+the way the release workflow does with `dist/checksums.txt`. Without it, the
+gate builds the binaries from the checkout and packs the archives itself.
 """
 
 import argparse
@@ -42,10 +43,10 @@ publisher_spec.loader.exec_module(publisher)
 # Verdaccio is pinned to an exact version, so a release cannot depend on what
 # the registry happens to resolve that day.
 VERDACCIO = "6.11.1"
-# The local registry accepts anonymous publishes, so the npm token is a
-# placeholder: npm refuses to publish without one.
+# The local registry accepts anonymous publishes. npm still refuses to
+# publish without a token, so the token is a placeholder.
 TOKEN = "smoke-test"
-# Every command the gate waits on gets a generous ceiling: a hang must fail
+# Every command the gate waits on gets a generous ceiling. A hang must fail
 # the release, not hold it.
 COMMAND_SECONDS = 300
 BUILD_SECONDS = 600
@@ -78,8 +79,8 @@ def preflight(build):
 
 
 def try_run(command, seconds=COMMAND_SECONDS, **kwargs):
-    """Run a command, capture its transcript, and never treat a failure as
-    the end of the gate: the caller decides which outcome it expects."""
+    """Run a command and capture its transcript. The caller decides which
+    outcome it expects, so a failure never ends the gate here."""
     try:
         return subprocess.run(
             command, capture_output=True, text=True, timeout=seconds, **kwargs
@@ -106,8 +107,8 @@ def build_binaries(out, version):
         name = "wtr.exe" if goos == "windows" else "wtr"
         binary = out / f"{goos}-{goarch}" / name
         binary.parent.mkdir(parents=True, exist_ok=True)
-        # The same flags .goreleaser.yaml passes, so --version prints what
-        # the released binary prints: the tag without the leading v.
+        # The build passes the same flags as .goreleaser.yaml, so --version
+        # prints the tag without the leading v, like a released binary.
         run(
             ["go", "build", "-ldflags", f"-s -w -X main.version={version}", "-o", str(binary), "./cmd/wtr"],
             seconds=BUILD_SECONDS,
@@ -209,7 +210,7 @@ def stop_registry(server):
         return
     # The server runs in its own session, so a signal to the session reaches
     # npx and Verdaccio together. The server can die between the check above
-    # and the signal, and the gate must not fail on the way out.
+    # and the signal. The gate must not fail on the way out.
     try:
         os.killpg(server.pid, signal.SIGTERM)
     except ProcessLookupError:
@@ -236,9 +237,10 @@ def write_npmrc(path, registry):
 
 def check_the_registry_is_private():
     """Fail when the registry serves a package the gate did not publish."""
-    # npm exists on npmjs.com and the gate never publishes it. An answer
-    # here would mean the registry proxies the public registry, and the
-    # smoke test would install pieces of the real one.
+    # The npm package exists on npmjs.com. The gate never publishes it to the
+    # local registry. An answer here would mean the registry proxies the
+    # public registry. The smoke test would then install pieces of the real
+    # one.
     result = try_run(["npm", "view", "npm", "version"])
     if result.returncode == 0:
         raise SystemExit(
@@ -273,7 +275,7 @@ def check_pnpm_ignores_scripts(work, version):
     result = run(["pnpm", "add", f"{publisher.NAME}@{version}", "--ignore-scripts"], cwd=project)
     # pnpm names the packages whose scripts it skipped, and asks the user
     # to approve them. The channel declares no scripts, so the warning must
-    # not appear: it would mean the packages need approval after all.
+    # not appear. A warning would mean the packages need approval after all.
     if "Ignored build scripts" in result.stdout + result.stderr:
         raise SystemExit(
             "pnpm asked for build approval, but the npm channel declares no scripts:\n"
@@ -309,12 +311,12 @@ def main():
     parser.add_argument(
         "--tag",
         default="v0.0.0",
-        help="the release tag the packages carry; local runs keep the default",
+        help="the release tag the packages carry (local runs keep the default)",
     )
     parser.add_argument(
         "--artifact",
         type=Path,
-        help="checksums.txt of a release; the archives are read from its directory",
+        help="checksums.txt of a release (the archives are read from its directory)",
     )
     args = parser.parse_args()
     version = publisher.version_of(args.tag)
@@ -330,8 +332,8 @@ def main():
             assets = work / "dist"
             checksums = pack_archives(assets, binaries, version)
         else:
-            # The same input the real publish reads, so the gate proves the
-            # packages the release would publish.
+            # The gate reads the same input as the real publish, so it
+            # proves the packages the release would publish.
             assets = args.artifact.parent
             checksums = args.artifact
         packages = publisher.render(args.tag)

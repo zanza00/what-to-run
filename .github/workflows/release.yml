@@ -35,7 +35,8 @@ jobs:
   publish:
     needs: [validate, checks]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The npm smoke gate adds a registry, a publish and three installs.
+    timeout-minutes: 20
     permissions:
       contents: write
       # npm trusted publishing: the runner's OIDC token authenticates the
@@ -123,6 +124,13 @@ jobs:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           APT_GPG_KEY_FILE: ${{ env.APT_GPG_KEY_FILE }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+      - name: Smoke test the npm channel
+        # The gate runs on every release, also while publishing is opt-in: it
+        # proves the packages this release would publish, and a failure stops
+        # the job before the publish step can reach npmjs.com.
+        run: |
+          npm install --global pnpm@10
+          python3 scripts/smoke-npm.py --tag "$GITHUB_REF_NAME" --artifact dist/checksums.txt
       - name: Publish to npm
         # A step of its own rather than a GoReleaser publisher: trusted
         # publishing reads the runner's OIDC token, and a GoReleaser publisher

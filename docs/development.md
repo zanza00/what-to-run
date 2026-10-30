@@ -208,6 +208,22 @@ the registry. The launcher in `npm/bin/wtr.js` is the command npm links as
 terminal and exit code untouched. `node --test 'npm/test/*.test.js'` covers
 it (Node 24; `task all` does not run it because the CLI itself needs no Node).
 
+A smoke gate proves the channel before the publish step.
+`scripts/smoke-npm.py` stages the same packages the publisher assembles,
+publishes them to a Verdaccio registry that runs on the machine, and checks
+the install three ways: a global npm install runs `wtr --version` and prints
+the release version, pnpm installs with `--ignore-scripts` and asks for no
+build approval, and `npm --omit=optional` fails with the launcher error that
+names the platform package. Nothing reaches npmjs.com: the local registry has
+no uplink, and it serves no package it was not given. Only the Verdaccio
+download itself comes from npmjs.com.
+
+The workflow runs the gate on every release, also while the channel is
+opt-in, and gives it the real archives with `--artifact dist/checksums.txt`.
+From a checkout, `task smoke-npm` runs it without arguments: it needs Node and
+pnpm on the `PATH`, it builds the six release binaries and packs the archives
+itself, and it publishes only to the registry it started.
+
 The channel is opt-in: it runs only when the `NPM_PUBLISH` repository variable
 is `true`, and otherwise the release skips it with a warning. There is no npm
 secret: the step authenticates with trusted publishing, using the runner's

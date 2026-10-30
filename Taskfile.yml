@@ -90,6 +90,11 @@ tasks:
     cmds:
       - node --test 'npm/test/*.test.js'
 
+  smoke-npm:
+    desc: Smoke test the npm channel on a local registry (Node and pnpm)
+    cmds:
+      - python3 scripts/smoke-npm.py
+
   fmt:
     desc: Format Go and Markdown, and vet the code
     cmds:

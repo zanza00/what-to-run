@@ -19,6 +19,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
+	"github.com/zanza00/what-to-run/internal/config"
 	"github.com/zanza00/what-to-run/internal/core"
 )
 
@@ -72,6 +73,12 @@ type Options struct {
 	// a pasted line is quoted for the shell that reads it. An unknown value is
 	// a warning, and the picker falls back to auto.
 	Shell string
+
+	// Env is the environment of this picker run: the paths and the filesystems
+	// for discovery and persistence. Run and Preview build the production one
+	// when it is nil. Tests pass an explicit one, so they do not depend on the
+	// process directory or the process environment.
+	Env *Env
 }
 
 // prog returns the name that the program identifies with: the invoked name,
@@ -140,7 +147,8 @@ func Run(opts Options) error {
 		}
 	}
 
-	tasks, cfg, warnings := discover()
+	env := opts.resolveEnv()
+	tasks, cfg, warnings := env.discover()
 	if len(tasks) == 0 && !opts.Inline {
 		return noTasksError(warnings)
 	}
@@ -200,36 +208,6 @@ func reportChoice(w io.Writer, t core.Task, insert bool, shell core.ShellDialect
 	fmt.Fprintf(w, "%s\n%s\n", mode, t.CommandLineFor(shell))
 }
 
-// discover gathers the tasks of the current directory and the rc settings. It
-// reads the rc file first, and its problems become warnings, then it reads
-// every source. The warnings are returned even when tasks were found, because
-// the picker shows them in the status line.
-func discover() ([]core.Task, config, []error) {
-	projectFile, globalFile := defaultConfigFiles(".")
-	cfg, warnings := loadConfig(osFiles{}, projectFile, globalFile)
-	tasks, sourceWarnings := core.Discover(osFiles{}, ".", coreSettings(cfg))
-	return tasks, cfg, append(warnings, sourceWarnings...)
-}
-
-// coreSettings maps the rc settings onto the configuration of the task domain.
-// The discovery layer knows nothing about the TOML file.
-func coreSettings(cfg config) core.Settings {
-	settings := core.Settings{
-		PackageManager: cfg.PackageManager,
-		Disable:        cfg.Disable,
-		Tasks:          make([]core.RCTask, len(cfg.Tasks)),
-	}
-	for i, t := range cfg.Tasks {
-		settings.Tasks[i] = core.RCTask{
-			Name:        t.Name,
-			Command:     t.Command,
-			Description: t.Description,
-			Cwd:         t.Cwd,
-		}
-	}
-	return settings
-}
-
 // noTasksError returns the error for a directory with nothing to run.
 func noTasksError(warnings []error) error {
 	if len(warnings) > 0 {
@@ -245,7 +223,8 @@ func noTasksError(warnings []error) error {
 // terminal size, and the picker draws it fullscreen (no inline anchoring, no
 // runner).
 func Preview(w io.Writer, opts Options, width, height int) error {
-	tasks, cfg, warnings := discover()
+	env := opts.resolveEnv()
+	tasks, cfg, warnings := env.discover()
 	if len(tasks) == 0 {
 		return noTasksError(warnings)
 	}
@@ -319,6 +298,9 @@ type taskDoneMsg struct {
 // the project.
 type model struct {
 	opts Options
+	// env is the environment of the run. The edge builds it, and the model
+	// only passes it to the commands.
+	env Env
 	// shell is the command-line dialect, parsed once from opts.Shell. An
 	// unknown value warns and falls back to the platform default.
 	shell    core.ShellDialect
@@ -352,9 +334,10 @@ type model struct {
 	// screen.
 	mainWidth int
 
-	filter string // current filter text; empty means no filtering
-	cursor int    // index into visible()
-	offset int    // index of the first visible row of the list
+	filter   string         // current filter text; empty means no filtering
+	snapshot filterSnapshot // cached results for the current filter and tasks
+	cursor   int            // index into visible()
+	offset   int            // index of the first visible row of the list
 
 	status  string     // outcome of the last in-place run, shown in the help line
 	started time.Time  // when the current in-place run started
@@ -391,6 +374,10 @@ type model struct {
 }
 
 func newModel(opts Options, tasks []core.Task, warnings []error) model {
+	env := Env{}
+	if opts.Env != nil {
+		env = *opts.Env
+	}
 	idx, ok := themeIndex(opts.Theme)
 	if !ok {
 		warnings = append([]error{fmt.Errorf(
@@ -402,9 +389,10 @@ func newModel(opts Options, tasks []core.Task, warnings []error) model {
 		warnings = append([]error{err}, warnings...)
 		shell = core.DefaultShellDialect()
 	}
-	warnOpen, warnIdx := openWarningsAtStart(warnings)
-	return model{
+	warnOpen, warnIdx := openWarningsAtStart(warnings, env.Dismissed)
+	m := model{
 		opts:         opts,
+		env:          env,
 		shell:        shell,
 		tasks:        tasks,
 		warnings:     warnings,
@@ -413,6 +401,8 @@ func newModel(opts Options, tasks []core.Task, warnings []error) model {
 		warningModal: warnOpen,
 		warningIdx:   warnIdx,
 	}
+	m.rebuildSnapshot()
+	return m
 }
 
 // Init implements tea.Model.
@@ -484,6 +474,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.id == m.noticeID {
 			m.notice = ""
 		}
+
+	case warningDismissedMsg:
+		m.applyWarningDismissed(msg)
+
+	case themeSavedMsg:
+		return m, m.applyThemeSaved(msg)
 	}
 
 	return m, nil
@@ -511,8 +507,7 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch key {
 	case "esc":
 		if m.filter != "" {
-			m.filter = ""
-			m.cursor, m.offset = 0, 0
+			m.setFilter("")
 			return m, nil
 		}
 		return m, tea.Quit
@@ -547,8 +542,7 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.cursor = len(m.visible()) - 1
 
 	case "ctrl+u":
-		m.filter = ""
-		m.cursor, m.offset = 0, 0
+		m.setFilter("")
 
 	case "ctrl+f":
 		// Inline only: expand the picker to the whole terminal, or go back to
@@ -581,16 +575,14 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.keepThemeVisible()
 
 	case "backspace":
-		m.filter = trimLastRune(m.filter)
-		m.cursor, m.offset = 0, 0
+		m.setFilter(trimLastRune(m.filter))
 
 	default:
 		// Printable input goes into the filter, so q types and does not quit.
 		if msg.Text == "" || msg.Text == "\t" || msg.Mod&(tea.ModCtrl|tea.ModAlt) != 0 {
 			return m, nil
 		}
-		m.filter += msg.Text
-		m.cursor, m.offset = 0, 0
+		m.setFilter(m.filter + msg.Text)
 	}
 
 	m.keepCursorVisible()
@@ -607,7 +599,11 @@ func (m model) handleWarningKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.warningModal = false
 
 	case "d":
-		m.dismissCurrentWarning()
+		if len(m.warnings) == 0 {
+			m.warningModal = false
+			return m, nil
+		}
+		return m, m.dismissCurrentWarning()
 
 	case "up", "ctrl+k", "ctrl+p", "left", "ctrl+h":
 		m.warningIdx = max(m.warningIdx-1, 0)
@@ -684,24 +680,69 @@ func (m model) themeAt(i int) theme {
 	return th
 }
 
-// persistTheme saves the previewed theme when it differs from the theme that
-// was active when the picker opened, or when a theme warning is active. A saved
-// theme re-parses the rc files to clear the resolved warnings, and it confirms
-// the save with a toast (showNotice). A failure becomes a status message that
-// stays there, and it is never fatal.
-func (m *model) persistTheme() tea.Cmd {
+// themeSavedMsg reports the result of saving a theme, together with the fresh
+// discovery and dismissed set.
+type themeSavedMsg struct {
+	name      string
+	path      string
+	tasks     []core.Task
+	warnings  []error
+	dismissed map[string]bool
+	err       error
+}
+
+// persistTheme returns a command that saves the previewed theme when it differs
+// from the theme that was active when the picker opened, or when a theme
+// warning is active. The command re-parses the rc files, and it clears the
+// warnings that the save resolved. A nil command means that there is nothing to
+// save.
+func (m model) persistTheme() tea.Cmd {
 	if m.themeIdx == m.themeBefore && !m.hasThemeWarning() {
 		return nil
 	}
+	env := m.env
 	name := themes[m.themeIdx].name
-	path, err := saveTheme(name)
-	if err != nil {
-		m.status = m.styles.err.Render(fmt.Sprintf("cannot save theme %s: %v", name, err))
+	oldWarnings := m.warnings
+	return func() tea.Msg {
+		path, err := config.SaveTheme(env.Store, env.UserFile, name)
+		if err != nil {
+			return themeSavedMsg{name: name, err: err}
+		}
+		tasks, _, warnings := env.discover()
+		dismissed := clearResolvedDismissals(env.Store, env.CacheFile, oldWarnings, warnings)
+		return themeSavedMsg{
+			name:      name,
+			path:      path,
+			tasks:     tasks,
+			warnings:  warnings,
+			dismissed: dismissed,
+		}
+	}
+}
+
+// applyThemeSaved applies a saved theme: it refreshes the tasks and the
+// warnings, keeps the dismissed set current, and confirms the save with a toast
+// (showNotice). A failure becomes a status message that stays there, and it is
+// never fatal.
+func (m *model) applyThemeSaved(msg themeSavedMsg) tea.Cmd {
+	if msg.err != nil {
+		m.status = m.styles.err.Render(fmt.Sprintf("cannot save theme %s: %v", msg.name, msg.err))
 		return nil
 	}
-	m.opts.Theme = name
-	m.refreshConfigWarnings()
-	return m.showNotice(fmt.Sprintf("theme %s saved to %s", name, shortPath(path)))
+	m.opts.Theme = msg.name
+	if len(msg.tasks) > 0 {
+		m.setTasks(msg.tasks)
+	}
+	m.env.Dismissed = msg.dismissed
+	m.warnings = msg.warnings
+	if len(m.warnings) == 0 {
+		m.warningModal = false
+		m.warningIdx = 0
+	} else {
+		m.warningIdx = min(m.warningIdx, len(m.warnings)-1)
+	}
+	m.keepCursorVisible()
+	return m.showNotice(fmt.Sprintf("theme %s saved to %s", msg.name, config.ShortPath(msg.path, m.env.Home)))
 }
 
 // hasThemeWarning reports whether any current warning is about a theme.
@@ -712,25 +753,6 @@ func (m model) hasThemeWarning() bool {
 		}
 	}
 	return false
-}
-
-// refreshConfigWarnings re-parses the rc files and the task sources after an
-// action that modifies the config file, and it drops the resolved warnings.
-func (m *model) refreshConfigWarnings() {
-	old := m.warnings
-	tasks, _, warnings := discover()
-	if len(tasks) > 0 {
-		m.tasks = tasks
-	}
-	clearResolvedDismissals(old, warnings)
-	m.warnings = warnings
-	if len(m.warnings) == 0 {
-		m.warningModal = false
-		m.warningIdx = 0
-	} else {
-		m.warningIdx = min(m.warningIdx, len(m.warnings)-1)
-	}
-	m.keepCursorVisible()
 }
 
 // run starts the task under the cursor.
@@ -768,27 +790,89 @@ func (m model) pick(insert bool) (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
+// filterSnapshot caches what the frame shows for the current filter and task
+// list. Without it, every row would filter and rank all tasks again.
+type filterSnapshot struct {
+	tasks        []core.Task
+	tokens       []string
+	filter       string
+	taskCount    int
+	commandWidth int
+	valid        bool
+}
+
+// snapshotValid reports whether the cache still matches the current filter and
+// the number of tasks. The count catches a task list that shrank or grew
+// outside setTasks. A replacement that keeps the same count must still go
+// through setTasks, or the cache stays stale.
+func (m model) snapshotValid() bool {
+	return m.snapshot.valid && m.snapshot.filter == m.filter && m.snapshot.taskCount == len(m.tasks)
+}
+
+// setFilter writes the filter text, resets the list to the top and refreshes
+// the snapshot. Every filter edit goes through here, so the cache cannot go
+// stale.
+func (m *model) setFilter(filter string) {
+	m.filter = filter
+	m.cursor, m.offset = 0, 0
+	m.rebuildSnapshot()
+}
+
+// setTasks replaces the task list and refreshes the snapshot. Every task
+// replacement goes through here, so the cache cannot go stale.
+func (m *model) setTasks(tasks []core.Task) {
+	m.tasks = tasks
+	m.rebuildSnapshot()
+}
+
+// rebuildSnapshot rebuilds the cached ranking, tokens and command width from
+// the current filter and task list.
+func (m *model) rebuildSnapshot() {
+	tokens := strings.Fields(strings.ToLower(m.filter))
+	tasks := rankTasks(m.tasks, tokens, m.shell)
+	m.snapshot = filterSnapshot{
+		tasks:        tasks,
+		tokens:       tokens,
+		filter:       m.filter,
+		taskCount:    len(m.tasks),
+		commandWidth: commandWidthFor(tasks, m.shell),
+		valid:        true,
+	}
+}
+
 // filterTokens returns the lowercase whitespace-separated tokens of the
-// current filter.
+// current filter. It reuses the cached tokens, and it still parses the text
+// when the snapshot is not valid.
 func (m model) filterTokens() []string {
+	if m.snapshotValid() {
+		return m.snapshot.tokens
+	}
 	return strings.Fields(strings.ToLower(m.filter))
 }
 
 // visible returns the tasks that match the current filter, ranked from the best
-// match to the worst one. Ties keep the discovery order.
+// match to the worst one. It reuses the snapshot, and a model that has none
+// still gets the same results.
 func (m model) visible() []core.Task {
-	tokens := m.filterTokens()
+	if m.snapshotValid() {
+		return m.snapshot.tasks
+	}
+	return rankTasks(m.tasks, m.filterTokens(), m.shell)
+}
+
+// rankTasks filters and ranks the tasks for the tokens. Ties keep the
+// discovery order.
+func rankTasks(tasks []core.Task, tokens []string, shell core.ShellDialect) []core.Task {
 	if len(tokens) == 0 {
-		return m.tasks
+		return tasks
 	}
 
 	type scoredTask struct {
 		task  core.Task
 		score int
 	}
-	matches := make([]scoredTask, 0, len(m.tasks))
-	shell := m.shell
-	for _, t := range m.tasks {
+	matches := make([]scoredTask, 0, len(tasks))
+	for _, t := range tasks {
 		if score, ok := taskMatchScore(t, tokens, shell); ok {
 			matches = append(matches, scoredTask{task: t, score: score})
 		}
@@ -1555,12 +1639,19 @@ func renderMatched(s string, matched []bool, base, highlight lipgloss.Style) str
 // caps it to the room that the row has, and only a command longer than that is
 // truncated.
 func (m model) commandWidth() int {
-	shell := m.shell
-	cmdW := 0
-	for _, t := range m.visible() {
-		cmdW = max(cmdW, lipgloss.Width(t.CommandLineFor(shell)))
+	if m.snapshotValid() {
+		return m.snapshot.commandWidth
 	}
-	return cmdW
+	return commandWidthFor(m.visible(), m.shell)
+}
+
+// commandWidthFor returns the widest command line in tasks.
+func commandWidthFor(tasks []core.Task, shell core.ShellDialect) int {
+	width := 0
+	for _, t := range tasks {
+		width = max(width, lipgloss.Width(t.CommandLineFor(shell)))
+	}
+	return width
 }
 
 // helpLine renders the bottom line in w columns. It shows the outcome of the

@@ -34,12 +34,13 @@ the task needs.
   `checks.yml` by hand. Prerequisites, the dprint download and the task list
   are in [docs/development.md](docs/development.md).
 - One test: `go test -race ./internal/tui -run TestViewInlineHeight`.
-- Packages: `internal/core` is the task domain, `internal/tui` is the picker,
-  `internal/shell` holds the three widgets, and `cmd/wtr` parses flags and
-  subcommands. `internal/core` has no direct filesystem access: it reads through
-  the `Files` port, calls `os/exec` for `Task.Command`, and keeps the Windows
-  `SysProcAttr` in `command_windows.go`; `shellCommandFor(goos, ...)` keeps the
-  platform shell testable.
+- Packages: `internal/core` is the task domain, `internal/config` reads and
+  saves the rc file, `internal/tui` is the picker, `internal/shell` holds the
+  three widgets, and `cmd/wtr` parses flags and subcommands. `internal/core` has
+  no direct filesystem access: it reads through the `Files` port, calls
+  `os/exec` for `Task.Command`, and keeps the Windows `SysProcAttr` in
+  `command_windows.go`; `shellCommandFor(goos, ...)` keeps the platform shell
+  testable.
 - Adding a source: a `SourceInfo` literal (the ID from
   [Source IDs](docs/task-sources.md#source-ids), plus `Label`, `Files`,
   `SearchParents`, and `DisplayFileOverride` when the empty screen shows another

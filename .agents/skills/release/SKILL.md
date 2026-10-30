@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, run the preflight gates, create and push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify the GitHub assets, Homebrew formula, Scoop manifest, apt and RPM repositories, AUR package and npm registry. Use this skill whenever the user wants to release, ship, tag, bump or publish what-to-run, asks in Italian to "fare la release", or asks why a release or one of its package-manager channels did not update — even if they do not say the word "release" explicitly.
+description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, run the preflight gates, push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify every package channel (GitHub assets, Homebrew, Scoop, apt, RPM, AUR, npm). Use it whenever the user wants a release out the door — also in Italian ("fare la release"), even without saying "release" — or asks why a release or a package-manager channel did not update.
 ---
 
 # Release what-to-run
@@ -9,8 +9,9 @@ The version lives only in the tag. Pushing `vX.Y.Z` on a commit in `main`
 starts `.github/workflows/release.yml`, which validates the tag, reruns the CI
 checks, builds the archives and Linux packages plus `checksums.txt`, publishes
 the GitHub release, and updates Homebrew, Scoop, apt, RPM and, when
-configured, the AUR and npm. The work is to reach that tag with evidence and
-then prove that every channel moved.
+configured, the AUR and npm. The work is to reach the tag push with evidence
+and then prove that every channel moved; step 3 marks the point of no
+return.
 
 ## Facts the pipeline depends on
 
@@ -29,12 +30,6 @@ then prove that every channel moved.
 | AUR | `what-to-run-bin` |
 | npm | `what-to-run` plus the six platform packages `what-to-run-<os>-<arch>` |
 | npm opt-in | the `NPM_PUBLISH` repository variable (not `true` → channel skipped with a warning) |
-
-The release notes are the commits between the previous tag and this one,
-oldest first, with merge commits dropped; GoReleaser prints their subjects
-only, so a `BREAKING CHANGE:` footer or a one-way removal stays invisible.
-When the range contains one, prepare the note by hand — step 5 adds it after
-the release exists.
 
 ## 0. Read the state
 
@@ -162,24 +157,27 @@ run_id=$(gh run list --workflow=release.yml --limit 20 \
 gh run watch "$run_id" --exit-status
 ```
 
-`validate` fails fast on a non-semver tag or a commit outside `origin/main`;
-`checks` reuses `checks.yml`; only `publish` builds, uploads and updates the
-package channels. While `NPM_PUBLISH` is `true`, the run also has a
-`verify-npm` job, which installs the wrapper on Linux and Windows. On
+This step is done when the run for the tag is green; `--exit-status` enforces
+it. `validate` fails fast on a non-semver tag or a commit outside
+`origin/main`; `checks` reuses `checks.yml`; only `publish` builds, uploads and
+updates the package channels. While `NPM_PUBLISH` is `true`, the run also has
+a `verify-npm` job, which installs the wrapper on Linux and Windows. On
 failure, read `gh run view "$run_id" --log-failed` and follow
 `references/recovery.md` — where it stopped decides what is safe.
 
 ## 5. Verify every channel
 
-If the commit range carries a `BREAKING CHANGE:` footer or a one-way removal,
-add that note to the published release now — the tag stays put, only the notes
-change:
+The release notes are the commits between the previous tag and this one,
+oldest first, with merge commits dropped; GoReleaser prints their subjects
+only, so a `BREAKING CHANGE:` footer or a one-way removal stays invisible.
+When the range contains one, add that note to the published release now — the
+tag stays put, only the notes change:
 
 ```sh
 gh release edit vX.Y.Z --notes-file notes.md
 ```
 
-Run the bundled verifier with the tag:
+Run the verifier with the tag:
 
 ```sh
 .agents/skills/release/scripts/verify-release.sh vX.Y.Z
@@ -203,9 +201,10 @@ readable, and a `warn` when it is not.
 Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
 checks the release, the asset names, the Scoop bucket and the package
 repositories, but the verifier is the source of truth for every channel. For a
-failing channel, inspect the `publish` step of the run before repairing it.
-When the AUR package is published for the first time, update the Arch Linux
-section of `docs/install.md`, which currently says the package is pending.
+failing channel, inspect the `publish` step of the run, then follow section 5
+of `references/recovery.md`. If this is the first AUR publish, update the
+Arch Linux section of `docs/install.md` as the Release section of
+`docs/development.md` directs.
 
 ## 6. Report
 
@@ -220,13 +219,9 @@ Close with a short, concrete summary:
 
 ## When something goes wrong
 
-Use `references/recovery.md`. The short version:
+The full repair paths live in `references/recovery.md`. Triage:
 
-- `validate` or `checks` failed → nothing is published; fix the cause, delete
-  the tag, and push it again on the fixed commit.
-- `publish` failed after the GitHub release exists → do not rerun the job;
-  repair the failed channel (the package repositories have a dedicated
-  workflow, and the Homebrew, AUR and npm publishers are idempotent).
-- published artifacts are wrong → prefer a new patch release over replacing a
-  version consumers may already have fetched; apt cannot republish the same
-  version cleanly.
+- `validate` or `checks` failed → nothing is published; section 1.
+- `publish` failed → whether the release exists decides the repair; sections 2
+  and 3. The Homebrew, AUR and npm publishers are idempotent.
+- published artifacts are wrong → section 4.

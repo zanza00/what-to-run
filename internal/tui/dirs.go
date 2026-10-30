@@ -5,19 +5,9 @@ import (
 	"path/filepath"
 )
 
-// userConfigDir returns the root of the user rc file. XDG_CONFIG_HOME wins on
-// every platform, so the documented $XDG_CONFIG_HOME/what-to-run/config.toml
-// also applies on macOS, where os.UserConfigDir would otherwise return
-// ~/Library/Application Support. A relative value is ignored, as the XDG
-// specification requires.
-func userConfigDir() (string, error) {
-	if dir := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
-		return dir, nil
-	}
-	return os.UserConfigDir()
-}
-
-// userCacheDir is the counterpart of userConfigDir for XDG_CACHE_HOME.
+// userCacheDir returns the root of the dismissed-warnings file. XDG_CACHE_HOME
+// wins on every platform, and a relative value is ignored, as the XDG
+// specification requires. It is the counterpart of the config userConfigDir.
 func userCacheDir() (string, error) {
 	if dir := os.Getenv("XDG_CACHE_HOME"); filepath.IsAbs(dir) {
 		return dir, nil

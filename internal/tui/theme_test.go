@@ -2,8 +2,8 @@ package tui
 
 import (
 	"bytes"
+	"errors"
 	"image/color"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -175,7 +175,6 @@ func TestListThemes(t *testing.T) {
 }
 
 func TestUnknownThemeWarnsAndFallsBack(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	m := newModel(Options{Theme: "nope"}, sampleTasks(), nil)
 	if got := themes[m.themeIdx].name; got != defaultTheme {
 		t.Errorf("theme after an unknown name = %q, want %q", got, defaultTheme)
@@ -250,15 +249,15 @@ func TestThemePickerPreviewsLive(t *testing.T) {
 }
 
 func TestThemePickerConfirmAndCancel(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg")) // The temporary directory keeps the save hermetic.
+	env, _ := testEnv(t)
 
 	// The enter key keeps the previewed theme and closes the box. The save
 	// arrives as a toast, not on the help line.
-	m := update(sized(Options{}), ctrlTKey)
+	m := update(sized(Options{Env: env}), ctrlTKey)
 	m = update(m, downKey)
-	m = update(m, enterKey)
+	next, cmd := m.Update(enterKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 	if m.themeModal || m.themeIdx != 1 {
 		t.Errorf("after enter: modal = %v, theme = %d; want closed on 1", m.themeModal, m.themeIdx)
 	}
@@ -273,19 +272,21 @@ func TestThemePickerConfirmAndCancel(t *testing.T) {
 	}
 
 	// A second ctrl+t closes the picker and keeps the preview.
-	m = update(sized(Options{}), ctrlTKey)
+	m = update(sized(Options{Env: env}), ctrlTKey)
 	m = update(m, downKey)
-	m = update(m, ctrlTKey)
+	next, cmd = m.Update(ctrlTKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 	if m.themeModal || m.themeIdx != 1 {
 		t.Errorf("after ctrl+t: modal = %v, theme = %d; want closed on 1", m.themeModal, m.themeIdx)
 	}
 
 	// esc cancels. The theme from before the picker comes back, and the press
 	// neither quits nor clears the filter.
-	m = press(sized(Options{}), "npm")
+	m = press(sized(Options{Env: env}), "npm")
 	m = update(m, ctrlTKey)
 	m = update(m, downKey)
-	next, cmd := m.Update(escKey)
+	next, cmd = m.Update(escKey)
 	m = next.(model)
 	if m.themeModal || m.themeIdx != 0 {
 		t.Errorf("after esc: modal = %v, theme = %d; want closed on the original 0", m.themeModal, m.themeIdx)
@@ -494,13 +495,13 @@ func TestThemePickerFitsInlineArea(t *testing.T) {
 // writes it to the user rc file. A toast confirms where it went, and the help
 // line stays untouched.
 func TestThemePickerSavesTheChoice(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
+	env, files := testEnv(t)
 
-	m := update(sized(Options{}), ctrlTKey)
+	m := update(sized(Options{Env: env}), ctrlTKey)
 	m = update(m, downKey) // nord
-	m = update(m, enterKey)
+	next, cmd := m.Update(enterKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 
 	if !strings.Contains(m.notice, "theme nord saved to") {
 		t.Errorf("notice after saving = %q, want the save message", m.notice)
@@ -511,11 +512,11 @@ func TestThemePickerSavesTheChoice(t *testing.T) {
 	if m.status != "" {
 		t.Errorf("status after saving = %q, want it untouched", ansi.Strip(m.status))
 	}
-	data, err := os.ReadFile(filepath.Join(dir, "xdg", "what-to-run", "config.toml"))
-	if err != nil {
-		t.Fatalf("saved theme not readable: %v", err)
+	data, ok := files[env.UserFile]
+	if !ok {
+		t.Fatal("saved theme not written to the user rc file")
 	}
-	if !strings.Contains(string(data), `theme = "nord"`) {
+	if !strings.Contains(data, `theme = "nord"`) {
 		t.Errorf("user rc = %q, want the nord theme", data)
 	}
 }
@@ -524,27 +525,23 @@ func TestThemePickerSavesTheChoice(t *testing.T) {
 // user rc file (like OpenCode's cli.json) and never in the project one. ctrl+t
 // keeps the choice like enter does.
 func TestThemePickerSavesInTheUserFile(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
-	writeFile(t, dir, ".what-to-run.toml", "# my tasks\n")
+	env, files := testEnv(t)
+	files[env.ProjectFile] = "# my tasks\n"
 
-	m := update(sized(Options{}), ctrlTKey)
+	m := update(sized(Options{Env: env}), ctrlTKey)
 	m = update(m, downKey)
-	m = update(m, ctrlTKey)
+	next, cmd := m.Update(ctrlTKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 
-	data, err := os.ReadFile(filepath.Join(dir, "xdg", "what-to-run", "config.toml"))
-	if err != nil {
-		t.Fatalf("user rc not readable: %v", err)
+	data, ok := files[env.UserFile]
+	if !ok {
+		t.Fatal("user rc not written")
 	}
-	if !strings.Contains(string(data), `theme = "nord"`) {
+	if !strings.Contains(data, `theme = "nord"`) {
 		t.Errorf("user rc = %q, want the nord theme", data)
 	}
-	project, err := os.ReadFile(filepath.Join(dir, ".what-to-run.toml"))
-	if err != nil {
-		t.Fatalf("project rc not readable: %v", err)
-	}
-	if got := string(project); got != "# my tasks\n" {
+	if got := files[env.ProjectFile]; got != "# my tasks\n" {
 		t.Errorf("project rc = %q, want it untouched", got)
 	}
 	if !strings.Contains(m.notice, "saved to") {
@@ -555,13 +552,13 @@ func TestThemePickerSavesInTheUserFile(t *testing.T) {
 // TestNoticeExpires checks that the toast clears itself on its timer, and that
 // a stale timer does not clear a newer notice.
 func TestNoticeExpires(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
+	env, _ := testEnv(t)
 
-	m := update(sized(Options{}), ctrlTKey)
+	m := update(sized(Options{Env: env}), ctrlTKey)
 	m = update(m, downKey)
-	m = update(m, enterKey)
+	next, cmd := m.Update(enterKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 	if m.notice == "" {
 		t.Fatal("no notice after saving")
 	}
@@ -570,7 +567,9 @@ func TestNoticeExpires(t *testing.T) {
 	// A newer notice replaces the first one and keeps its own timer.
 	m = update(m, ctrlTKey)
 	m = update(m, downKey)
-	m = update(m, enterKey)
+	next, cmd = m.Update(enterKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 	if m.noticeID == first {
 		t.Fatalf("notice id after a second save = %d, want it to grow", m.noticeID)
 	}
@@ -594,24 +593,23 @@ func TestNoticeExpires(t *testing.T) {
 // TestThemePickerSaveFailureStaysInTheStatusLine pins that a failed save is not
 // a toast. It stays in the status line like any other problem.
 func TestThemePickerSaveFailureStaysInTheStatusLine(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
-	// A file where the config directory should be makes the write fail.
-	if err := os.MkdirAll(filepath.Join(dir, "xdg"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, filepath.Join(dir, "xdg"), "what-to-run", "not a directory\n")
+	env, files := testEnv(t)
+	env.Store = errStore{Store: env.Store, err: errors.New("disk full")}
 
-	m := update(sized(Options{}), ctrlTKey)
+	m := update(sized(Options{Env: env}), ctrlTKey)
 	m = update(m, downKey)
-	m = update(m, enterKey)
+	next, cmd := m.Update(enterKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 
 	if m.notice != "" {
 		t.Errorf("notice after a failed save = %q, want none", m.notice)
 	}
-	if got := ansi.Strip(m.status); !strings.Contains(got, "cannot save theme") {
+	if got := ansi.Strip(m.status); !strings.Contains(got, "cannot save theme nord: disk full") {
 		t.Errorf("status after a failed save = %q, want the error", got)
+	}
+	if _, ok := files[env.UserFile]; ok {
+		t.Error("a failed save wrote the user rc file")
 	}
 }
 
@@ -619,21 +617,22 @@ func TestThemePickerSaveFailureStaysInTheStatusLine(t *testing.T) {
 // nothing, and that keeping the theme that was already active writes nothing
 // too.
 func TestThemePickerDoesNotSaveWithoutAChange(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
-	rc := filepath.Join(dir, "xdg", "what-to-run", "config.toml")
+	env, files := testEnv(t)
 
-	m := update(sized(Options{}), ctrlTKey)
+	m := update(sized(Options{Env: env}), ctrlTKey)
 	m = update(m, downKey)
 	m = update(m, escKey)
-	if _, err := os.Stat(rc); err == nil {
+	if _, ok := files[env.UserFile]; ok {
 		t.Error("esc wrote the theme to the rc file")
 	}
 
-	m = update(sized(Options{}), ctrlTKey)
-	m = update(m, enterKey)
-	if _, err := os.Stat(rc); err == nil {
+	m = update(sized(Options{Env: env}), ctrlTKey)
+	next, cmd := m.Update(enterKey)
+	m = next.(model)
+	if cmd != nil {
+		t.Errorf("confirming the active theme returned %T, want no command", cmd)
+	}
+	if _, ok := files[env.UserFile]; ok {
 		t.Error("confirming the active theme wrote the rc file")
 	}
 }
@@ -689,15 +688,11 @@ func TestHelpThemeHintFits(t *testing.T) {
 }
 
 func TestPreviewRendersAFrame(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // A fresh config directory hides the user rc file.
-	if err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte("build:\n\techo building\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	env := diskEnv(t)
+	writeFile(t, env.Dir, "Makefile", "build:\n\techo building\n")
 
 	var buf bytes.Buffer
-	if err := Preview(&buf, Options{Theme: "tokyo"}, 80, 24); err != nil {
+	if err := Preview(&buf, Options{Theme: "tokyo", Env: env}, 80, 24); err != nil {
 		t.Fatalf("Preview: %v", err)
 	}
 
@@ -718,21 +713,12 @@ func TestPreviewRendersAFrame(t *testing.T) {
 // TestPreviewUsesTheConfiguredTheme pins that the theme of the user rc file is
 // the starting look, and that --theme still wins for a single run.
 func TestPreviewUsesTheConfiguredTheme(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	cfgDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", cfgDir)
-	if err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte("build:\n\techo building\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	userDir := filepath.Join(cfgDir, "what-to-run")
-	if err := os.MkdirAll(userDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, userDir, "config.toml", "theme = \"nord\"\n")
+	env := diskEnv(t)
+	writeFile(t, env.Dir, "Makefile", "build:\n\techo building\n")
+	writeFile(t, filepath.Dir(env.UserFile), "config.toml", "theme = \"nord\"\n")
 
 	var buf bytes.Buffer
-	if err := Preview(&buf, Options{}, 80, 24); err != nil {
+	if err := Preview(&buf, Options{Env: env}, 80, 24); err != nil {
 		t.Fatalf("Preview: %v", err)
 	}
 	if !strings.Contains(buf.String(), "38;2;136;192;208") { // nord accent #88C0D0
@@ -740,7 +726,7 @@ func TestPreviewUsesTheConfiguredTheme(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := Preview(&buf, Options{Theme: "tokyo"}, 80, 24); err != nil {
+	if err := Preview(&buf, Options{Theme: "tokyo", Env: env}, 80, 24); err != nil {
 		t.Fatalf("Preview: %v", err)
 	}
 	if !strings.Contains(buf.String(), "38;2;122;162;247") { // tokyo accent #7AA2F7
@@ -749,10 +735,9 @@ func TestPreviewUsesTheConfiguredTheme(t *testing.T) {
 }
 
 func TestPreviewWithoutTasks(t *testing.T) {
-	t.Chdir(t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	env := diskEnv(t)
 
-	if err := Preview(&bytes.Buffer{}, Options{}, 80, 24); err == nil {
+	if err := Preview(&bytes.Buffer{}, Options{Env: env}, 80, 24); err == nil {
 		t.Error("Preview without tasks returned nil, want an error")
 	}
 }

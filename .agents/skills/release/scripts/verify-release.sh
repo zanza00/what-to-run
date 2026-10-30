@@ -5,9 +5,10 @@
 #
 # Checks the GitHub release and its exact asset set, the Homebrew formula, the
 # Scoop manifest in its bucket, the apt index and RPM metadata (including its
-# signature) on gh-pages, the AUR package when that channel is configured, and
-# a downloaded binary of this machine's platform. Channels whose Actions
-# secret is unset are reported as skipped, matching the release workflow.
+# signature) on gh-pages, the AUR package and the npm registry when those
+# channels are configured, and a downloaded binary of this machine's platform.
+# The script reports a channel the workflow skips (a secret is unset, or the
+# npm opt-in variable is off) as skipped, not failed.
 set -uo pipefail
 
 repo=zanza00/what-to-run
@@ -58,6 +59,10 @@ version=${tag#v}
 
 need gh
 need tar
+
+# The publisher, the launcher and the Scoop checker live in the repository
+# this script is part of.
+repo_root=$(cd "$(dirname "$0")/../../../.." && pwd)
 
 # The release workflow skips the package repositories and the AUR when their
 # secret is unset. Read the names (not the values) to know what this release
@@ -170,7 +175,6 @@ else
   scoop_tmp=$(mktemp -d)
   manifest=$(gh api "repos/$scoop_repo/contents/bucket/what-to-run.json" \
     -H "Accept: application/vnd.github.raw" 2>/dev/null) || manifest=""
-  repo_root=$(cd "$(dirname "$0")/../../../.." && pwd)
   checker="$repo_root/scripts/check-scoop-manifest.py"
   if [[ -z $manifest ]]; then
     bad_or_warn "cannot read bucket/what-to-run.json from $scoop_repo"
@@ -290,6 +294,69 @@ else
       bad "AUR $aur_package does not carry $version"
     else
       warn "AUR $aur_package does not carry $version"
+    fi
+  fi
+fi
+
+# --- npm --------------------------------------------------------------------
+
+# The channel is opt-in: the workflow publishes it only when the NPM_PUBLISH
+# repository variable is "true", and skips it with a warning otherwise. When
+# the variable list is unreadable, npm problems are reported without failing,
+# like the channels behind optional secrets.
+npm_publish=""
+known_variables=1
+if ! npm_publish=$(gh api "repos/$repo/actions/variables" \
+  --jq '.variables[] | select(.name == "NPM_PUBLISH") | .value' 2>/dev/null); then
+  known_variables=0
+  warn "cannot read the repository variables; npm problems are reported without failing"
+fi
+
+if [[ $known_variables == 1 && $npm_publish != "true" ]]; then
+  skip 'npm: NPM_PUBLISH is not set to "true"'
+elif ! command -v npm >/dev/null 2>&1; then
+  warn "npm not available: cannot check the npm packages"
+elif ! command -v python3 >/dev/null 2>&1; then
+  warn "python3 not available: cannot list the npm packages"
+else
+  # The publisher owns the platform table. Read the six package names from it
+  # instead of copying them here.
+  platform_packages=$(python3 -c '
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("publish_npm", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+for goos, goarch in module.TARGETS:
+    print(module.package_name(goos, goarch))
+' "$repo_root/scripts/publish-npm.py") || platform_packages=""
+  if [[ -z $platform_packages ]]; then
+    bad_or_warn "cannot list the platform packages from scripts/publish-npm.py"
+  else
+    for package in what-to-run $platform_packages; do
+      if got=$(npm view "$package@$version" version 2>/dev/null) &&
+        [[ $got == "$version" ]]; then
+        ok "npm package $package carries $version"
+      else
+        bad_or_warn "npm package $package does not carry $version"
+      fi
+    done
+
+    # The launcher's own table says which platform package this machine
+    # installs, so an uncovered platform skips the wrapper run instead of
+    # failing it.
+    machine_package=$(node -e '
+const wtr = require(process.argv[1]);
+console.log(wtr.packageName() || "");
+' "$repo_root/npm/bin/wtr.js" 2>/dev/null) || machine_package=""
+    if [[ -z $machine_package ]]; then
+      skip "npm wrapper run: no platform package for $(uname -s) $(uname -m)"
+    elif got=$(npx --yes "what-to-run@$version" --version 2>/dev/null) &&
+      [[ $got == "wtr $version" ]]; then
+      ok "npx what-to-run@$version reports '$got'"
+    else
+      bad_or_warn "npx what-to-run@$version does not report 'wtr $version'"
     fi
   fi
 fi

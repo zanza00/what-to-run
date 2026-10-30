@@ -9,9 +9,8 @@ The version lives only in the tag. Pushing `vX.Y.Z` on a commit in `main`
 starts `.github/workflows/release.yml`, which validates the tag, reruns the CI
 checks, builds the archives and Linux packages plus `checksums.txt`, publishes
 the GitHub release, and updates Homebrew, apt, RPM and (when configured) the
-AUR. Everything before the tag push is reversible; the tag push is the point of
-no return. The work is to reach that tag with evidence and then prove that
-every channel moved.
+AUR. The work is to reach the tag push with evidence and then prove that every
+channel moved; step 3 marks the point of no return.
 
 ## Facts the pipeline depends on
 
@@ -166,26 +165,24 @@ tag stays put, only the notes change:
 gh release edit vX.Y.Z --notes-file notes.md
 ```
 
-Run the bundled verifier with the tag:
+Run the verifier with the tag:
 
 ```sh
 .agents/skills/release/scripts/verify-release.sh vX.Y.Z
 ```
 
-The script is the source of truth for what it checks: the release is public
-with exactly the eleven assets, the Homebrew formula, the Scoop manifest, the
-apt and RPM indexes on `gh-pages`, the RPM signature, the setup scripts, the
-AUR package, the checksum match, and `wtr --version` on this platform. Missing
-optional secrets show as `skip`, matching the workflow. Scoop has no review
-step — the manifest is written during the release — so a stale or missing one
-is a `FAIL` while the secret list is readable, and a `warn` when it is not.
+Missing optional secrets show as `skip`, matching the workflow. Scoop has no
+review step — the manifest is written during the release — so a stale or
+missing one is a `FAIL` while the secret list is readable, and a `warn` when
+it is not.
 
 Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
 checks the release, the asset names, the Scoop bucket and the package
 repositories, but the verifier is the source of truth for every channel. For a
 failing channel, inspect the `publish` step of the run, then follow section 5
-of `references/recovery.md`. If this is the first AUR publish, check the Arch
-Linux section of `docs/install.md` and drop any "pending" note there.
+of `references/recovery.md`. If this is the first AUR publish, update the
+Arch Linux section of `docs/install.md` as the Release section of
+`docs/development.md` directs.
 
 ## 6. Report
 
@@ -199,12 +196,9 @@ Close with a short, concrete summary:
 
 ## When something goes wrong
 
-Where the workflow stopped decides what is safe; `references/recovery.md` has
-the full repair paths. Triage:
+The full repair paths live in `references/recovery.md`. Triage:
 
-- `validate` or `checks` failed → nothing is published; fix the cause, delete
-  the tag, and tag the fixed commit again.
-- `publish` failed → never rerun the job; repair the failed channel directly.
-- published artifacts are wrong → prefer a new patch release over replacing a
-  version consumers may already have fetched; apt cannot republish the same
-  version cleanly.
+- `validate` or `checks` failed → nothing is published; section 1.
+- `publish` failed → whether the release exists decides the repair; sections 2
+  and 3.
+- published artifacts are wrong → section 4.

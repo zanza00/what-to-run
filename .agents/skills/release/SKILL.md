@@ -113,8 +113,9 @@ python3 -m unittest discover -s scripts -p '*_test.py'
 ```
 
 Touch `npm/` or `scripts/publish-npm.py` in this change too? Run
-`task smoke-npm` before the tag: the npm section of `docs/development.md`
-owns what the gate proves.
+`task smoke-npm` before the tag (it stages the packages into a local Verdaccio
+registry and checks global `npm`, `pnpm --ignore-scripts` and
+`npm --omit=optional` installs).
 
 A release is the last cheap documentation checkpoint: if the change added a
 task source, flag, theme or install method, confirm `AGENTS.md`, `README.md`
@@ -202,9 +203,8 @@ Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
 checks the release, the asset names, the Scoop bucket and the package
 repositories, but the verifier is the source of truth for every channel. For a
 failing channel, inspect the `publish` step of the run, then follow section 5
-of `references/recovery.md`. If this is the first AUR publish, update the
-Arch Linux section of `docs/install.md` as the Release section of
-`docs/development.md` directs.
+of `references/recovery.md`. If this is the first AUR publish, add an Arch
+Linux section to `docs/install.md` that advertises `yay -S what-to-run-bin`.
 
 ## 6. Report
 

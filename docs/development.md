@@ -60,8 +60,8 @@ filter matches subsequences. Enter runs the command.
 VHS draws the window chrome (`Set WindowBar Colorful` adds the
 close/minimize/maximize dots) over the wallpaper in
 `docs/demo/background.webp`. The wallpaper is a crop of
-[Pawel Czerwinski's photo on
-Unsplash](https://unsplash.com/photos/a-painting-of-a-black-and-blue-swirl-lt891TUy6iw),
+[andreas kretschmer's photo on
+Unsplash](https://unsplash.com/photos/brown-mountain-during-daytime-4VXCQjiyVyc),
 cut to the recording size. VHS stretches `MarginFill` to the canvas, so the
 image must have the same aspect ratio. It is WebP and not JPEG because ffmpeg
 decodes JPEG as full-range, while VHS fills `Padding` with a limited-range
@@ -161,15 +161,15 @@ fall back to the fullscreen picker after 250 ms.
 Releases are automated. Push a `vX.Y.Z` tag on a commit in `main`.
 `.github/workflows/release.yml` runs the checks and builds the archives and the
 `.deb` and `.rpm` packages. It creates the GitHub release and updates the
-Homebrew, Scoop, npm, apt, RPM and AUR channels. The workflow is the source of
-truth for the steps, and its publishers are the scripts in `scripts/`.
+Homebrew, Scoop, WinGet, npm, apt, RPM and AUR channels. The workflow is the
+source of truth for the steps, and its publishers are the scripts in `scripts/`.
 The flake is not published: it builds from the repository, so bump the
 `version` attribute in `flake.nix` in the tag commit. The validate job fails
 when the tag and the attribute differ.
 
 ### Secrets
 
-Four repository secrets configure the channels. `HOMEBREW_TAP_TOKEN` is the
+Five repository secrets configure the channels. `HOMEBREW_TAP_TOKEN` is the
 only required one: the release fails without it.
 
 - `HOMEBREW_TAP_TOKEN` is a token with Contents read/write on
@@ -179,6 +179,19 @@ only required one: the release fails without it.
   [zanza00/scoop-bucket](https://github.com/zanza00/scoop-bucket). The bucket
   must already exist with a commit on `main`, because GoReleaser creates
   `bucket/what-to-run.json` on that branch.
+- `WINGET_TOKEN` is a classic personal access token with the `public_repo`
+  scope, created by the GitHub account that signed the Microsoft CLA.
+  GoReleaser writes the manifest into the `zanza00/winget-pkgs` fork of
+  [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) and opens
+  the update pull request from the `what-to-run-<version>` branch. The fork
+  must already exist, because GoReleaser syncs it but does not create it. The
+  first package (0.8.0) was submitted by hand, so set the secret only after
+  that pull request is merged: a release before then opens a second "new
+  package" pull request. Other people review the pull request, so the workflow
+  and the verifier report a pending review as a warning and fail only when
+  neither a merged manifest nor an open pull request exists;
+  `scripts/check-winget-manifest.py` compares the merged manifest with
+  `checksums.txt`.
 - `AUR_SSH_PRIVATE_KEY` is an unencrypted ed25519 private key whose public half
   is registered on your [AUR account](https://aur.archlinux.org/account).
   Generate one with
@@ -191,8 +204,9 @@ only required one: the release fails without it.
   repositories.
 
 While an optional secret is unset, the release skips that channel with a
-warning instead of failing. The Scoop step in GoReleaser has no "do nothing
-without a token" mode, so the workflow passes `--skip=scoop`.
+warning instead of failing. The Scoop and WinGet steps in GoReleaser have no
+"do nothing without a token" mode, so the workflow passes `--skip=scoop` and
+`--skip=winget`.
 
 After the first AUR release, update the Arch Linux section in `docs/install.md`
 to advertise `yay -S what-to-run-bin`.

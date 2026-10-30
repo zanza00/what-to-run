@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, run the preflight gates, create and push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify the GitHub assets, Homebrew formula, Scoop manifest, apt and RPM repositories and AUR package. Use this skill whenever the user wants to release, ship, tag, bump or publish what-to-run, asks in Italian to "fare la release", or asks why a release or one of its package-manager channels did not update — even if they do not say the word "release" explicitly.
+description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, run the preflight gates, create and push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify the GitHub assets, Homebrew formula, Scoop and WinGet manifests, apt and RPM repositories and AUR package. Use this skill whenever the user wants to release, ship, tag, bump or publish what-to-run, asks in Italian to "fare la release", or asks why a release or one of its package-manager channels did not update — even if they do not say the word "release" explicitly.
 ---
 
 # Release what-to-run
@@ -19,12 +19,13 @@ channel moved.
 | --- | --- |
 | Trigger | `vX.Y.Z` tag on a commit contained in `origin/main` |
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
-| Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` (missing → channel skipped with a warning) |
+| Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN`, `WINGET_TOKEN` (missing → channel skipped with a warning) |
 | Release assets | `checksums.txt`, 4 tarballs, 2 Windows zips, 2 `.deb` files, 2 `.rpm` files (11 total) |
 | Version string | `wtr --version` prints `wtr X.Y.Z` in released binaries, `wtr vX.Y.Z-N-g…` from `task build` |
 | Nix | the `version` attribute in `flake.nix`, bumped with the tag and checked by the validate job; the flake builds the default branch |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | Scoop | `bucket/what-to-run.json` in `zanza00/scoop-bucket` |
+| WinGet | `manifests/z/zanza00/WhatToRun/<version>` in `microsoft/winget-pkgs`, through a pull request from `zanza00/winget-pkgs` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
 | RPM | `rpm/repodata/primary.xml.gz` and `repomd.xml.asc` on `gh-pages` |
 | Setup scripts | `setup.deb.sh` and `setup.rpm.sh` at the root of `gh-pages` |
@@ -48,9 +49,9 @@ gh api repos/zanza00/what-to-run/actions/secrets --jq '.secrets[].name'
 ```
 
 The secret list decides what a successful release means: Homebrew is
-mandatory, the apt and RPM repositories, the AUR and the Scoop bucket may
-legitimately be skipped. A missing optional secret means that channel-less
-release is expected, not a failure.
+mandatory, the apt and RPM repositories, the AUR, the Scoop bucket and the
+WinGet pull request may legitimately be skipped. A missing optional secret
+means that channel-less release is expected, not a failure.
 
 `git rev-list --left-right --count origin/main...HEAD` prints
 `<behind> <ahead>`. Stop and explain if the tree is dirty or HEAD is not on
@@ -181,22 +182,29 @@ Run the bundled verifier with the tag:
 
 It checks the release is public and carries exactly the eleven assets, the
 Homebrew formula has the version and download URLs, the Scoop manifest installs
-the right zip on amd64 and arm64 with the hashes from `checksums.txt`, the apt
-index and the RPM metadata on `gh-pages` have the version for both
-architectures, the RPM metadata signature verifies with the repository key, the
-setup scripts are published, the AUR package has it when that secret is
-configured, the downloaded archive matches `checksums.txt`, and a binary for
-this platform prints `wtr X.Y.Z`. Missing repository/AUR/Scoop secrets show as
-`skip`, matching the workflow. Scoop has no review step — the manifest is
-written during the release — so a stale or missing one is a `FAIL` while the
-secret list is readable, and a `warn` when it is not.
+the right zip on amd64 and arm64 with the hashes from `checksums.txt`, the
+WinGet manifest in `microsoft/winget-pkgs` matches the release or is waiting in
+an open pull request, the apt index and the RPM metadata on `gh-pages` have the
+version for both architectures, the RPM metadata signature verifies with the
+repository key, the setup scripts are published, the AUR package has it when
+that secret is configured, the downloaded archive matches `checksums.txt`, and
+a binary for this platform prints `wtr X.Y.Z`. Missing
+repository/AUR/Scoop/WinGet secrets show as `skip`, matching the workflow.
+Scoop has no review step — the manifest is written during the release — so a
+stale or missing one is a `FAIL` while the secret list is readable, and a
+`warn` when it is not. WinGet does have a review step, so a manifest that is
+still in an open pull request shows as `pending` rather than `ok` or `FAIL`; a
+`FAIL` means there is neither a merged manifest nor an open pull request.
 
 Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
-checks the release, the asset names, the Scoop bucket and the package
-repositories, but the verifier is the source of truth for every channel. For a
-failing channel, inspect the `publish` step of the run before repairing it.
-When the AUR package is published for the first time, update the Arch Linux
-section of `docs/install.md`, which currently says the package is pending.
+checks the release, the asset names, the Scoop bucket, the WinGet manifest and
+the package repositories, but the verifier is the source of truth for every
+channel. For a failing channel, inspect the `publish` step of the run before
+repairing it. When the AUR package is published for the first time, update the
+Arch Linux section of `docs/install.md`, which currently says the package is
+pending. When the first WinGet manifest is merged, add the WinGet section to
+`docs/install.md` and the one-liner to `README.md`; until then the channel is
+not advertised.
 
 ## 6. Report
 

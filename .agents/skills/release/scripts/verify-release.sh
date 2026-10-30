@@ -4,10 +4,11 @@
 # Usage: verify-release.sh vX.Y.Z
 #
 # Checks the GitHub release and its exact asset set, the Homebrew formula, the
-# Scoop manifest in its bucket, the apt index and RPM metadata (including its
-# signature) on gh-pages, the AUR package when that channel is configured, and
-# a downloaded binary of this machine's platform. Channels whose Actions
-# secret is unset are reported as skipped, matching the release workflow.
+# Scoop manifest in its bucket, the WinGet manifest in microsoft/winget-pkgs,
+# the apt index and RPM metadata (including its signature) on gh-pages, the AUR
+# package when that channel is configured, and a downloaded binary of this
+# machine's platform. Channels whose Actions secret is unset are reported as
+# skipped, matching the release workflow.
 set -uo pipefail
 
 repo=zanza00/what-to-run
@@ -39,6 +40,10 @@ skip() {
   printf 'skip  %s\n' "$*"
 }
 
+pending() {
+  printf 'pending  %s\n' "$*"
+}
+
 warn() {
   printf 'warn  %s\n' "$*" >&2
 }
@@ -55,6 +60,9 @@ if [[ -z $tag || ! $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   usage
 fi
 version=${tag#v}
+
+# The manifest checkers live in the repository, not next to this script.
+repo_root=$(cd "$(dirname "$0")/../../../.." && pwd)
 
 need gh
 need tar
@@ -170,7 +178,6 @@ else
   scoop_tmp=$(mktemp -d)
   manifest=$(gh api "repos/$scoop_repo/contents/bucket/what-to-run.json" \
     -H "Accept: application/vnd.github.raw" 2>/dev/null) || manifest=""
-  repo_root=$(cd "$(dirname "$0")/../../../.." && pwd)
   checker="$repo_root/scripts/check-scoop-manifest.py"
   if [[ -z $manifest ]]; then
     bad_or_warn "cannot read bucket/what-to-run.json from $scoop_repo"
@@ -193,6 +200,56 @@ else
     fi
   fi
   rm -rf "$scoop_tmp"
+fi
+
+# --- WinGet ---------------------------------------------------------------
+
+winget_repo=microsoft/winget-pkgs
+winget_path=manifests/z/zanza00/WhatToRun/$version
+
+if [[ $known_secrets == 1 ]] && ! has_secret WINGET_TOKEN; then
+  skip "WinGet: WINGET_TOKEN is not configured"
+elif ! command -v python3 >/dev/null 2>&1; then
+  warn "python3 not available: cannot check the WinGet manifest"
+else
+  winget_tmp=$(mktemp -d)
+  checker="$repo_root/scripts/check-winget-manifest.py"
+  if gh api "repos/$winget_repo/contents/$winget_path" \
+      --jq '.[].name' >"$winget_tmp/files" 2>/dev/null; then
+    if [[ ! -f $checker ]]; then
+      bad_or_warn "cannot find scripts/check-winget-manifest.py under $repo_root"
+    elif ! gh release download "$tag" --repo "$repo" \
+        --pattern checksums.txt --dir "$winget_tmp" --clobber >/dev/null 2>&1; then
+      bad_or_warn "cannot download checksums.txt to check the WinGet manifest"
+    else
+      manifest_read_failed=0
+      while read -r file; do
+        gh api "repos/$winget_repo/contents/$winget_path/$file" \
+          -H "Accept: application/vnd.github.raw" >"$winget_tmp/$file" ||
+          manifest_read_failed=1
+      done <"$winget_tmp/files"
+      if [[ $manifest_read_failed == 1 ]]; then
+        bad_or_warn "cannot read the WinGet manifest for $tag from $winget_repo"
+      elif problems=$(python3 "$checker" "$tag" "$winget_tmp" \
+        "$winget_tmp/checksums.txt" 2>&1); then
+        ok "WinGet manifest in $winget_repo is at $tag with matching hashes"
+      else
+        bad_or_warn "WinGet manifest in $winget_repo is wrong"
+        while IFS= read -r problem; do
+          [[ -z $problem ]] && continue
+          printf '        %s\n' "$problem" >&2
+        done <<<"$problems"
+      fi
+    fi
+  elif ! open_prs=$(gh pr list --repo "$winget_repo" --state open \
+      --head "zanza00:what-to-run-$version" --json number --jq 'length'); then
+    bad_or_warn "cannot list the open pull requests in $winget_repo"
+  elif [[ $open_prs != 0 ]]; then
+    pending "WinGet: the manifest for $tag is waiting in an open pull request"
+  else
+    bad_or_warn "no WinGet manifest for $tag in $winget_repo and no open pull request"
+  fi
+  rm -rf "$winget_tmp"
 fi
 
 # --- apt and RPM repositories ---------------------------------------------

@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, run the preflight gates, push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify every package channel (GitHub assets, Homebrew, Scoop, apt, RPM, AUR). Use it whenever the user wants a release out the door — also in Italian ("fare la release"), even without saying "release" — or asks why a release or a package-manager channel did not update.
+description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, run the preflight gates, push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify every package channel (GitHub assets, Homebrew, Scoop, apt, RPM, AUR, npm). Use it whenever the user wants a release out the door — also in Italian ("fare la release"), even without saying "release" — or asks why a release or a package-manager channel did not update.
 ---
 
 # Release what-to-run
@@ -8,9 +8,10 @@ description: Cut and verify a what-to-run release end to end — pick the semver
 The version lives only in the tag. Pushing `vX.Y.Z` on a commit in `main`
 starts `.github/workflows/release.yml`, which validates the tag, reruns the CI
 checks, builds the archives and Linux packages plus `checksums.txt`, publishes
-the GitHub release, and updates Homebrew, apt, RPM and (when configured) the
-AUR. The work is to reach the tag push with evidence and then prove that every
-channel moved; step 3 marks the point of no return.
+the GitHub release, and updates Homebrew, Scoop, apt, RPM and, when
+configured, the AUR and npm. The work is to reach the tag push with evidence
+and then prove that every channel moved; step 3 marks the point of no
+return.
 
 ## Facts the pipeline depends on
 
@@ -27,6 +28,8 @@ channel moved; step 3 marks the point of no return.
 | RPM | `rpm/repodata/primary.xml.gz` and `repomd.xml.asc` on `gh-pages` |
 | Setup scripts | `setup.deb.sh` and `setup.rpm.sh` at the root of `gh-pages` |
 | AUR | `what-to-run-bin` |
+| npm | `what-to-run` plus the six platform packages `what-to-run-<os>-<arch>` |
+| npm opt-in | the `NPM_PUBLISH` repository variable (not `true` → channel skipped with a warning) |
 
 ## 0. Read the state
 
@@ -37,12 +40,16 @@ git rev-list --left-right --count origin/main...HEAD
 git tag --sort=-creatordate | head -5
 gh auth status
 gh api repos/zanza00/what-to-run/actions/secrets --jq '.secrets[].name'
+gh api repos/zanza00/what-to-run/actions/variables \
+  --jq '.variables[] | select(.name == "NPM_PUBLISH") | .value'
 ```
 
 The secret list decides what a successful release means: Homebrew is
 mandatory, the apt and RPM repositories, the AUR and the Scoop bucket may
 legitimately be skipped. A missing optional secret means that channel-less
-release is expected, not a failure.
+release is expected, not a failure. The `NPM_PUBLISH` variable does the same
+for npm: while it is not `true`, a release without the npm packages is
+expected, not a failure.
 
 `git rev-list --left-right --count origin/main...HEAD` prints
 `<behind> <ahead>`. Stop and explain if the tree is dirty or HEAD is not on
@@ -105,6 +112,10 @@ this change? Run the publisher tests:
 python3 -m unittest discover -s scripts -p '*_test.py'
 ```
 
+Touch `npm/` or `scripts/publish-npm.py` in this change too? Run
+`task smoke-npm` before the tag: the npm section of `docs/development.md`
+owns what the gate proves.
+
 A release is the last cheap documentation checkpoint: if the change added a
 task source, flag, theme or install method, confirm `AGENTS.md`, `README.md`
 and `docs/` describe it now.
@@ -149,9 +160,10 @@ gh run watch "$run_id" --exit-status
 This step is done when the run for the tag is green; `--exit-status` enforces
 it. `validate` fails fast on a non-semver tag or a commit outside
 `origin/main`; `checks` reuses `checks.yml`; only `publish` builds, uploads and
-updates the package channels. On failure, read
-`gh run view "$run_id" --log-failed` and follow `references/recovery.md` —
-where it stopped decides what is safe.
+updates the package channels. While `NPM_PUBLISH` is `true`, the run also has
+a `verify-npm` job, which installs the wrapper on Linux and Windows. On
+failure, read `gh run view "$run_id" --log-failed` and follow
+`references/recovery.md` — where it stopped decides what is safe.
 
 ## 5. Verify every channel
 
@@ -171,10 +183,20 @@ Run the verifier with the tag:
 .agents/skills/release/scripts/verify-release.sh vX.Y.Z
 ```
 
-Missing optional secrets show as `skip`, matching the workflow. Scoop has no
-review step — the manifest is written during the release — so a stale or
-missing one is a `FAIL` while the secret list is readable, and a `warn` when
-it is not.
+It checks the release is public and carries exactly the eleven assets, the
+Homebrew formula has the version and download URLs, the Scoop manifest installs
+the right zip on amd64 and arm64 with the hashes from `checksums.txt`, the apt
+index and the RPM metadata on `gh-pages` have the version for both
+architectures, the RPM metadata signature verifies with the repository key, the
+setup scripts are published, the AUR package has it when that secret is
+configured, the npm registry carries the wrapper and the six platform packages
+at the tag version when `NPM_PUBLISH` is `true`, and `npx what-to-run@X.Y.Z`
+reports `wtr X.Y.Z`, the downloaded archive matches `checksums.txt`, and a
+binary for this platform prints `wtr X.Y.Z`. Missing repository/AUR/Scoop
+secrets, and an npm opt-in that is not `true`, show as `skip`, matching the
+workflow. Scoop has no review step — the manifest is written during the
+release — so a stale or missing one is a `FAIL` while the secret list is
+readable, and a `warn` when it is not.
 
 Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
 checks the release, the asset names, the Scoop bucket and the package
@@ -190,7 +212,8 @@ Close with a short, concrete summary:
 
 - version and the user-visible changes that justify it;
 - the release URL;
-- channels updated, and channels skipped because their secret is unset;
+- channels updated, and channels skipped because their secret is unset or the
+  npm opt-in is off;
 - the verifier result (`N checks, 0 failed`);
 - anything still manual, such as advertising the AUR package in the docs.
 
@@ -200,5 +223,5 @@ The full repair paths live in `references/recovery.md`. Triage:
 
 - `validate` or `checks` failed → nothing is published; section 1.
 - `publish` failed → whether the release exists decides the repair; sections 2
-  and 3.
+  and 3. The Homebrew, AUR and npm publishers are idempotent.
 - published artifacts are wrong → section 4.

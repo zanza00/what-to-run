@@ -5,6 +5,8 @@
 *.so
 *.dylib
 bin/
+# The npm package keeps its launcher in npm/bin/, which is a source file.
+!npm/bin/
 dist/
 docs/demo/.build/
 

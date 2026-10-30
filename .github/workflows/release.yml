@@ -35,9 +35,14 @@ jobs:
   publish:
     needs: [validate, checks]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The npm smoke gate adds a registry, a publish and three installs.
+    timeout-minutes: 20
     permissions:
       contents: write
+      # npm trusted publishing: the runner's OIDC token authenticates the
+      # publish and signs the provenance attestation. The workflow stores no
+      # registry token as a secret.
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -46,6 +51,12 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          # npm 11.5 or later speaks trusted publishing. The npm bundled with
+          # the runner image can be older, so the step installs Node 24 for
+          # its npm.
+          node-version: '24'
       - name: Prepare release publishing
         id: credentials
         env:
@@ -53,17 +64,27 @@ jobs:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          NPM_PUBLISH: ${{ vars.NPM_PUBLISH }}
         run: |
           if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
             echo 'Configure the HOMEBREW_TAP_TOKEN Actions secret before releasing.' >&2
             exit 1
           fi
-          # AUR publishing is optional while its secret is unset (AUR
-          # registration is closed): releases skip it with a warning.
-          if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
-            echo 'AUR_SSH_KEY_FILE=' >> "$GITHUB_ENV"
-            echo '::warning title=AUR publishing skipped::Set the AUR_SSH_PRIVATE_KEY secret to publish what-to-run-bin to the AUR.'
-          else
+          # optional_channel CREDENTIAL TITLE MESSAGE: one shape for every
+          # optional channel. The channel runs when its credential is set.
+          # Without the credential, the release skips the channel with a
+          # warning that names what to set. The function returns failure.
+          optional_channel() {
+            if [ -n "$1" ]; then
+              return 0
+            fi
+            echo "::warning title=$2::$3"
+            return 1
+          }
+          # AUR publishing is optional while its secret is unset, because
+          # AUR registration is closed.
+          if optional_channel "$AUR_SSH_PRIVATE_KEY" "AUR publishing skipped" \
+            "Set the AUR_SSH_PRIVATE_KEY secret to publish what-to-run-bin to the AUR."; then
             umask 077
             printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/aur_key"
             if ! ssh-keygen -y -f "$RUNNER_TEMP/aur_key" >/dev/null 2>&1; then
@@ -71,26 +92,39 @@ jobs:
               exit 1
             fi
             echo "AUR_SSH_KEY_FILE=$RUNNER_TEMP/aur_key" >> "$GITHUB_ENV"
+          else
+            echo 'AUR_SSH_KEY_FILE=' >> "$GITHUB_ENV"
           fi
           # Package repository publishing is optional while its key is unset.
-          if [ -z "$APT_GPG_PRIVATE_KEY" ]; then
-            echo 'APT_GPG_KEY_FILE=' >> "$GITHUB_ENV"
-            echo '::warning title=Package repositories skipped::Set the APT_GPG_PRIVATE_KEY secret to publish the apt and RPM repositories.'
-          else
+          if optional_channel "$APT_GPG_PRIVATE_KEY" "Package repositories skipped" \
+            "Set the APT_GPG_PRIVATE_KEY secret to publish the apt and RPM repositories."; then
             umask 077
             printf '%s\n' "$APT_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/apt_key"
             echo "APT_GPG_KEY_FILE=$RUNNER_TEMP/apt_key" >> "$GITHUB_ENV"
+          else
+            echo 'APT_GPG_KEY_FILE=' >> "$GITHUB_ENV"
           fi
           # The scoop pipe has no "do nothing without a token" mode, so the
-          # channel is skipped explicitly. An empty --skip is ignored.
+          # channel is skipped explicitly. GoReleaser ignores an empty --skip.
           skips=""
-          if [ -z "$SCOOP_BUCKET_TOKEN" ]; then
+          if optional_channel "$SCOOP_BUCKET_TOKEN" "Scoop publishing skipped" \
+            "Set the SCOOP_BUCKET_TOKEN secret to publish the manifest into zanza00/scoop-bucket."; then
+            echo "scoop_enabled=true" >> "$GITHUB_OUTPUT"
+          else
             skips="scoop"
-            echo '::warning title=Scoop publishing skipped::Set the SCOOP_BUCKET_TOKEN secret to publish the manifest into zanza00/scoop-bucket.'
+            echo "scoop_enabled=false" >> "$GITHUB_OUTPUT"
           fi
           echo "GORELEASER_SKIP=$skips" >> "$GITHUB_ENV"
-          echo "scoop_enabled=$([ -n "$SCOOP_BUCKET_TOKEN" ] && echo true || echo false)" \
-            >> "$GITHUB_OUTPUT"
+          # npm publishing is opt-in, like the other channels, until the
+          # packages are on the registry. The NPM_PUBLISH variable is the
+          # credential of this channel. The channel runs only when the
+          # variable is "true".
+          if optional_channel "$([ "$NPM_PUBLISH" = "true" ] && echo true)" "npm publishing skipped" \
+            'Set the NPM_PUBLISH repository variable to "true" to publish what-to-run to npm.'; then
+            echo "npm_enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm_enabled=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install repository tools
         # The publisher shells out to reprepro and createrepo_c, which the
@@ -106,6 +140,19 @@ jobs:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           APT_GPG_KEY_FILE: ${{ env.APT_GPG_KEY_FILE }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+      - name: Smoke test the npm channel
+        # The gate runs on every release, also while publishing is opt-in.
+        # It proves the packages this release would publish. A failure stops
+        # the job before the publish step can reach npmjs.com.
+        run: |
+          npm install --global pnpm@10
+          python3 scripts/smoke-npm.py --tag "$GITHUB_REF_NAME" --artifact dist/checksums.txt
+      - name: Publish to npm
+        # A step of its own rather than a GoReleaser publisher. Trusted
+        # publishing reads the runner's OIDC token. A GoReleaser publisher
+        # only receives the variables listed in .goreleaser.yaml.
+        if: steps.credentials.outputs.npm_enabled == 'true'
+        run: python3 scripts/publish-npm.py --tag "$GITHUB_REF_NAME" --artifact dist/checksums.txt
       - name: Verify published release
         shell: bash
         env:
@@ -172,3 +219,46 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/contents/$script?ref=gh-pages" \
               -H "Accept: application/vnd.github.raw" | diff -u "scripts/$script" -
           done
+
+  verify-npm:
+    # The channel is skipped while the repository variable is unset, so there
+    # is nothing to verify then. This job cannot read
+    # steps.credentials.outputs.npm_enabled. That output belongs to the
+    # publish job, so the variable is read again here.
+    needs: publish
+    if: vars.NPM_PUBLISH == 'true'
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows is the interesting one. npm runs the launcher through the
+        # shims it generates for .cmd and PowerShell.
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Install and run the published package
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          # The registry is eventually consistent. A version can answer 404
+          # for a few seconds after the publish.
+          ready=""
+          for attempt in $(seq 10); do
+            if npm view "what-to-run@$version" version >/dev/null 2>&1; then
+              ready=yes
+              break
+            fi
+            sleep 6
+          done
+          if [ -z "$ready" ]; then
+            echo "what-to-run@$version is not on the registry after 60 seconds." >&2
+            exit 1
+          fi
+          output=$(npx --yes "what-to-run@$version" --version)
+          echo "$output"
+          test "$output" = "wtr $version"

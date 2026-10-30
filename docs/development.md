@@ -160,8 +160,8 @@ fall back to the fullscreen picker after 250 ms.
 Releases are automated. Push a `vX.Y.Z` tag on a commit in `main`.
 `.github/workflows/release.yml` runs the checks and builds the archives and the
 `.deb` and `.rpm` packages. It creates the GitHub release and updates the
-Homebrew, Scoop, apt, RPM and AUR channels. The workflow is the source of truth
-for the steps, and its publishers are the scripts in `scripts/`.
+Homebrew, Scoop, npm, apt, RPM and AUR channels. The workflow is the source of
+truth for the steps, and its publishers are the scripts in `scripts/`.
 
 ### Secrets
 
@@ -192,6 +192,61 @@ without a token" mode, so the workflow passes `--skip=scoop`.
 
 After the first AUR release, update the Arch Linux section in `docs/install.md`
 to advertise `yay -S what-to-run-bin`.
+
+### npm
+
+`npm/package.json` is the private template of the root package.
+`scripts/publish-npm.py` strips `private`, fills in the version and the six
+exact `optionalDependencies` (`what-to-run-<os>-<arch>`, one prebuilt binary
+each), and builds the platform manifests in `render` with `os`, `cpu`, `files`
+and `preferUnplugged`, so npm keeps only the matching one. The publisher
+stages every package from the archives in `dist/` and publishes the platform
+ones before the root one, so no consumer resolves a root package whose
+optional dependency is still missing; a re-run skips the versions already on
+the registry. The launcher in `npm/bin/wtr.js` is the command npm links as
+`wtr`: it resolves the platform package and runs the Go binary with the
+terminal and exit code untouched. `node --test 'npm/test/*.test.js'` covers
+it (Node 24; `task all` does not run it because the CLI itself needs no Node).
+
+A smoke gate proves the channel before the publish step.
+`scripts/smoke-npm.py` stages the same packages the publisher assembles,
+publishes them to a Verdaccio registry that runs on the machine, and checks
+the install three ways: a global npm install runs `wtr --version` and prints
+the release version, pnpm installs with `--ignore-scripts` and asks for no
+build approval, and `npm --omit=optional` fails with the launcher error that
+names the platform package. Nothing reaches npmjs.com: the local registry has
+no uplink, and it serves no package it was not given. Only the Verdaccio
+download itself comes from npmjs.com.
+
+The workflow runs the gate on every release, also while the channel is
+opt-in, and gives it the real archives with `--artifact dist/checksums.txt`.
+From a checkout, `task smoke-npm` runs it without arguments: it needs Node and
+pnpm on the `PATH`, it builds the six release binaries and packs the archives
+itself, and it publishes only to the registry it started.
+
+The channel is opt-in: it runs only when the `NPM_PUBLISH` repository variable
+is `true`, and otherwise the release skips it with a warning. There is no npm
+secret: the step authenticates with trusted publishing, using the runner's
+OIDC token, and signs the provenance attestation. A trusted publisher is
+configured per package on npmjs.com (repository `zanza00/what-to-run`,
+workflow `release.yml`), so the packages must exist before the variable is set
+and the first publication is by hand:
+
+```sh
+gh release download vX.Y.Z --dir dist
+npm login
+python3 scripts/publish-npm.py --tag vX.Y.Z --artifact dist/checksums.txt
+```
+
+Add the trusted publisher to all seven packages, then
+`gh variable set NPM_PUBLISH --body true`.
+
+Before setting `NPM_PUBLISH`, install the package and check the widget
+once: `eval "$(wtr init zsh)"` in a fresh shell, then press the key and
+confirm the picker opens and the chosen task runs. The launcher inherits
+the terminal and the exit code, and the widget captures stdout, so this
+is the same tmux check the other widget changes need (`bash` and
+PowerShell have their own widgets, `init bash` and `init powershell`).
 
 ### Check the setup
 

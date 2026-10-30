@@ -48,6 +48,42 @@ To run it without installing:
 npx what-to-run@latest
 ```
 
+## Nix
+
+On Linux or Apple silicon macOS with [Nix](https://nixos.org/) and flakes
+enabled:
+
+```sh
+nix run github:zanza00/what-to-run
+```
+
+To install the command into your profile:
+
+```sh
+nix profile install github:zanza00/what-to-run
+```
+
+The repository is a flake, so Nix builds `wtr` from source. The first build
+downloads the Go toolchain and the modules, then Nix keeps the result in the
+store. Nixpkgs no longer supports Intel Macs, so use Homebrew on those machines.
+
+On NixOS, add the flake as an input, pass the inputs to the modules with
+`specialArgs = { inherit inputs; };`, and add the package to
+`environment.systemPackages`:
+
+```nix
+inputs.what-to-run.url = "github:zanza00/what-to-run";
+
+environment.systemPackages = [
+  inputs.what-to-run.packages.${pkgs.stdenv.hostPlatform.system}.default
+];
+```
+
+The flake builds the default branch. To pin a release, use a tag that contains
+the flake: `github:zanza00/what-to-run/<tag>`. The `version` attribute in
+`flake.nix` sets the string that `wtr --version` prints, because a Nix build
+has no git tag.
+
 ## Debian and Ubuntu
 
 ### apt repository

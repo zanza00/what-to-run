@@ -5,7 +5,8 @@ description: Cut and verify a what-to-run release end to end — pick the semver
 
 # Release what-to-run
 
-The version lives only in the tag. Pushing `vX.Y.Z` on a commit in `main`
+The release version lives in the tag; `flake.nix` repeats it for Nix builds.
+Pushing `vX.Y.Z` on a commit in `main`
 starts `.github/workflows/release.yml`, which validates the tag, reruns the CI
 checks, builds the archives and Linux packages plus `checksums.txt`, publishes
 the GitHub release, and updates Homebrew, apt, RPM and (when configured) the
@@ -21,6 +22,7 @@ channel moved.
 | Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` (missing → channel skipped with a warning) |
 | Release assets | `checksums.txt`, 4 tarballs, 2 Windows zips, 2 `.deb` files, 2 `.rpm` files (11 total) |
 | Version string | `wtr --version` prints `wtr X.Y.Z` in released binaries, `wtr vX.Y.Z-N-g…` from `task build` |
+| Nix | the `version` attribute in `flake.nix`, bumped with the tag and checked by the validate job; the flake builds the default branch |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | Scoop | `bucket/what-to-run.json` in `zanza00/scoop-bucket` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
@@ -89,6 +91,10 @@ itself calls the Go commands directly in `.github/workflows/checks.yml`, plus a
 gofmt gate. If it reformats files, commit that separately and push before
 tagging — the tag must contain what passed, and a dirty tree means the checks
 ran on something else.
+
+The Nix package reads its version from `flake.nix`, so set the `version`
+attribute to the proposed version before the tag. Commit the bump with the
+release changes. The validate job fails when the tag and the attribute differ.
 
 When `goreleaser` is installed, validate the config and build every artifact
 without publishing:

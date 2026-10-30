@@ -31,6 +31,12 @@ With [mise](https://mise.jdx.dev/) instead:
 mise use -g github:zanza00/what-to-run
 ```
 
+On Linux or Apple silicon macOS with [Nix](https://nixos.org/) instead:
+
+```sh
+nix run github:zanza00/what-to-run
+```
+
 For the apt and RPM repositories, `.deb` and `.rpm` packages, npm, release
 tarballs, Windows or `go install`, see [Installation](docs/install.md).
 

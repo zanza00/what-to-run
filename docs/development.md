@@ -17,7 +17,8 @@ after installing, add it to the `PATH` in your shell rc file.
 
 `task` is a contributor prerequisite, not a runtime dependency of `wtr`. When
 it is not installed, run the Go commands from `.github/workflows/checks.yml`
-directly.
+directly. With Nix, `nix develop` provides Go and `task`, so you can skip the
+install.
 
 ## Commands
 
@@ -162,6 +163,9 @@ Releases are automated. Push a `vX.Y.Z` tag on a commit in `main`.
 `.deb` and `.rpm` packages. It creates the GitHub release and updates the
 Homebrew, Scoop, npm, apt, RPM and AUR channels. The workflow is the source of
 truth for the steps, and its publishers are the scripts in `scripts/`.
+The flake is not published: it builds from the repository, so bump the
+`version` attribute in `flake.nix` in the tag commit. The validate job fails
+when the tag and the attribute differ.
 
 ### Secrets
 
@@ -248,14 +252,8 @@ without being published. The Homebrew formula comes from a custom publisher, so
 only a real release writes it. `goreleaser check` catches a broken `scoops`
 block before the tag.
 
+`wtr --version` reports the version injected at build time: the release tag in
+released archives, a `git describe` string in local `task build` binaries, and
+the `version` attribute in `flake.nix` for Nix builds.
+
 ### Recover a failed repository step
-
-If the repository step fails after the GitHub release exists, run the
-`republish packages` workflow with the tag as input. It updates `gh-pages`, the
-branch GitHub Pages serves, from the released assets without recreating the
-release.
-
-The repository step also copies `scripts/setup.deb.sh` and
-`scripts/setup.rpm.sh` to the root of `gh-pages`, where the one-liners in
-`docs/install.md` fetch them from. The scripts are not tied to a version, so an
-edit reaches the site with the next release or a `republish packages` run.

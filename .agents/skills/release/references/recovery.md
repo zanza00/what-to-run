@@ -108,12 +108,12 @@ git -C "$tmp/bucket" push
 
 ### npm
 
-The workflow skips the channel with a warning while the `NPM_PUBLISH`
-repository variable is not `true`, so a release without npm is expected, not a
-failure. Turning the channel on is a one-time setup, and only the maintainer
-can perform it: registering trusted publishing for all seven packages on
-npmjs.com is a human step. The npm section of `docs/development.md` owns the
-whole procedure. Never attempt that registration.
+While the `NPM_PUBLISH` repository variable is not `true`, the workflow skips
+the channel, and the release is *expected* without it. Turning the channel
+on is a one-time setup, and only the maintainer can perform it: registering
+trusted publishing for all seven packages on npmjs.com is a human step. The
+npm section of `docs/development.md` owns the whole procedure. Never attempt
+that registration.
 
 When the variable is `true` and the publish step stopped partway, rerun the
 publisher with the commands in the npm section of `docs/development.md`. It is
@@ -154,9 +154,7 @@ still published.
 
 ## 5. The workflow succeeded but verification finds a stale channel
 
-The CI release verification checks the asset names, the Scoop bucket and the
-repository indexes, so a successful run is good evidence, but the bundled
-verifier is the source of truth for every channel. For a channel that is on:
+For a channel that is on:
 
 - apt or RPM stale → run the `republish packages` workflow above;
 - Homebrew stale → run `publish-homebrew.py` locally;

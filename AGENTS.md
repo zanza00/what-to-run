@@ -20,8 +20,9 @@ to the owner instead of copying it.
 - **A PR that changes user-visible behavior adds its `CHANGELOG.md` entry
   under `[Unreleased]` in the same PR.** The `changelog` CI job fails without
   it; the `skip-changelog` label opts a PR out when the change is not
-  user-visible. The `docs-writing` skill owns the entry style, and the
-  `release` skill cuts `[Unreleased]` into the released version section.
+  user-visible. See [Development](docs/development.md#changelog) for the
+  watched paths, the `docs-writing` skill for the entry style, and the
+  `release` skill for the cut.
 
 ## Go development
 

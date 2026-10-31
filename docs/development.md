@@ -30,11 +30,13 @@ download the pinned `dprint` binary into `bin/tools` on first run.
 
 `CHANGELOG.md` follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Every pull request
-that changes user-visible behavior adds its entry under `[Unreleased]` in the
-same pull request: the `changelog` CI job fails without it. Apply the
-`skip-changelog` label when the change is not user-visible, for example an
-internal refactor or a CI fix. The release process renames `[Unreleased]`
-into the released version section.
+that changes a watched path adds an entry under `[Unreleased]` in the same
+pull request. The `changelog` CI job watches `internal/`, `cmd/`, `npm/`,
+`scripts/`, `.goreleaser.yaml`, `.github/workflows/release.yml`, `go.mod` and
+`go.sum`; it fails when the `[Unreleased]` section gains no new entry. Apply
+the `skip-changelog` label when the change is not user-visible, for example an
+internal refactor or a CI fix. The `release` skill cuts `[Unreleased]` into
+the released version section.
 
 ## Local build
 

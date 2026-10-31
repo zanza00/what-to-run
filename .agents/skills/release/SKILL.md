@@ -54,8 +54,9 @@ expected, not a failure.
 
 `git rev-list --left-right --count origin/main...HEAD` prints
 `<behind> <ahead>`. Stop and explain if the tree is dirty or HEAD is not on
-`main`. If HEAD is ahead, those commits belong to this release: review them,
-then let them reach `origin/main` through a merged pull request before
+`main`; if the previous release left you on its cut branch, switch back to
+`main` first. If HEAD is ahead, those commits belong to this release: review
+them, then let them reach `origin/main` through a merged pull request before
 tagging. Never tag from a side branch — the workflow checks the tag commit
 is an ancestor of `origin/main`.
 
@@ -80,19 +81,38 @@ not seen.
 
 ## 2. Preflight
 
-Cut the changelog version section on a branch: rename `## [Unreleased]` in
-`CHANGELOG.md` into `## [X.Y.Z] - YYYY-MM-DD` with the chosen version and
-today's date, and put a fresh empty `## [Unreleased]` section above it. Keep
-the entry wording unchanged, so the section doubles as the release summary.
-The `main-guard` ruleset lets `main` take changes only through a merged pull
-request, so the cut cannot be pushed to `main` directly: open it as a pull
-request (`chore: cut the changelog for vX.Y.Z`) once the gate below has
-formatted the branch, and ask the user to merge it when they confirm the
-release. The `changelog` CI job passes on its own while the diff touches only
+Before you cut, confirm the `[Unreleased]` section has at least one entry:
+
+```sh
+awk '/^## \[Unreleased\]$/{f=1; next}
+     /^## \[/{f=0}
+     f && /^- /{found=1}
+     END{exit !found}' CHANGELOG.md
+```
+
+If it exits non-zero, there is nothing to release: stop and ask the user
+whether the release is needed.
+
+Cut the changelog version section on a branch:
+
+```sh
+git switch -c chore/cut-changelog-vX.Y.Z
+```
+
+Rename `## [Unreleased]` in `CHANGELOG.md` into
+`## [X.Y.Z] - YYYY-MM-DD` with the chosen version and today's date, and put a
+fresh empty `## [Unreleased]` section above it. Keep the entry wording
+unchanged, so the section doubles as the release summary. The `main-guard`
+ruleset lets `main` take changes only through a merged pull request, so the
+cut cannot be pushed to `main` directly: open it as a pull request
+(`chore: cut the changelog for vX.Y.Z`) once the gate below has formatted the
+branch, and ask the user to merge it when they confirm the release. The
+`changelog` CI job passes on its own while the diff touches only
 `CHANGELOG.md`; if the gate reformatted code, add the `skip-changelog` label,
-because a format-only change is not user-visible. Prefer a merge commit over
-a squash: the release notes exclude `^Merge `, while a squashed chore commit
-would surface in the next release's notes.
+because a format-only change is not user-visible. The cut commit is a
+`chore:` commit inside this release's range, so it appears in the generated
+release notes; a merge commit adds no extra entry, because the `^Merge `
+filter drops it.
 
 Run the full gate from the repository root:
 
@@ -146,11 +166,20 @@ these commands after the merge lands on `origin/main`:
 
 ```sh
 git fetch origin
+cut_sha=$(gh pr list --search 'chore: cut the changelog for vX.Y.Z in:title sort:created-desc' \
+  --state merged --limit 1 --json mergeCommit --jq '.[0].mergeCommit.oid')
+test -n "$cut_sha"
+git merge-base --is-ancestor "$cut_sha" origin/main
 git rev-parse -q --verify "refs/tags/vX.Y.Z" && echo "tag already exists"
 git ls-remote --tags origin "refs/tags/vX.Y.Z"
-git tag -a vX.Y.Z -m vX.Y.Z origin/main  # the commit the cut merge put on main
+git tag -a vX.Y.Z -m vX.Y.Z "$cut_sha"
 git push origin vX.Y.Z
 ```
+
+`cut_sha` is the merge commit of the cut pull request, not the tip of
+`origin/main`: another pull request may merge in between, and those commits do
+not belong to this release. If `origin/main` has moved past `cut_sha`, decide
+whether the later commits belong to this release before tagging.
 
 Use an annotated tag, like the existing ones. If the local or remote tag
 already exists, stop: a tag is never moved or force-pushed. See
@@ -188,8 +217,10 @@ failure, read `gh run view "$run_id" --log-failed` and follow
 The release notes are the commits between the previous tag and this one,
 oldest first, with merge commits dropped; GoReleaser prints their subjects
 only, so a `BREAKING CHANGE:` footer or a one-way removal stays invisible.
-When the range contains one, add that note to the published release now — the
-tag stays put, only the notes change:
+Compare them with the cut `CHANGELOG.md` section: the file is the curated
+record, and the notes are generated from commits. When the range contains a
+change the notes miss, add it to the published release now — the tag stays
+put, only the notes change:
 
 ```sh
 gh release edit vX.Y.Z --notes-file notes.md

@@ -16,7 +16,7 @@ Every fact has a **single source of truth**: one file states it in full, and eve
 | `docs/widget.md` | zsh, bash and PowerShell widget setup, key binding, fullscreen toggle, direct runs |
 | `docs/config.md` | rc schema, per-project overrides, precedence, themes and warnings |
 | `docs/task-sources.md` | source registry table and per-source caveats |
-| `docs/development.md` | contributor prerequisites, dev tasks, local build, README demo |
+| `docs/development.md` | contributor prerequisites, dev tasks, local build, README demo, the changelog entry rule |
 | `CHANGELOG.md` | the `[Unreleased]` section, the entry style, the released version sections |
 
 When adding a task source, add one row to `docs/task-sources.md` and one bullet to `README.md` (`## Task sources`) in `defaultSources` registry order. Add a `##` section in `docs/task-sources.md` only when the table cannot hold the caveats.
@@ -26,13 +26,12 @@ When adding a task source, add one row to `docs/task-sources.md` and one bullet 
 `CHANGELOG.md` follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): one `[Unreleased]`
 section on top, one section per released version, and entries grouped under
-`### Added`, `### Changed` and `### Fixed`.
+`### Added`, `### Changed`, `### Fixed` and `### Removed`.
 
-A pull request that changes user-visible behavior adds its entry under
-`[Unreleased]` in the same pull request. The `changelog` CI job fails without
-it, and the `skip-changelog` label opts a pull request out. The `release`
-skill renames `[Unreleased]` into the released version section, so never add
-news to a released section.
+The contributor rule lives in [Development](docs/development.md#changelog): a
+pull request that changes a watched path adds its entry under `[Unreleased]`
+in the same pull request. The `release` skill cuts `[Unreleased]` into the
+released version section, so never add news to a released section.
 
 Write entries like the existing ones:
 

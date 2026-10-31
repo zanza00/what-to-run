@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, run the preflight gates, push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify every package channel (GitHub assets, Homebrew, Scoop, apt, RPM, AUR, npm). Use it whenever the user wants a release out the door — also in Italian ("fare la release"), even without saying "release" — or asks why a release or a package-manager channel did not update.
+description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, cut the changelog through a pull request, run the preflight gates, push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify every package channel (GitHub assets, Homebrew, Scoop, apt, RPM, AUR, npm). Use it whenever the user wants a release out the door — also in Italian ("fare la release"), even without saying "release" — or asks why a release or a package-manager channel did not update.
 ---
 
 # Release what-to-run
@@ -10,15 +10,15 @@ starts `.github/workflows/release.yml`, which validates the tag, reruns the CI
 checks, builds the archives and Linux packages plus `checksums.txt`, publishes
 the GitHub release, and updates Homebrew, Scoop, apt, RPM and, when
 configured, the AUR and npm. The work is to reach the tag push with evidence
-and then prove that every channel moved; step 3 marks the point of no
+and then prove that every channel moved; step 4 marks the point of no
 return.
 
-## Facts the pipeline depends on
+## Facts the release depends on
 
 | Thing | Value |
 | --- | --- |
 | Trigger | `vX.Y.Z` tag on a commit contained in `origin/main` |
-| Branch protection | `main-guard` ruleset: `main` takes changes only through a merged pull request, so nobody pushes it directly |
+| Branch protection | `main-guard` ruleset: `main` takes changes only through a merged pull request |
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
 | Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` (missing → channel skipped with a warning) |
 | Release assets | `checksums.txt`, 4 tarballs, 2 Windows zips, 2 `.deb` files, 2 `.rpm` files (11 total) |
@@ -55,10 +55,17 @@ expected, not a failure.
 `git rev-list --left-right --count origin/main...HEAD` prints
 `<behind> <ahead>`. Stop and explain if the tree is dirty or HEAD is not on
 `main`; if the previous release left you on its cut branch, switch back to
-`main` first. If HEAD is ahead, those commits belong to this release: review
-them, then let them reach `origin/main` through a merged pull request before
-tagging. Never tag from a side branch — the workflow checks the tag commit
-is an ancestor of `origin/main`.
+`main` first. Bring `main` up to `origin/main` before the cut:
+
+```sh
+git switch main
+git pull --ff-only
+```
+
+If the pull refuses because the local branch diverged, the local commits
+belong to this release: open a pull request for them, wait for the user to
+merge it, then `git reset --hard origin/main`. Never tag from a side branch —
+the workflow checks the tag commit is an ancestor of `origin/main`.
 
 ## 1. Choose the version
 
@@ -81,38 +88,14 @@ not seen.
 
 ## 2. Preflight
 
-Before you cut, confirm the `[Unreleased]` section has at least one entry:
+Confirm the `[Unreleased]` section has at least one entry:
 
 ```sh
-awk '/^## \[Unreleased\]$/{f=1; next}
-     /^## \[/{f=0}
-     f && /^- /{found=1}
-     END{exit !found}' CHANGELOG.md
+scripts/check-changelog.sh --unreleased
 ```
 
 If it exits non-zero, there is nothing to release: stop and ask the user
 whether the release is needed.
-
-Cut the changelog version section on a branch:
-
-```sh
-git switch -c chore/cut-changelog-vX.Y.Z
-```
-
-Rename `## [Unreleased]` in `CHANGELOG.md` into
-`## [X.Y.Z] - YYYY-MM-DD` with the chosen version and today's date, and put a
-fresh empty `## [Unreleased]` section above it. Keep the entry wording
-unchanged, so the section doubles as the release summary. The `main-guard`
-ruleset lets `main` take changes only through a merged pull request, so the
-cut cannot be pushed to `main` directly: open it as a pull request
-(`chore: cut the changelog for vX.Y.Z`) once the gate below has formatted the
-branch, and ask the user to merge it when they confirm the release. The
-`changelog` CI job passes on its own while the diff touches only
-`CHANGELOG.md`; if the gate reformatted code, add the `skip-changelog` label,
-because a format-only change is not user-visible. The cut commit is a
-`chore:` commit inside this release's range, so it appears in the generated
-release notes; a merge commit adds no extra entry, because the `^Merge `
-filter drops it.
 
 Run the full gate from the repository root:
 
@@ -123,9 +106,11 @@ git status --short
 
 `task all` mirrors what CI runs locally: format, vet, race tests, build. CI
 itself calls the Go commands directly in `.github/workflows/checks.yml`, plus a
-gofmt gate. If it reformats files, commit them on the cut branch before
-opening the pull request — the tag must contain what passed, and a dirty tree
-means the checks ran on something else.
+gofmt gate. If it reformats files, commit them on a separate branch and open a
+pull request; the cut branch stays changelog-only. A format-only change is not
+user-visible, so that pull request can carry the `skip-changelog` label. The
+tag must contain what passed, and a dirty tree means the checks ran on
+something else.
 
 When `goreleaser` is installed, validate the config and build every artifact
 without publishing:
@@ -157,17 +142,52 @@ A release is the last cheap documentation checkpoint: if the change added a
 task source, flag, theme or install method, confirm `AGENTS.md`, `README.md`
 and `docs/` describe it now.
 
-## 3. Tag and push — confirm first
+## 3. Cut the changelog on a pull request
 
-The tag push is the point of no return: once `publish` runs, consumers can see
-the release. Show the version, the release-notes outline and the cut pull
-request, then ask for confirmation. The user merges the cut pull request; run
-these commands after the merge lands on `origin/main`:
+The cut cannot reach `main` directly (see Facts), so open it as a pull request.
+Cut it on a branch based on `origin/main`:
 
 ```sh
 git fetch origin
-cut_sha=$(gh pr list --search 'chore: cut the changelog for vX.Y.Z in:title sort:created-desc' \
-  --state merged --limit 1 --json mergeCommit --jq '.[0].mergeCommit.oid')
+git switch -c chore/cut-changelog-vX.Y.Z origin/main
+```
+
+Rename `## [Unreleased]` in `CHANGELOG.md` into
+`## [X.Y.Z] - YYYY-MM-DD` with the chosen version and today's date, and put a
+fresh empty `## [Unreleased]` section above it. Keep the entry wording
+unchanged: the section is the release's curated record, and step 6 compares the
+generated notes with it.
+
+Commit the cut, push the branch, and open the pull request as a draft:
+
+```sh
+git add CHANGELOG.md
+git commit -m "chore: cut the changelog for vX.Y.Z"
+git push -u origin chore/cut-changelog-vX.Y.Z
+gh pr create --draft --title "chore: cut the changelog for vX.Y.Z" \
+  --body "Cut the changelog for vX.Y.Z."
+```
+
+The cut pull request touches only `CHANGELOG.md`, so the `changelog` job passes
+without an entry. If the branch touches a watched path, stop: those commits
+belong in a separate pull request.
+
+This step is done when the pull request is open as a draft. The next step asks
+the user to confirm the release and merge it.
+
+## 4. Tag and push — confirm first
+
+The tag push is the point of no return: once `publish` runs, consumers can see
+the release. Show the version, the release-notes outline, the cut pull request
+and the commit at its head, then ask for confirmation. The user marks the cut
+pull request ready and merges it; run these commands after the merge lands on
+`origin/main`:
+
+```sh
+git fetch origin
+cut_sha=$(gh pr list --head chore/cut-changelog-vX.Y.Z --state merged \
+  --repo zanza00/what-to-run --limit 1 \
+  --json mergeCommit --jq '.[0].mergeCommit.oid')
 test -n "$cut_sha"
 git merge-base --is-ancestor "$cut_sha" origin/main
 git rev-parse -q --verify "refs/tags/vX.Y.Z" && echo "tag already exists"
@@ -176,16 +196,19 @@ git tag -a vX.Y.Z -m vX.Y.Z "$cut_sha"
 git push origin vX.Y.Z
 ```
 
-`cut_sha` is the merge commit of the cut pull request, not the tip of
-`origin/main`: another pull request may merge in between, and those commits do
-not belong to this release. If `origin/main` has moved past `cut_sha`, decide
-whether the later commits belong to this release before tagging.
+`cut_sha` is the commit the merged cut pull request put on `origin/main`, not
+the tip of `origin/main`: another pull request may merge in between, and those
+commits do not belong to this release. If `origin/main` has moved past
+`cut_sha`, ask the user whether the later commits must ship now. If they must,
+add their entries to the `[X.Y.Z]` section in another pull request, wait for
+the merge, then tag the new commit; otherwise tag `cut_sha` and let the next
+release carry them.
 
 Use an annotated tag, like the existing ones. If the local or remote tag
 already exists, stop: a tag is never moved or force-pushed. See
 `references/recovery.md` if it belongs to a failed or published release.
 
-## 4. Watch the workflow
+## 5. Watch the workflow
 
 The run appears a few seconds after the push:
 
@@ -212,15 +235,16 @@ a `verify-npm` job, which installs the wrapper on Linux and Windows. On
 failure, read `gh run view "$run_id" --log-failed` and follow
 `references/recovery.md` — where it stopped decides what is safe.
 
-## 5. Verify every channel
+## 6. Verify every channel
 
 The release notes are the commits between the previous tag and this one,
 oldest first, with merge commits dropped; GoReleaser prints their subjects
 only, so a `BREAKING CHANGE:` footer or a one-way removal stays invisible.
-Compare them with the cut `CHANGELOG.md` section: the file is the curated
-record, and the notes are generated from commits. When the range contains a
-change the notes miss, add it to the published release now — the tag stays
-put, only the notes change:
+The generated notes include the cut commit (a `chore:` line); skip it. Compare
+the notes with the cut `CHANGELOG.md` section: the file is the curated record,
+and the notes are generated from commits. Every entry in the cut section must
+appear in the notes; add the missing ones now — the tag stays put, only the
+notes change:
 
 ```sh
 gh release edit vX.Y.Z --notes-file notes.md
@@ -254,7 +278,7 @@ failing channel, inspect the `publish` step of the run, then follow section 5
 of `references/recovery.md`. If this is the first AUR publish, add an Arch
 Linux section to `docs/install.md` that advertises `yay -S what-to-run-bin`.
 
-## 6. Report
+## 7. Report
 
 Close with a short, concrete summary:
 

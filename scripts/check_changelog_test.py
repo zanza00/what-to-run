@@ -144,6 +144,23 @@ class CheckChangelogTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("no ## [Unreleased] section", result.stderr)
 
+    def test_unreleased_with_entry_passes(self):
+        result = self.run_script("--unreleased")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("at least one entry", result.stdout)
+
+    def test_unreleased_without_entry_fails(self):
+        self.write("CHANGELOG.md", CHANGELOG.replace("- old entry", ""))
+        self.commit()
+        result = self.run_script("--unreleased")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("no entry under ## [Unreleased]", result.stderr)
+
+    def test_unreleased_unknown_revision_exits_2(self):
+        result = self.run_script("--unreleased", "does-not-exist")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unknown revision", result.stderr)
+
     def test_unknown_revision_exits_2(self):
         result = self.run_script("does-not-exist", "HEAD")
         self.assertEqual(result.returncode, 2)

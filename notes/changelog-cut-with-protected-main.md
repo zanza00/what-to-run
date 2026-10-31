@@ -226,18 +226,20 @@ manual and agents open draft PRs.
 
 - **Pattern 1 (release PR) fits directly** and is the recommendation. The cut becomes a one-file PR:
   rename `## [Unreleased]` into `## [X.Y.Z] - YYYY-MM-DD`, add a fresh empty `## [Unreleased]`, open it
-  as a draft (docs-only, so the PR #80 job passes trivially — the check fires only when `internal/`,
-  `cmd/`, `npm/` or `scripts/` change). The maintainer marks it ready and merges it when asked in
-  that turn, exactly like every other PR. Any merge method works, because the tag does not target the
-  PR head but whatever commit the merge put on `main`. Then: fetch, verify `origin/main`, run
-  `task all`, tag `origin/main`'s head with `git tag -a vX.Y.Z -m vX.Y.Z`, push the tag — the
-  workflow's `git merge-base --is-ancestor HEAD origin/main` passes by construction. The `release`
-  skill changes in one place: step 2's "Commit it now; step 3 pushes it to `main`" becomes "open the
-  draft cut PR; after the maintainer merges it, tag the merged commit".
-- One follow-on from pattern 1: a squashed cut PR leaves one commit on `main` inside the next tag's
+  as a draft (docs-only, so the PR #80 job passes trivially — the check fires only when a watched
+  path changes). The maintainer marks it ready and merges it when asked in that turn, exactly like
+  every other PR. Any merge method works, because the tag does not target the PR head but the commit
+  the merge put on `main`. Then: fetch, verify `origin/main`, tag the cut PR's merge commit
+  (`cut_sha`) with `git tag -a vX.Y.Z -m vX.Y.Z "$cut_sha"`, push the tag — the workflow's
+  `git merge-base --is-ancestor HEAD origin/main` passes by construction. Tagging `cut_sha` rather
+  than the tip of `origin/main` keeps a later PR out of this release. The `release` skill changes in
+  step 0 (pull `main` and base the cut branch on `origin/main`), step 2 (preflight), the new cut
+  step, and the tag step.
+- One follow-on from pattern 1: a squashed cut PR leaves one commit on `main` inside this release's
   commit range, and today's `.goreleaser.yaml` `changelog:` block excludes only `^Merge `, so
-  "docs: cut the changelog for vX.Y.Z (#N)" would appear in the next release's generated notes.
-  Either exclude that subject in the GoReleaser filters or accept one housekeeping line.
+  "chore: cut the changelog for vX.Y.Z (#N)" appears in this release's generated notes. The `release`
+  skill skips that line when it compares the notes with the changelog section; excluding the subject
+  in the GoReleaser filters would remove it from the notes entirely.
 - **Pattern 4 (tag first) is the fallback** if even one PR per release is unwanted: tag the release
   with the section still under `[Unreleased]`, then merge the cut PR afterwards, like Vault. The
   trade-off is explicit: the `CHANGELOG.md` inside the tag does not carry the version header, so the

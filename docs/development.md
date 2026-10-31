@@ -26,6 +26,16 @@ task all      # format (Go and Markdown), vet, test, and build
 `task` with no arguments lists every task. `task fmt-md` and `task check-md`
 download the pinned `dprint` binary into `bin/tools` on first run.
 
+## Changelog
+
+`CHANGELOG.md` follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Every pull request
+that changes user-visible behavior adds its entry under `[Unreleased]` in the
+same pull request: the `changelog` CI job fails without it. Apply the
+`skip-changelog` label when the change is not user-visible, for example an
+internal refactor or a CI fix. The release process renames `[Unreleased]`
+into the released version section.
+
 ## Local build
 
 To test your checkout in daily use, prepend its `bin/` directory to `PATH`

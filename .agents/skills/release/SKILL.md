@@ -78,6 +78,13 @@ not seen.
 
 ## 2. Preflight
 
+Cut the changelog version section first: rename `## [Unreleased]` in
+`CHANGELOG.md` into `## [X.Y.Z] - YYYY-MM-DD` with the chosen version and
+today's date, and put a fresh empty `## [Unreleased]` section above it. Keep
+the entry wording unchanged, so the section doubles as the release summary.
+Commit it now; step 3 pushes it to `main` before tagging, and the tag must
+contain the renamed section.
+
 Run the full gate from the repository root:
 
 ```sh

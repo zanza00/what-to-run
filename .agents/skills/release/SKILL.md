@@ -18,6 +18,7 @@ return.
 | Thing | Value |
 | --- | --- |
 | Trigger | `vX.Y.Z` tag on a commit contained in `origin/main` |
+| Branch protection | `main-guard` ruleset: `main` takes changes only through a merged pull request, so nobody pushes it directly |
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
 | Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` (missing → channel skipped with a warning) |
 | Release assets | `checksums.txt`, 4 tarballs, 2 Windows zips, 2 `.deb` files, 2 `.rpm` files (11 total) |
@@ -54,8 +55,9 @@ expected, not a failure.
 `git rev-list --left-right --count origin/main...HEAD` prints
 `<behind> <ahead>`. Stop and explain if the tree is dirty or HEAD is not on
 `main`. If HEAD is ahead, those commits belong to this release: review them,
-then confirm and push them before tagging. Never tag from a side branch — the
-workflow checks the tag commit is an ancestor of `origin/main`.
+then let them reach `origin/main` through a merged pull request before
+tagging. Never tag from a side branch — the workflow checks the tag commit
+is an ancestor of `origin/main`.
 
 ## 1. Choose the version
 
@@ -78,12 +80,19 @@ not seen.
 
 ## 2. Preflight
 
-Cut the changelog version section first: rename `## [Unreleased]` in
+Cut the changelog version section on a branch: rename `## [Unreleased]` in
 `CHANGELOG.md` into `## [X.Y.Z] - YYYY-MM-DD` with the chosen version and
 today's date, and put a fresh empty `## [Unreleased]` section above it. Keep
 the entry wording unchanged, so the section doubles as the release summary.
-Commit it now; step 3 pushes it to `main` before tagging, and the tag must
-contain the renamed section.
+The `main-guard` ruleset lets `main` take changes only through a merged pull
+request, so the cut cannot be pushed to `main` directly: open it as a pull
+request (`chore: cut the changelog for vX.Y.Z`) once the gate below has
+formatted the branch, and ask the user to merge it when they confirm the
+release. The `changelog` CI job passes on its own while the diff touches only
+`CHANGELOG.md`; if the gate reformatted code, add the `skip-changelog` label,
+because a format-only change is not user-visible. Prefer a merge commit over
+a squash: the release notes exclude `^Merge `, while a squashed chore commit
+would surface in the next release's notes.
 
 Run the full gate from the repository root:
 
@@ -94,9 +103,9 @@ git status --short
 
 `task all` mirrors what CI runs locally: format, vet, race tests, build. CI
 itself calls the Go commands directly in `.github/workflows/checks.yml`, plus a
-gofmt gate. If it reformats files, commit that separately and push before
-tagging — the tag must contain what passed, and a dirty tree means the checks
-ran on something else.
+gofmt gate. If it reformats files, commit them on the cut branch before
+opening the pull request — the tag must contain what passed, and a dirty tree
+means the checks ran on something else.
 
 When `goreleaser` is installed, validate the config and build every artifact
 without publishing:
@@ -131,14 +140,15 @@ and `docs/` describe it now.
 ## 3. Tag and push — confirm first
 
 The tag push is the point of no return: once `publish` runs, consumers can see
-the release. Show the version, the exact commit, and the release-notes outline,
-then ask for confirmation before running:
+the release. Show the version, the release-notes outline and the cut pull
+request, then ask for confirmation. The user merges the cut pull request; run
+these commands after the merge lands on `origin/main`:
 
 ```sh
+git fetch origin
 git rev-parse -q --verify "refs/tags/vX.Y.Z" && echo "tag already exists"
 git ls-remote --tags origin "refs/tags/vX.Y.Z"
-git push origin main        # the tag must be an ancestor of origin/main
-git tag -a vX.Y.Z -m vX.Y.Z
+git tag -a vX.Y.Z -m vX.Y.Z origin/main  # the commit the cut merge put on main
 git push origin vX.Y.Z
 ```
 

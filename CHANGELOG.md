@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to this project are documented in this file.
+This file documents every notable change to the project.
 
 The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
@@ -11,19 +11,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Added npm as an install channel: `npm install -g what-to-run` installs a small
-  launcher plus one optional dependency per platform carrying the Go binary, and
-  runs no install script. It is the shortest install path on Windows, and `npx
-  what-to-run@latest` runs the picker without installing it.
+  launcher plus one optional dependency per platform that contains the Go
+  binary, and runs no install script. It is the shortest install path on
+  Windows, and `npx what-to-run@latest` runs the picker without installing it.
 
 ### Changed
 
 - **Breaking:** the `disable` key in the rc file now takes source IDs (`make`,
-  `cargo-make`) instead of file names. An entry that is not a source ID is
-  dropped with a warning naming the ID to use, so a source disabled by a file
-  name runs again until the entry is fixed.
+  `cargo-make`) instead of file names. The picker drops an entry that is not a
+  source ID, with a warning naming the ID to use, so a source disabled by a
+  file name runs again until the entry is fixed.
 - Derived the file list of the no-tasks screen from the source registry and
-  wrapped it to the picker width, so a narrow terminal still shows every file
-  name.
+  wrapped it to the picker width, so a narrow terminal shows every file name.
 - Reused the filter results across a frame, which keeps the picker fast while a
   filter runs over a large task list.
 
@@ -38,7 +37,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Changed the widget's default key from `ctrl-s` to `ctrl-o`, leaving the
   shell's incremental forward search and flow control alone. `--key ctrl-s`
-  still binds the old key, and the widget still handles flow control for
+  binds the old key, and the widget keeps handling flow control for
   `ctrl-s` and `ctrl-q`.
 
 ## [0.8.0] - 2026-10-24
@@ -55,8 +54,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Shipped the single `wtr` binary instead of the `wtr` and `what-to-run` pair:
-  every archive and `.deb` is about half the size, and Homebrew and AUR publish
+- Shipped the single `wtr` binary, ending the `wtr` and `what-to-run` pair:
+  each archive and `.deb` is about half the size, and Homebrew and AUR publish
   the single binary.
 
 ### Removed
@@ -70,31 +69,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Added Taskfile as a task source: the picker lists the tasks of `Taskfile.yml`
   and the other go-task default names sorted by name, and each row runs `task
   <name>`. Descriptions come from the `desc`, the first line of the `summary` or
-  the command line, flattened to one line, and internal tasks are hidden.
-- Followed local Taskfile includes recursively: every included task is
-  namespaced with its include key (`docs:build`) unless the include sets
-  `flatten: true`, and remote or templated paths are skipped without losing the
+  the command line, flattened to one line, and the picker hides internal tasks.
+- Followed local Taskfile includes recursively: each included task takes its
+  include key as a namespace (`docs:build`) unless the include sets
+  `flatten: true`, and the picker skips remote or templated paths, keeping the
   other tasks.
 - Added justfile as a task source: the picker lists the recipes of `justfile`,
   `Justfile` and `.justfile` sorted by name, and each row runs `just <name>`.
   Descriptions come from the doc attribute or the comment above the recipe,
-  flattened to one line; private recipes and recipes declared for other
-  platforms are hidden, and attributes, comments and multi-line headers parse
+  flattened to one line; the picker hides private recipes and recipes declared
+  for other platforms, and attributes, comments and multi-line headers parse
   the way `just --list` shows them.
 - Followed local justfile imports recursively, keeping the root file's recipe
   names and commands, and skipping a missing, unreadable or cyclic file.
 - Followed local justfile modules, listing their recipes as `name::recipe`,
   chained for nested modules.
-- Searched parent directories for the justfile and Taskfile sources, like `just`
-  and `task` themselves do: the nearest file wins, and a parent file's badge
-  shows its path relative to the current directory.
+- Searched parent directories for the justfile and Taskfile sources, like
+  `just` and `task` do: the picker uses the nearest file, and a parent file's
+  badge shows its path relative to the current directory.
 - Added the `--shell` flag to choose the dialect command lines are quoted for:
   `posix`, `powershell` or `cmd`; `auto`, the default, uses PowerShell on
   Windows and POSIX elsewhere.
 - Added the `init powershell` subcommand, printing a PSReadLine widget for
   Windows PowerShell 5.1 and PowerShell 7: enter runs the chosen task, tab
   inserts its command line in the buffer, the prompt redraws after the widget
-  runs, and `WTR_BIN` and `WTR_FLAGS` are honored.
+  runs, and the widget honors `WTR_BIN` and `WTR_FLAGS`.
 - Shipped Windows builds, amd64 and arm64, as zip archives; on Windows the
   usage, the messages and the picker title show the program name without the
   `.exe` suffix.
@@ -103,9 +102,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Quoted the command line the picker shows and the widget inserts for the shell
   that reads it back: the zsh and bash widgets pass `--shell posix`, the
-  PowerShell widget passes `--shell powershell`, and in PowerShell a quoted
-  command word is prefixed with the call operator `&`, so a path with spaces
-  runs.
+  PowerShell widget passes `--shell powershell`, and in PowerShell the widget
+  prefixes a quoted command word with the call operator `&`, so a path with
+  spaces runs.
 - Ran rc file tasks through the platform shell, `cmd /c` on Windows and `sh -c`
   elsewhere; on Windows the raw cmd.exe command line keeps quotes inside the
   command intact.
@@ -113,7 +112,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Fell back to fullscreen when the terminal cannot report the cursor row, a
-  Windows conhost console, instead of leaving the inline picker blank.
+  Windows conhost console, where the inline picker used to come up blank.
 
 ## [0.6.0] - 2026-10-22
 
@@ -160,9 +159,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Kept the inline picker open on a "no tasks found here" screen that lists the
-  files it looked for, closed with enter or esc; before, the error the run
-  printed was erased by the shell prompt redraw. Fullscreen runs still exit with
-  the error.
+  files it looked for, closed with enter or esc; before, the shell prompt redraw
+  erased the error the run printed. Fullscreen runs continue to exit with the
+  error.
 
 ## [0.3.0] - 2026-10-19
 
@@ -206,47 +205,46 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Added the picker: it discovers tasks from `package.json` scripts, `Makefile`
   targets and cargo-make `[tasks]` in `Cargo.toml`, filters them while typing,
-  and runs the selection with enter. A source that fails to parse is skipped and
-  reported instead of hiding the other tasks.
+  and runs the selection with enter. The picker skips and reports a source that
+  fails to parse, and keeps the other tasks listed.
 - Detected the package.json runner from the `packageManager` field or a lock
   file, with npm as the fallback.
 - Added inline mode with `--inline`, drawing the picker below the prompt while
   fullscreen stays the default, and `--debug-area` drawing a border around the
   managed area.
 - Ran the chosen task in place in fullscreen; in inline mode the picker quits
-  first and the shell runs the task at the prompt, with its exit code
-  propagated.
+  first and the shell runs the task at the prompt and returns its exit code.
 - Built the binary as both `wtr` and `what-to-run`; usage, messages and the
   picker title follow the invoked name.
 - Added the `init zsh` subcommand, printing the widget script to evaluate in
   `~/.zshrc`, with `--key` to pick the binding, `ctrl-s` by default, and
   `WTR_BIN` and `WTR_FLAGS` to point at another binary.
 - Made the widget fzf-style: enter executes the chosen task through zle, with
-  prompt, history and exit status, and tab only places the command on the
-  prompt.
+  prompt, history and exit status, and tab places the command on the prompt
+  without running it.
 - Added the rc files `.what-to-run.toml` and
   `$XDG_CONFIG_HOME/what-to-run/config.toml`: `[[tasks]]` adds custom tasks run
   with `sh -c`, with an optional `cwd`; `package_manager` forces the
   package.json runner, and `disable` skips a source.
-- Parsed the rc files best-effort — unknown keys, wrong types and invalid
-  entries drop only the offending item — and added per-project overrides under
-  `[projects."<path>"]` in the user rc file; `XDG_CONFIG_HOME` and
-  `XDG_CACHE_HOME` are honored on every platform.
+- Parsed the rc files best-effort, so unknown keys, wrong types and invalid
+  entries drop only the offending item, and added per-project overrides under
+  `[projects."<path>"]` in the user rc file; the picker honors
+  `XDG_CONFIG_HOME` and `XDG_CACHE_HOME` on every platform.
 - Opened warnings in the `ctrl+w` modal, where `d` dismisses one for future
   runs.
-- Extended the filter to descriptions and command lines: matches rank fzf-style
-  with contiguous matches first, and the matched characters are highlighted in
-  each row.
+- Extended the filter to descriptions and command lines: matches rank
+  fzf-style with contiguous matches first, and the picker highlights the
+  matched characters in each row.
 - Showed each row as the command line, the description and the badge, hiding a
   description that duplicates the command of an rc task; the description stays
   readable on the selected row of every theme.
-- Added 14 named themes — classic, nord, dracula, tokyo, gruvbox, catppuccin,
-  one-dark, monokai, solarized, everforest, kanagawa, rose-pine, system and mono
-  — with `--theme` to pin one for a run, `--list-themes` to list them and
+- Added 14 named themes (classic, nord, dracula, tokyo, gruvbox, catppuccin,
+  one-dark, monokai, solarized, everforest, kanagawa, rose-pine, system and
+  mono) with `--theme` to pin one for a run, `--list-themes` to list them and
   `--preview` to show one.
-- Opened the theme picker with `ctrl+t`: every theme previews live, enter keeps
-  the choice and esc restores the previous one; keeping a theme saves it to the
-  user rc file, confirmed by a transient toast.
+- Opened the theme picker with `ctrl+t`: you preview each theme live, enter
+  keeps the choice and esc restores the previous one; keeping a theme saves it
+  to the user rc file, and a transient toast confirms the save.
 - Added `--version`, reporting the release tag or the build's git describe
   string.
 - Pointed at `wtr` from `what-to-run --help` and from the widget startup message

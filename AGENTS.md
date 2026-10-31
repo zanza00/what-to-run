@@ -17,6 +17,11 @@ to the owner instead of copying it.
 - **Complex work uses stacked PRs.** Split a multi-part change into a chain of
   small PRs, each based on the previous, and open them as drafts. After the
   maintainer merges a parent, rebase and retarget the next onto `main`.
+- **A PR that changes user-visible behavior adds its `CHANGELOG.md` entry
+  under `[Unreleased]` in the same PR.** The `changelog` CI job fails without
+  it; the `skip-changelog` label opts a PR out when the change is not
+  user-visible. The `docs-writing` skill owns the entry style, and the
+  `release` skill cuts `[Unreleased]` into the released version section.
 
 ## Go development
 

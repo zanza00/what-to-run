@@ -19,6 +19,12 @@
       "skillPath": ".claude/skills/bubbletea/SKILL.md",
       "computedHash": "a06df850cbd8282da9c362bd5585150119c87032bb07417a141b71b6f0b966ba"
     },
+    "chief-of-staff": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/in-progress/chief-of-staff/SKILL.md",
+      "computedHash": "8a5ccad808e4f6158380720907f0af3a96bbee98cc5aa721053acd97fa72ce4b"
+    },
     "code-review": {
       "source": "mattpocock/skills",
       "sourceType": "github",

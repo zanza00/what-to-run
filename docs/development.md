@@ -10,6 +10,7 @@ go install github.com/go-task/task/v3/cmd/task@v3.54.0
 
 Make sure `$(go env GOPATH)/bin` (or `$GOBIN`) is on your `PATH`. If `task` is
 not installed, run the Go commands from `.github/workflows/checks.yml` directly.
+With Nix, `nix develop` provides Go and `task`, so you can skip the install.
 
 ## Commands
 

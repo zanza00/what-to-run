@@ -14,6 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   launcher plus one optional dependency per platform that contains the Go
   binary, and runs no install script. It is the shortest install path on
   Windows, and `npx what-to-run@latest` runs the picker without installing it.
+- Added Nix as an install channel: the repository is a flake, so
+  `nix run github:zanza00/what-to-run` runs the picker without installing it
+  and `nix profile install github:zanza00/what-to-run` builds `wtr` from source
+  on Linux and Apple silicon macOS. On NixOS, add the flake as an input to the
+  system configuration.
 
 ### Changed
 

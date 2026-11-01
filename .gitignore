@@ -46,5 +46,8 @@ go.work.sum
 # Build artifacts
 /tmp/
 
+# Nix build output
+/result
+
 # Air hot reload
 tmp/

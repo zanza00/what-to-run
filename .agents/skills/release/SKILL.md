@@ -5,11 +5,11 @@ description: Cut and verify a what-to-run release end to end, from picking the s
 
 # Release what-to-run
 
-The version lives only in the tag. Pushing `vX.Y.Z` on a commit in `main`
-starts `.github/workflows/release.yml`, which turns the tag into a public
-release on every configured channel. The work is to reach the tag push with
-evidence and then prove that every channel moved; step 4 marks the point of
-no return.
+The version lives in the tag, and `flake.nix` repeats it for Nix builds.
+Pushing `vX.Y.Z` on a commit in `main` starts `.github/workflows/release.yml`,
+which turns the tag into a public release on every configured channel. The
+work is to reach the tag push with evidence and then prove that every channel
+moved; step 4 marks the point of no return.
 
 ## Facts the release depends on
 
@@ -19,6 +19,7 @@ no return.
 | Branch protection | `main-guard` ruleset: `main` takes changes only through a merged pull request |
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
 | Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` |
+| Nix | the `version` attribute in `flake.nix`, bumped with the tag and checked by the validate job; the flake builds the default branch |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | Scoop | `bucket/what-to-run.json` in `zanza00/scoop-bucket` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
@@ -106,6 +107,10 @@ pull request; the cut branch stays changelog-only. A format-only change is
 not user-visible, so that pull request can carry the `skip-changelog` label.
 The tag must contain what passed, and a dirty tree means the checks ran on
 something else.
+
+The Nix package reads its version from `flake.nix`, so set the `version`
+attribute to the proposed version before the tag. Commit the bump with the
+release changes. The validate job fails when the tag and the attribute differ.
 
 When `goreleaser` is installed, validate the config and build every artifact
 without publishing:

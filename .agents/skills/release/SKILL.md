@@ -1,27 +1,24 @@
 ---
 name: release
-description: Cut and verify a what-to-run release end to end — pick the semver version from the commits since the last tag, run the preflight gates, push the annotated vX.Y.Z tag that starts the GitHub release workflow, watch the run, and verify every package channel (GitHub assets, Homebrew, Scoop, apt, RPM, AUR, npm). Use it whenever the user wants a release out the door — also in Italian ("fare la release"), even without saying "release" — or asks why a release or a package-manager channel did not update.
+description: Cut and verify a what-to-run release end to end, from picking the semver version to proving every package channel moved. Use it whenever the user wants a release out the door — also in Italian ("fare la release"), even without saying "release" — or asks why a release or a package-manager channel did not update.
 ---
 
 # Release what-to-run
 
 The version lives only in the tag. Pushing `vX.Y.Z` on a commit in `main`
-starts `.github/workflows/release.yml`, which validates the tag, reruns the CI
-checks, builds the archives and Linux packages plus `checksums.txt`, publishes
-the GitHub release, and updates Homebrew, Scoop, apt, RPM and, when
-configured, the AUR and npm. The work is to reach the tag push with evidence
-and then prove that every channel moved; step 3 marks the point of no
-return.
+starts `.github/workflows/release.yml`, which turns the tag into a public
+release on every configured channel. The work is to reach the tag push with
+evidence and then prove that every channel moved; step 4 marks the point of
+no return.
 
-## Facts the pipeline depends on
+## Facts the release depends on
 
 | Thing | Value |
 | --- | --- |
 | Trigger | `vX.Y.Z` tag on a commit contained in `origin/main` |
+| Branch protection | `main-guard` ruleset: `main` takes changes only through a merged pull request |
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
-| Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` (missing → channel skipped with a warning) |
-| Release assets | `checksums.txt`, 4 tarballs, 2 Windows zips, 2 `.deb` files, 2 `.rpm` files (11 total) |
-| Version string | `wtr --version` prints `wtr X.Y.Z` in released binaries, `wtr vX.Y.Z-N-g…` from `task build` |
+| Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | Scoop | `bucket/what-to-run.json` in `zanza00/scoop-bucket` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
@@ -29,7 +26,7 @@ return.
 | Setup scripts | `setup.deb.sh` and `setup.rpm.sh` at the root of `gh-pages` |
 | AUR | `what-to-run-bin` |
 | npm | `what-to-run` plus the six platform packages `what-to-run-<os>-<arch>` |
-| npm opt-in | the `NPM_PUBLISH` repository variable (not `true` → channel skipped with a warning) |
+| npm opt-in | the `NPM_PUBLISH` repository variable |
 
 ## 0. Read the state
 
@@ -44,18 +41,28 @@ gh api repos/zanza00/what-to-run/actions/variables \
   --jq '.variables[] | select(.name == "NPM_PUBLISH") | .value'
 ```
 
-The secret list decides what a successful release means: Homebrew is
-mandatory, the apt and RPM repositories, the AUR and the Scoop bucket may
-legitimately be skipped. A missing optional secret means that channel-less
-release is expected, not a failure. The `NPM_PUBLISH` variable does the same
-for npm: while it is not `true`, a release without the npm packages is
-expected, not a failure.
+The secret list decides what a successful release means: a channel whose
+optional secret is unset — and npm while `NPM_PUBLISH` is not `true` — is
+skipped. Such a release is *expected*: complete for every channel it
+promised, with nothing to repair.
 
 `git rev-list --left-right --count origin/main...HEAD` prints
 `<behind> <ahead>`. Stop and explain if the tree is dirty or HEAD is not on
-`main`. If HEAD is ahead, those commits belong to this release: review them,
-then confirm and push them before tagging. Never tag from a side branch — the
-workflow checks the tag commit is an ancestor of `origin/main`.
+`main`; if the previous release left you on its cut branch, switch back to
+`main` first. Bring `main` up to `origin/main` before the cut:
+
+```sh
+git switch main
+git pull --ff-only
+```
+
+If the pull refuses because the local branch diverged, the local commits
+belong to this release: open a pull request for them, wait for the user to
+merge it, then `git reset --hard origin/main`. Never tag from a side branch —
+the workflow checks the tag commit is an ancestor of `origin/main`.
+
+This step is done when the tree is clean, `main` sits at `origin/main`, and
+you know which secrets exist and whether `NPM_PUBLISH` is `true`.
 
 ## 1. Choose the version
 
@@ -78,6 +85,15 @@ not seen.
 
 ## 2. Preflight
 
+Confirm the `[Unreleased]` section has at least one entry:
+
+```sh
+scripts/check-changelog.sh --unreleased
+```
+
+If it exits non-zero, there is nothing to release: stop and ask the user
+whether the release is needed.
+
 Run the full gate from the repository root:
 
 ```sh
@@ -85,11 +101,11 @@ task all
 git status --short
 ```
 
-`task all` mirrors what CI runs locally: format, vet, race tests, build. CI
-itself calls the Go commands directly in `.github/workflows/checks.yml`, plus a
-gofmt gate. If it reformats files, commit that separately and push before
-tagging — the tag must contain what passed, and a dirty tree means the checks
-ran on something else.
+If `task all` reformats files, commit them on a separate branch and open a
+pull request; the cut branch stays changelog-only. A format-only change is
+not user-visible, so that pull request can carry the `skip-changelog` label.
+The tag must contain what passed, and a dirty tree means the checks ran on
+something else.
 
 When `goreleaser` is installed, validate the config and build every artifact
 without publishing:
@@ -121,25 +137,76 @@ A release is the last cheap documentation checkpoint: if the change added a
 task source, flag, theme or install method, confirm `AGENTS.md`, `README.md`
 and `docs/` describe it now.
 
-## 3. Tag and push — confirm first
+This step is done when `[Unreleased]` has at least one entry, `task all`
+passes on a clean tree, and every gate this change triggers has run.
 
-The tag push is the point of no return: once `publish` runs, consumers can see
-the release. Show the version, the exact commit, and the release-notes outline,
-then ask for confirmation before running:
+## 3. Cut the changelog on a pull request
+
+The cut cannot reach `main` directly (see Facts), so open it as a pull request.
+Cut it on a branch based on `origin/main`:
 
 ```sh
+git fetch origin
+git switch -c chore/cut-changelog-vX.Y.Z origin/main
+```
+
+Rename `## [Unreleased]` in `CHANGELOG.md` into
+`## [X.Y.Z] - YYYY-MM-DD` with the chosen version and today's date, and put a
+fresh empty `## [Unreleased]` section above it. Keep the entry wording
+unchanged: the section is the release's curated record, and step 6 compares the
+generated notes with it.
+
+Commit the cut, push the branch, and open the pull request as a draft:
+
+```sh
+git add CHANGELOG.md
+git commit -m "chore: cut the changelog for vX.Y.Z"
+git push -u origin chore/cut-changelog-vX.Y.Z
+gh pr create --draft --title "chore: cut the changelog for vX.Y.Z" \
+  --body "Cut the changelog for vX.Y.Z."
+```
+
+The cut pull request touches only `CHANGELOG.md`, so the `changelog` job passes
+without an entry. If the branch touches a watched path, stop: those commits
+belong in a separate pull request.
+
+This step is done when the pull request is open as a draft. The next step asks
+the user to confirm the release and merge it.
+
+## 4. Tag and push — confirm first
+
+The tag push is the point of no return: once `publish` runs, consumers can see
+the release. Show the version, the release-notes outline, the cut pull request
+and the commit at its head, then ask for confirmation. The user marks the cut
+pull request ready and merges it; run these commands after the merge lands on
+`origin/main`:
+
+```sh
+git fetch origin
+cut_sha=$(gh pr list --head chore/cut-changelog-vX.Y.Z --state merged \
+  --repo zanza00/what-to-run --limit 1 \
+  --json mergeCommit --jq '.[0].mergeCommit.oid')
+test -n "$cut_sha"
+git merge-base --is-ancestor "$cut_sha" origin/main
 git rev-parse -q --verify "refs/tags/vX.Y.Z" && echo "tag already exists"
 git ls-remote --tags origin "refs/tags/vX.Y.Z"
-git push origin main        # the tag must be an ancestor of origin/main
-git tag -a vX.Y.Z -m vX.Y.Z
+git tag -a vX.Y.Z -m vX.Y.Z "$cut_sha"
 git push origin vX.Y.Z
 ```
 
-Use an annotated tag, like the existing ones. If the local or remote tag
-already exists, stop: a tag is never moved or force-pushed. See
-`references/recovery.md` if it belongs to a failed or published release.
+`cut_sha` is the commit the merged cut pull request put on `origin/main`, not
+the tip of `origin/main`: another pull request may merge in between, and those
+commits do not belong to this release. If `origin/main` has moved past
+`cut_sha`, ask the user whether the later commits must ship now. If they must,
+add their entries to the `[X.Y.Z]` section in another pull request, wait for
+the merge, then tag the new commit; otherwise tag `cut_sha` and let the next
+release carry them.
 
-## 4. Watch the workflow
+If the local or remote tag already exists, stop: a tag is never moved or
+force-pushed. See `references/recovery.md` if it belongs to a failed or
+published release.
+
+## 5. Watch the workflow
 
 The run appears a few seconds after the push:
 
@@ -159,20 +226,20 @@ gh run watch "$run_id" --exit-status
 ```
 
 This step is done when the run for the tag is green; `--exit-status` enforces
-it. `validate` fails fast on a non-semver tag or a commit outside
-`origin/main`; `checks` reuses `checks.yml`; only `publish` builds, uploads and
-updates the package channels. While `NPM_PUBLISH` is `true`, the run also has
-a `verify-npm` job, which installs the wrapper on Linux and Windows. On
-failure, read `gh run view "$run_id" --log-failed` and follow
-`references/recovery.md` — where it stopped decides what is safe.
+it. While `NPM_PUBLISH` is `true`, the run also has a `verify-npm` job, which
+installs the wrapper on Linux and Windows. On failure, read `gh run view
+"$run_id" --log-failed` and follow `references/recovery.md`.
 
-## 5. Verify every channel
+## 6. Verify every channel
 
 The release notes are the commits between the previous tag and this one,
 oldest first, with merge commits dropped; GoReleaser prints their subjects
 only, so a `BREAKING CHANGE:` footer or a one-way removal stays invisible.
-When the range contains one, add that note to the published release now — the
-tag stays put, only the notes change:
+The generated notes include the cut commit (a `chore:` line); skip it. Compare
+the notes with the cut `CHANGELOG.md` section: the file is the curated record,
+and the notes are generated from commits. Every entry in the cut section must
+appear in the notes; add the missing ones now — the tag stays put, only the
+notes change:
 
 ```sh
 gh release edit vX.Y.Z --notes-file notes.md
@@ -184,29 +251,21 @@ Run the verifier with the tag:
 .agents/skills/release/scripts/verify-release.sh vX.Y.Z
 ```
 
-It checks the release is public and carries exactly the eleven assets, the
-Homebrew formula has the version and download URLs, the Scoop manifest installs
-the right zip on amd64 and arm64 with the hashes from `checksums.txt`, the apt
-index and the RPM metadata on `gh-pages` have the version for both
-architectures, the RPM metadata signature verifies with the repository key, the
-setup scripts are published, the AUR package has it when that secret is
-configured, the npm registry carries the wrapper and the six platform packages
-at the tag version when `NPM_PUBLISH` is `true`, and `npx what-to-run@X.Y.Z`
-reports `wtr X.Y.Z`, the downloaded archive matches `checksums.txt`, and a
-binary for this platform prints `wtr X.Y.Z`. Missing repository/AUR/Scoop
-secrets, and an npm opt-in that is not `true`, show as `skip`, matching the
-workflow. Scoop has no review step — the manifest is written during the
-release — so a stale or missing one is a `FAIL` while the secret list is
-readable, and a `warn` when it is not.
+The script prints one line per check, and its header lists what it checks.
+Read each line by its state: `ok` is a check that passed; `skip` is a channel
+the workflow skipped — expected; `FAIL` is a real problem; and `warn` means
+the script could not decide, and its message says why — provide what it asks
+for and rerun.
 
-Treat a `FAIL` as a real problem even when the workflow succeeded: the workflow
-checks the release, the asset names, the Scoop bucket and the package
-repositories, but the verifier is the source of truth for every channel. For a
+Treat a `FAIL` as a real problem even when the workflow is green: the
+verifier, not the workflow, is the source of truth for every channel. For a
 failing channel, inspect the `publish` step of the run, then follow section 5
 of `references/recovery.md`. If this is the first AUR publish, add an Arch
 Linux section to `docs/install.md` that advertises `yay -S what-to-run-bin`.
+This step is done when the verifier prints `N checks, 0 failed` and no
+`warn` is left.
 
-## 6. Report
+## 7. Report
 
 Close with a short, concrete summary:
 
@@ -223,5 +282,7 @@ The full repair paths live in `references/recovery.md`. Triage:
 
 - `validate` or `checks` failed → nothing is published; section 1.
 - `publish` failed → whether the release exists decides the repair; sections 2
-  and 3. The Homebrew, AUR and npm publishers are idempotent.
+  and 3.
+- `verify-npm` failed → everything else is published; repair npm as in
+  section 3.
 - published artifacts are wrong → section 4.

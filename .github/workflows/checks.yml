@@ -77,3 +77,26 @@ jobs:
         # The scripts refuse to run without root; the stub tools and the WTR_*
         # paths keep this run inside a temporary directory.
         run: sudo env "PATH=$PATH" python3 -m unittest discover -s scripts -p 'setup_scripts_test.py'
+
+  changelog:
+    name: Changelog entry
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # ci.yml calls this workflow for pull requests and for pushes to main;
+    # the job needs a pull request, because it reads the base branch and the
+    # labels from the calling event. The skip-changelog label opts a pull
+    # request out.
+    if: >-
+      github.event_name == 'pull_request' &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-changelog')
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          # The script reads the base branch through its remote-tracking ref,
+          # so the checkout fetches every branch.
+          fetch-depth: 0
+      - name: Require a changelog entry under Unreleased
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: scripts/check-changelog.sh "origin/$BASE_REF"

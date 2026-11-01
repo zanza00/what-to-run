@@ -29,6 +29,9 @@ to the owner instead of copying it.
 Load the `golang-how-to` skill before any Go task: it routes to the Go skills
 the task needs.
 
+When you implement from a spec or tickets, load the `implement` skill and
+follow it: it ends with a code-review of your own diff.
+
 - `task all` is the full check and runs before every commit. CI
   (`.github/workflows/checks.yml`) runs `go build ./...`, `gofmt -l`,
   `dprint check`, `go vet ./...` and `go test -race -shuffle=on ./...` on

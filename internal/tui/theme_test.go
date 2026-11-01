@@ -402,8 +402,8 @@ func TestThemePickerRenders(t *testing.T) {
 			t.Errorf("theme picker view does not contain %q:\n%s", want, got)
 		}
 	}
-	if h := boxHeight(t, got); h != themeModalListRows+themeModalChrome {
-		t.Errorf("box height = %d rows, want %d", h, themeModalListRows+themeModalChrome)
+	if h := boxHeight(t, got); h != themeModalListRows+boxChrome {
+		t.Errorf("box height = %d rows, want %d", h, themeModalListRows+boxChrome)
 	}
 
 	// The rows hold only the names, so the box shows no theme description.
@@ -486,8 +486,8 @@ func TestThemePickerFitsInlineArea(t *testing.T) {
 	if n := strings.Count(got, "\n"); n != 14 {
 		t.Errorf("inline picker has %d lines, want 15", n+1)
 	}
-	if h := boxHeight(t, got); h != themeModalListRows+themeModalChrome {
-		t.Errorf("box height = %d rows, want %d", h, themeModalListRows+themeModalChrome)
+	if h := boxHeight(t, got); h != themeModalListRows+boxChrome {
+		t.Errorf("box height = %d rows, want %d", h, themeModalListRows+boxChrome)
 	}
 }
 

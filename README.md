@@ -37,8 +37,7 @@ On Linux or Apple silicon macOS with [Nix](https://nixos.org/) instead:
 nix run github:zanza00/what-to-run
 ```
 
-For the apt and RPM repositories, `.deb` and `.rpm` packages, npm, release
-tarballs, Windows or `go install`, see [Installation](docs/install.md).
+For npm, apt, dnf or Scoop, see [Installation](docs/install.md).
 
 ### Set up the widget
 
@@ -61,7 +60,7 @@ wtr init powershell | Out-String | Invoke-Expression
 ```
 
 Ctrl-O opens the widget by default. See [Widget setup](docs/widget.md) for other
-keys, shell dialects and running the picker without the widget.
+keys and running the picker without the widget.
 
 ## Task sources
 

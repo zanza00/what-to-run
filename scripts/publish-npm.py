@@ -1,23 +1,26 @@
 #!/usr/bin/env python3
 """Release publisher for the npm packages.
 
-npm installs programs written in any language: a package only has to declare a
-`bin` entry, and npm links it into the global bin directory. what-to-run
-publishes one small launcher (`npm/bin/wtr.js`) plus one package per platform
-with the Go binary, wired through optional dependencies. npm keeps the package
-that matches the machine and drops the others, so the install runs no script
-at all: `--ignore-scripts` (and pnpm's build allowlist) cannot break it, and
-`npm --omit=optional` fails in the launcher with a clear message.
+npm installs programs written in any language. A package only has to declare
+a `bin` entry, and npm links it into the global bin directory. what-to-run
+publishes one small launcher (`npm/bin/wtr.js`) and one package per platform
+with the Go binary. The root package wires the platform packages together
+through optional dependencies. npm keeps the package that matches the
+machine and drops the others, so the install runs no script at all.
+`--ignore-scripts` cannot break the install. pnpm's build allowlist cannot
+block it either. `npm --omit=optional` fails in the launcher with a clear
+message.
 
 Publishing is a step of its own in the release workflow rather than a
-GoReleaser publisher: GoReleaser passes a publisher only the environment
-variables listed in `.goreleaser.yaml`, and trusted publishing needs the
-runner's OIDC token (`ACTIONS_ID_TOKEN_REQUEST_*`) in the environment. The
-workflow keeps the channel opt-in with the `NPM_PUBLISH` repository variable,
-until the packages exist on the registry.
+GoReleaser publisher. GoReleaser passes a publisher only the environment
+variables listed in `.goreleaser.yaml`. Trusted publishing needs the runner's
+OIDC token (`ACTIONS_ID_TOKEN_REQUEST_*`) in the environment. The workflow
+keeps the channel opt-in with the `NPM_PUBLISH` repository variable, until
+the packages exist on the registry.
 """
 
 import argparse
+import dataclasses
 import json
 import os
 from pathlib import Path
@@ -38,8 +41,9 @@ TARGETS = (
     ("windows", "amd64"),
     ("windows", "arm64"),
 )
-# npm's spelling of the same platforms, for the `os` and `cpu` fields npm uses
-# to decide which optional dependency belongs on the machine.
+# npm spells the platforms differently from Go. The `os` and `cpu` fields
+# carry npm's spelling. npm reads them to decide which optional dependency
+# belongs on the machine.
 NPM_OS = {"linux": "linux", "darwin": "darwin", "windows": "win32"}
 NPM_CPU = {"amd64": "x64", "arm64": "arm64"}
 
@@ -60,8 +64,8 @@ def package_name(goos, goarch):
     return f"{NAME}-{goos}-{NPM_CPU[goarch]}"
 
 
-# The reverse lookup `stage` needs, built once instead of scanned per package.
-BY_PACKAGE = {package_name(goos, goarch): (goos, goarch) for goos, goarch in TARGETS}
+def binary_name(goos):
+    return "wtr.exe" if goos == "windows" else "wtr"
 
 
 def asset_name(goos, goarch, version):
@@ -69,7 +73,80 @@ def asset_name(goos, goarch, version):
     return f"{NAME}_{version}_{goos}_{goarch}.{extension}"
 
 
-def verify_checksums(checksums, version):
+@dataclasses.dataclass(frozen=True)
+class Package:
+    """One npm package of a release.
+
+    The helpers below take this concept instead of a (goos, goarch) pair
+    for the platform and a (name, version) pair for the registry. The
+    root package is the one npm links as `wtr`. It has no platform. It
+    ships the launcher instead of a binary.
+    """
+
+    name: str
+    version: str
+    manifest: dict
+    goos: str = ""
+    goarch: str = ""
+
+    @classmethod
+    def for_platform(cls, goos, goarch, version, template):
+        """The optional dependency that ships the binary of one target."""
+        name = package_name(goos, goarch)
+        binary = binary_name(goos)
+        return cls(
+            name,
+            version,
+            {
+                "name": name,
+                "version": version,
+                "description": f"The {NAME} binary for {goos} {goarch}",
+                "homepage": template["homepage"],
+                "repository": template["repository"],
+                "license": template["license"],
+                "os": [NPM_OS[goos]],
+                "cpu": [NPM_CPU[goarch]],
+                "files": [f"bin/{binary}"],
+                # Yarn PnP must unpack the binary, which the launcher spawns
+                # by path. npm and pnpm ignore the field.
+                "preferUnplugged": True,
+            },
+            goos,
+            goarch,
+        )
+
+    @classmethod
+    def root(cls, version, template):
+        """The package npm links as `wtr`.
+
+        The manifest comes from `npm/package.json`. That file is private,
+        so npm cannot publish it by accident. The publisher fills in only
+        the version and the optional dependencies, so the metadata has
+        one home.
+        """
+        manifest = {key: value for key, value in template.items() if key != "private"}
+        manifest["version"] = version
+        manifest["optionalDependencies"] = {
+            package_name(goos, goarch): version for goos, goarch in TARGETS
+        }
+        return cls(NAME, version, manifest)
+
+    @property
+    def is_root(self):
+        return not self.goarch
+
+    @property
+    def binary(self):
+        """The Go binary file the package ships, or None for the root."""
+        return None if self.is_root else binary_name(self.goos)
+
+    @property
+    def asset_name(self):
+        """The release archive the binary comes from."""
+        return asset_name(self.goos, self.goarch, self.version)
+
+
+def verify_checksums(checksums, packages):
     """Fail before staging when a release asset this publisher needs is absent."""
     available = set()
     for line in checksums.splitlines():
@@ -79,44 +156,21 @@ def verify_checksums(checksums, version):
         if name in available:
             raise ValueError(f"Duplicate checksum for {name}")
         available.add(name)
-    for goos, goarch in TARGETS:
-        name = asset_name(goos, goarch, version)
-        if name not in available:
-            raise ValueError(f"Missing release asset: {name}")
+    for package in packages.values():
+        if not package.is_root and package.asset_name not in available:
+            raise ValueError(f"Missing release asset: {package.asset_name}")
 
 
 def render(tag):
-    """Return every package to publish, the platform ones before the root one.
-
-    The root manifest comes from `npm/package.json`, which is marked private so
-    it cannot be published by accident; only the version and the optional
-    dependencies are filled in here, so the metadata has one home.
-    """
+    """Return every package to publish, the platform ones before the root one."""
     version = version_of(tag)
     template = json.loads(TEMPLATE.read_text())
     packages = {}
     for goos, goarch in TARGETS:
-        binary = "wtr.exe" if goos == "windows" else "wtr"
-        packages[package_name(goos, goarch)] = {
-            "name": package_name(goos, goarch),
-            "version": version,
-            "description": f"The {NAME} binary for {goos} {goarch}",
-            "homepage": template["homepage"],
-            "repository": template["repository"],
-            "license": template["license"],
-            "os": [NPM_OS[goos]],
-            "cpu": [NPM_CPU[goarch]],
-            "files": [f"bin/{binary}"],
-            # Yarn PnP must unpack the binary, which the launcher spawns by
-            # path; npm and pnpm ignore the field.
-            "preferUnplugged": True,
-        }
-    root = {key: value for key, value in template.items() if key != "private"}
-    root["version"] = version
-    root["optionalDependencies"] = {
-        package_name(goos, goarch): version for goos, goarch in TARGETS
-    }
-    packages[NAME] = root
+        package = Package.for_platform(goos, goarch, version, template)
+        packages[package.name] = package
+    package = Package.root(version, template)
+    packages[package.name] = package
     return packages
 
 
@@ -138,52 +192,50 @@ def extract_binary(archive, binary):
 def stage(directory, packages, assets):
     """Write one publishable directory per package under `directory`."""
     staged = []
-    for name, manifest in packages.items():
-        package = directory / name
-        (package / "bin").mkdir(parents=True, exist_ok=True)
-        (package / "package.json").write_text(json.dumps(manifest, indent=2) + "\n")
-        shutil.copy(LICENSE, package / "LICENSE")
-        if name == NAME:
-            shutil.copy(LAUNCHER, package / "bin" / "wtr.js")
-            # npm renders the package README on the registry, and always
-            # includes it regardless of `files`.
-            shutil.copy(ROOT / "README.md", package / "README.md")
+    for package in packages.values():
+        target = directory / package.name
+        (target / "bin").mkdir(parents=True, exist_ok=True)
+        (target / "package.json").write_text(json.dumps(package.manifest, indent=2) + "\n")
+        shutil.copy(LICENSE, target / "LICENSE")
+        if package.is_root:
+            shutil.copy(LAUNCHER, target / "bin" / "wtr.js")
+            # npm renders the package README on the registry. The `files`
+            # field cannot keep the README out of the tarball.
+            shutil.copy(ROOT / "README.md", target / "README.md")
         else:
-            goos, goarch = BY_PACKAGE[name]
-            binary = "wtr.exe" if goos == "windows" else "wtr"
-            content = extract_binary(assets / asset_name(goos, goarch, manifest["version"]), binary)
-            path = package / "bin" / binary
+            content = extract_binary(assets / package.asset_name, package.binary)
+            path = target / "bin" / package.binary
             path.write_bytes(content)
             path.chmod(0o755)
-        staged.append(package)
+        staged.append(target)
     return staged
 
 
-def published(name, version):
+def published(package):
     """True when that exact version already exists on the registry."""
     result = subprocess.run(
-        ["npm", "view", f"{name}@{version}", "version"],
+        ["npm", "view", f"{package.name}@{package.version}", "version"],
         capture_output=True, text=True,
     )
-    return result.returncode == 0 and result.stdout.strip() == version
+    return result.returncode == 0 and result.stdout.strip() == package.version
 
 
 def publish(packages, directory, provenance):
-    for name, manifest in packages.items():
-        version = manifest["version"]
-        if published(name, version):
-            print(f"{name} {version} is already on the registry")
+    for package in packages.values():
+        if published(package):
+            print(f"{package.name} {package.version} is already on the registry")
             continue
-        command = ["npm", "publish", str(directory / name), "--access", "public"]
+        command = ["npm", "publish", str(directory / package.name), "--access", "public"]
         if provenance:
-            # The runner's OIDC token also proves the tarball was built here.
+            # The runner's OIDC token also proves that the workflow built
+            # the tarball.
             command.append("--provenance")
         result = subprocess.run(command)
         if result.returncode != 0:
             raise SystemExit(
-                f"npm publish {name}@{version} failed with exit code {result.returncode}"
+                f"npm publish {package.name}@{package.version} failed with exit code {result.returncode}"
             )
-        print(f"Published {name} {version}")
+        print(f"Published {package.name} {package.version}")
 
 
 def main():
@@ -193,13 +245,12 @@ def main():
         "--artifact",
         type=Path,
         required=True,
-        help="checksums.txt of the release; the archives are read from its directory",
+        help="checksums.txt of the release (the archives are read from its directory)",
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    version = version_of(args.tag)
-    verify_checksums(args.artifact.read_text(), version)
     packages = render(args.tag)
+    verify_checksums(args.artifact.read_text(), packages)
     destination = args.artifact.parent / "npm"
     stage(destination, packages, args.artifact.parent)
     if args.dry_run:

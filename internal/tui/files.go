@@ -1,15 +1,21 @@
 package tui
 
 import (
+	"io/fs"
 	"os"
 
+	"github.com/zanza00/what-to-run/internal/config"
 	"github.com/zanza00/what-to-run/internal/core"
 )
 
-// osFiles is the core.Files adapter that the picker uses in production.
+// osFiles is the production adapter of the read port and of the writable
+// store. The picker builds one per run.
 type osFiles struct{}
 
-var _ core.Files = osFiles{}
+var (
+	_ core.Files   = osFiles{}
+	_ config.Store = osFiles{}
+)
 
 func (osFiles) ReadFile(name string) ([]byte, error) { return os.ReadFile(name) }
 func (osFiles) Exists(name string) bool {
@@ -27,3 +33,8 @@ func (osFiles) ReadDir(name string) ([]core.DirEntry, error) {
 	}
 	return directories, nil
 }
+func (osFiles) WriteFile(name string, data []byte, perm fs.FileMode) error {
+	return os.WriteFile(name, data, perm)
+}
+func (osFiles) MkdirAll(name string, perm fs.FileMode) error { return os.MkdirAll(name, perm) }
+func (osFiles) Remove(name string) error                     { return os.Remove(name) }

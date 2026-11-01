@@ -10,9 +10,11 @@ gh run view "$run_id" --json jobs \
 gh run view "$run_id" --log-failed
 ```
 
-The workflow has three jobs: `validate`, `checks` (the reusable `checks.yml`)
-and `publish`. Only `publish` creates the GitHub release and updates the
-package channels.
+The workflow jobs are `validate`, `checks` (the reusable `checks.yml`) and
+`publish`, plus `verify-npm` when `NPM_PUBLISH` is `true`. Only `publish`
+creates the GitHub release and updates the package channels; `verify-npm`
+only checks the npm channel after `publish` succeeded, so a failure there
+changes nothing — repair npm as in its section below.
 
 First question: does the release exist?
 
@@ -27,7 +29,7 @@ is the cheap case.
 
 - If the failure is flaky infrastructure (network, runner image), rerun the
   failed jobs: `gh run rerun "$run_id" --failed`. The tag still points at the
-  same commit, so nothing else is needed.
+  same commit, so the rerun is the whole repair: watch it to green.
 - If the tag is malformed, or its commit is not in `origin/main`, or the code
   fails the checks, cancel the run if it is still queued (`gh run cancel
   "$run_id"`), then delete the tag, fix `main`, and tag again:
@@ -45,19 +47,24 @@ A published release makes the tag consumer-visible; see section 4.
 
 The build or upload failed before the release was created. Nothing is public
 yet, so `gh run rerun "$run_id" --failed` is safe and rebuilds from the same
-tag. If the cause is the code or `.goreleaser.yaml`, fix `main`, delete the
-tag, and tag the fix instead.
+tag; watch the rerun to green. If the cause is the code or `.goreleaser.yaml`,
+fix `main`, delete the tag, and tag the fix instead.
 
 ## 3. `publish` failed after the release exists — repair the channel
 
 The GitHub release and its assets are up; one publisher failed. **Do not rerun
 the `publish` job**: it starts from `goreleaser release --clean` again and
 usually fails with "release already exists" before reaching the publisher.
-Repair the channel directly.
+Repair the channel directly. A repair is done when the verifier passes again:
+
+```sh
+.agents/skills/release/scripts/verify-release.sh vX.Y.Z
+```
 
 ### apt and RPM repositories
 
-Documented recovery path, also used when `gh-pages` rejected the push:
+The `republish packages` workflow is the recovery path, also used when
+`gh-pages` rejected the push:
 
 ```sh
 gh workflow run republish-packages.yml -f tag=vX.Y.Z
@@ -65,8 +72,7 @@ gh run list --workflow=republish-packages.yml --limit 1
 gh run watch <run-id> --exit-status
 ```
 
-It downloads the released `.deb` and `.rpm` files and `checksums.txt` and
-publishes them to `gh-pages` without recreating the release. It requires
+It republishes the existing release without recreating it, and requires
 `APT_GPG_PRIVATE_KEY`.
 
 ### Homebrew and AUR
@@ -104,11 +110,19 @@ git -C "$tmp/bucket" commit -am "what-to-run: add vX.Y.Z"
 git -C "$tmp/bucket" push
 ```
 
-After any repair, run the verifier again:
+### npm
 
-```sh
-.agents/skills/release/scripts/verify-release.sh vX.Y.Z
-```
+While the `NPM_PUBLISH` repository variable is not `true`, the workflow skips
+the channel, and the release is *expected* without it. Turning the channel
+on is a one-time setup, and only the maintainer can perform it: registering
+trusted publishing for all seven packages on npmjs.com is a human step. The
+npm section of `docs/development.md` owns the whole procedure. Never attempt
+that registration.
+
+When the variable is `true` and the publish step stopped partway, rerun the
+publisher with the commands in the npm section of `docs/development.md`. It is
+idempotent: every version already on the registry is skipped, so only the
+missing packages publish.
 
 ## 4. The published release itself is wrong
 
@@ -138,15 +152,19 @@ still published.
 
 ## 5. The workflow succeeded but verification finds a stale channel
 
-The CI release verification checks the asset names, the Scoop bucket and the
-repository indexes, so a successful run is good evidence, but the bundled
-verifier is the source of truth for every channel. For a channel whose secret
-is set:
+For a channel that is on:
 
 - apt or RPM stale → run the `republish packages` workflow above;
 - Homebrew stale → run `publish-homebrew.py` locally;
 - AUR stale → run `publish-aur.py` locally with the key;
-- Scoop stale → update `bucket/what-to-run.json` in the bucket as above.
+- Scoop stale → update `bucket/what-to-run.json` in the bucket as above;
+- npm stale → rerun the publisher as above;
+
+After any repair, run the verifier again:
+
+```sh
+.agents/skills/release/scripts/verify-release.sh vX.Y.Z
+```
 
 If a secret was rotated or removed, this shows what the workflow will actually
 do next time:

@@ -2,8 +2,6 @@ package tui
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,7 +15,6 @@ var (
 )
 
 func TestWarningModalOpensAtStartAndKeepsBottomChrome(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
 	longErr := errors.New("rc file /home/zanza00/.config/what-to-run/config.toml: strict mode: fields in the document are missing in the target struct")
 	m := update(newModel(Options{}, sampleTasks(), []error{longErr}),
@@ -59,7 +56,6 @@ func TestWarningModalOpensAtStartAndKeepsBottomChrome(t *testing.T) {
 }
 
 func TestWarningModalCloseAndReopenWithCtrlW(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
 	for _, closeKey := range []tea.KeyPressMsg{enterKey, escKey, ctrlWKey} {
 		m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
@@ -100,7 +96,6 @@ func TestWarningModalCloseAndReopenWithCtrlW(t *testing.T) {
 }
 
 func TestWarningModalIgnoresTyping(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 
 	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -114,32 +109,34 @@ func TestWarningModalIgnoresTyping(t *testing.T) {
 }
 
 func TestWarningModalDismissWithD(t *testing.T) {
-	cacheDir := filepath.Join(t.TempDir(), "cache")
-	t.Setenv("XDG_CACHE_HOME", cacheDir)
-
+	env, files := testEnv(t)
 	warn := errors.New("rc file ~/.config/what-to-run/config.toml: unknown theme \"nope\"")
-	m := update(newModel(Options{}, sampleTasks(), []error{warn}),
+	m := update(newModel(Options{Env: env}, sampleTasks(), []error{warn}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 	if !m.warningModal {
 		t.Fatal("warningModal did not open for a new warning")
 	}
 
-	m = update(m, dKey)
+	next, cmd := m.Update(dKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 	if m.warningModal {
 		t.Error("pressing d did not close the warning modal")
 	}
 
-	data, err := os.ReadFile(filepath.Join(cacheDir, "what-to-run", "dismissed-warnings"))
-	if err != nil {
-		t.Fatalf("reading dismissed-warnings: %v", err)
+	data, ok := files[env.CacheFile]
+	if !ok {
+		t.Fatalf("dismissed-warnings = missing, want %q", warn.Error())
 	}
-	if !strings.Contains(string(data), warn.Error()) {
+	if !strings.Contains(data, warn.Error()) {
 		t.Errorf("dismissed-warnings = %q, want %q", data, warn.Error())
 	}
 
 	// The next run with the same warning keeps the modal closed at startup,
 	// while the bottom chrome still shows "1 warning" and ctrl+w opens it.
-	again := update(newModel(Options{}, sampleTasks(), []error{warn}),
+	againEnv := *env
+	againEnv.Dismissed = m.env.Dismissed
+	again := update(newModel(Options{Env: &againEnv}, sampleTasks(), []error{warn}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 	if again.warningModal {
 		t.Error("dismissed warning reopened the modal at startup")
@@ -161,13 +158,12 @@ func TestWarningModalDismissWithD(t *testing.T) {
 }
 
 func TestWarningModalMultipleWarnings(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-
+	env, _ := testEnv(t)
 	warnings := []error{
 		errors.New("first warning"),
 		errors.New("second warning"),
 	}
-	m := update(newModel(Options{}, sampleTasks(), warnings),
+	m := update(newModel(Options{Env: env}, sampleTasks(), warnings),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	got := ansi.Strip(m.View().Content)
@@ -196,19 +192,21 @@ func TestWarningModalMultipleWarnings(t *testing.T) {
 	// Pressing d on warning 2 dismisses it and advances to warning 1, which is
 	// still undismissed. Pressing d again dismisses warning 1 and closes the
 	// modal.
-	m = update(m, dKey)
+	next, cmd := m.Update(dKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 	if !m.warningModal || m.warningIdx != 0 {
 		t.Errorf("after dismissing warning 2: modal = %v, idx = %d; want open on 0", m.warningModal, m.warningIdx)
 	}
-	m = update(m, dKey)
+	next, cmd = m.Update(dKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 	if m.warningModal {
 		t.Error("after dismissing all warnings: modal is still open")
 	}
 }
 
 func TestWarningModalFitsInlineAndNarrowTerminals(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-
 	longErr := errors.New("rc file /home/zanza00/.config/what-to-run/config.toml: strict mode: fields in the document are missing in the target struct")
 	m := newModel(Options{Inline: true}, sampleTasks(), []error{longErr})
 	m = update(m, tea.WindowSizeMsg{Width: 40, Height: 20})
@@ -226,24 +224,15 @@ func TestWarningModalFitsInlineAndNarrowTerminals(t *testing.T) {
 }
 
 func TestSavingThemeReParsesConfigAndClearsResolvedWarning(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	cfgDir := filepath.Join(dir, "xdg")
-	t.Setenv("XDG_CONFIG_HOME", cfgDir)
-	t.Setenv("XDG_CACHE_HOME", filepath.Join(dir, "cache"))
+	env, files := testEnv(t)
+	files[env.UserFile] = "theme = \"nope\"\n"
+	files[env.ProjectFile] = "[[tasks]]\nname = \"build\"\ncommand = \"echo ok\"\n"
 
-	userDir := filepath.Join(cfgDir, "what-to-run")
-	if err := os.MkdirAll(userDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, userDir, "config.toml", "theme = \"nope\"\n")
-	writeFile(t, dir, "Makefile", "build:\n\techo ok\n")
-
-	tasks, cfg, warnings := discover()
+	tasks, cfg, warnings := env.discover()
 	if len(warnings) != 1 {
 		t.Fatalf("initial warnings = %v, want 1", warnings)
 	}
-	m := update(newModel(Options{Theme: cfg.Theme}, tasks, warnings),
+	m := update(newModel(Options{Theme: cfg.Theme, Env: env}, tasks, warnings),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 	if !m.warningModal {
 		t.Fatal("warningModal did not open for the broken theme")
@@ -254,10 +243,15 @@ func TestSavingThemeReParsesConfigAndClearsResolvedWarning(t *testing.T) {
 	m = update(m, escKey)
 	m = update(m, ctrlTKey)
 	m = update(m, downKey) // nord
-	m = update(m, enterKey)
+	next, cmd := m.Update(enterKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
 
 	if len(m.warnings) != 0 {
 		t.Errorf("warnings after saving a valid theme = %v, want none", m.warnings)
+	}
+	if got := files[env.UserFile]; !strings.Contains(got, `theme = "nord"`) {
+		t.Errorf("user rc = %q, want the nord theme", got)
 	}
 	got := ansi.Strip(m.View().Content)
 	if strings.Contains(got, "1 warning") || strings.Contains(got, "ctrl+w") {

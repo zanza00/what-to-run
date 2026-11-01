@@ -17,6 +17,12 @@ to the owner instead of copying it.
 - **Complex work uses stacked PRs.** Split a multi-part change into a chain of
   small PRs, each based on the previous, and open them as drafts. After the
   maintainer merges a parent, rebase and retarget the next onto `main`.
+- **A PR that changes user-visible behavior adds its `CHANGELOG.md` entry
+  under `[Unreleased]` in the same PR.** The `changelog` CI job fails without
+  it; the `skip-changelog` label opts a PR out when the change is not
+  user-visible. See [Development](docs/development.md#changelog) for the
+  watched paths, the `docs-writing` skill for the entry style, and the
+  `release` skill for the cut.
 
 ## Go development
 
@@ -24,33 +30,36 @@ Load the `golang-how-to` skill before any Go task: it routes to the Go skills
 the task needs.
 
 - `task all` is the full check and runs before every commit. CI
-  (`.github/workflows/checks.yml`) runs the same commands plus gofmt and dprint
-  on Linux and macOS, and builds and vets for Windows. Its `cross` job also
-  runs the launcher's Node tests, so run `task test-npm` when touching `npm/`
-  (Node 24). If `task` is missing, run the commands in `checks.yml` by hand.
-  Prerequisites, the dprint download and the task list are in
-  [docs/development.md](docs/development.md).
+  (`.github/workflows/checks.yml`) runs `go build ./...`, `gofmt -l`,
+  `dprint check`, `go vet ./...` and `go test -race -shuffle=on ./...` on
+  Linux and macOS. Its `cross` job adds the GoReleaser check, the six
+  cross-builds, the Windows vet, the Python tests of the release publishers
+  and of the setup scripts, and the launcher's Node tests (`node --test`,
+  Node 24). The Node tests are not in `task all`, so run `task test-npm`
+  when touching `npm/`. If `task` is missing, run the commands in
+  `checks.yml` by hand. Prerequisites, the dprint download and the task list
+  are in [docs/development.md](docs/development.md).
 - One test: `go test -race ./internal/tui -run TestViewInlineHeight`.
-- Packages: `internal/core` is the task domain, `internal/tui` is the picker,
-  `internal/shell` holds the three widgets, and `cmd/wtr` parses flags and
-  subcommands. `internal/core` has no direct filesystem access: it reads through
-  the `Files` port, calls `os/exec` for `Task.Command`, and keeps the Windows
-  `SysProcAttr` in `command_windows.go`; `shellCommandFor(goos, ...)` keeps the
-  platform shell testable.
-- Adding a source: a `SourceInfo` literal (the ID from
-  [Source IDs](docs/task-sources.md#source-ids), plus `Label`, `Files`,
+- Packages: `internal/core` is the task domain, `internal/config` reads and
+  saves the rc file, `internal/tui` is the picker, `internal/shell` holds the
+  three widgets, and `cmd/wtr` parses flags and subcommands. `internal/core` has
+  no direct filesystem access: it reads through the `Files` port, calls
+  `os/exec` for `Task.Command`, and keeps the Windows `SysProcAttr` in
+  `command_windows.go`; `shellCommandFor(goos, ...)` keeps the platform shell
+  testable.
+- Adding a source: a `SourceInfo` literal (a lowercase kebab-case `ID` naming
+  the tool, plus `Label`, `Files`,
   `SearchParents`, and `DisplayFileOverride` when the empty screen shows another
   file), its parser in `internal/core/source_<name>.go`, one line in
   `defaultSources`, and table-driven tests. `TestRegistryInvariants` enforces the
-  metadata. The docs row and the README bullet are in the docs skill, and
+  metadata. The docs row and the README bullet are in the `docs-writing` skill, and
   `cmd/wtr/docs_test.go` fails until both exist. An unknown `package.json` shape
   belongs in the matching `source_*.go`.
 - `task build` compiles `cmd/wtr` into `bin/wtr`. The invoked name appears in
   usage, messages and the picker title, and the three `init` commands embed it in
   `WTR_BIN`; `cmd/wtr/main_test.go` pins the helpers.
-- Releasing: [docs/development.md](docs/development.md) owns the pipeline,
-  secrets and recovery, and the `release` skill walks the tag-to-verification
-  flow.
+- Releasing: the `release` skill owns the pipeline, secrets, tag-to-verification
+  flow and recovery.
 - `.agents/skills/` is committed on purpose (`skills-lock.json`). `release/` and
   `docs-writing/` are this repo's own skills and have no lock entry;
   `bubbletea-tfe` is a manual rename of `ggprompts/tfe`, so reinstall it only

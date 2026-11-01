@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +19,20 @@ import (
 func update(m model, msg tea.Msg) model {
 	next, _ := m.Update(msg)
 	return next.(model)
+}
+
+// execCmd runs cmd and returns its message. A test uses it for a persistence
+// effect, whose result arrives as a message.
+func execCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("command is nil, want an effect")
+	}
+	msg := cmd()
+	if msg == nil {
+		t.Fatal("command returned no message")
+	}
+	return msg
 }
 
 // press feeds one key press per rune of s, as if the user typed it.
@@ -49,8 +64,6 @@ func sized(opts Options) model {
 }
 
 func TestNewModelShellDialect(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
-
 	tests := []struct {
 		name        string
 		shell       string
@@ -643,7 +656,6 @@ func TestViewFullscreenFillsHeightAndScrolls(t *testing.T) {
 }
 
 func TestViewShowsWarnings(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 30})
 	if got := m.View().Content; !strings.Contains(got, "Makefile.toml: boom") {
@@ -733,6 +745,111 @@ func TestFilterBackspace(t *testing.T) {
 	m = update(m, tea.KeyPressMsg{Code: tea.KeyBackspace})
 	if m.filter != "c" {
 		t.Errorf("filter after backspace = %q, want %q", m.filter, "c")
+	}
+}
+
+// taskNames returns the names of tasks in order, so a test can compare a
+// ranking without depending on the rest of the task.
+func taskNames(tasks []core.Task) []string {
+	names := make([]string, len(tasks))
+	for i, task := range tasks {
+		names[i] = task.Name
+	}
+	return names
+}
+
+// TestModelWithoutSnapshotRenders pins that a model built without newModel
+// still renders and measures its commands. The snapshot is an optimisation,
+// not a requirement.
+func TestModelWithoutSnapshotRenders(t *testing.T) {
+	m := model{tasks: sampleTasks()}
+	m.width, m.height, m.ready = 80, 10, true
+
+	if got := m.View().Content; !strings.Contains(got, "npm run build") {
+		t.Errorf("View() without a snapshot does not render the tasks:\n%s", got)
+	}
+	if got, want := m.commandWidth(), len("cargo make clean"); got != want {
+		t.Errorf("commandWidth() without a snapshot = %d, want %d", got, want)
+	}
+
+	// A direct edit without the helper falls back to a full computation.
+	m.filter = "clean"
+	if got := taskNames(m.visible()); !slices.Equal(got, []string{"clean"}) {
+		t.Errorf("visible tasks after a direct filter edit = %v, want [clean]", got)
+	}
+}
+
+// TestTaskSnapshotFollowsRefresh pins that a reload of the task sources
+// replaces the cached ranking and keeps the cursor inside the shorter list.
+func TestTaskSnapshotFollowsRefresh(t *testing.T) {
+	env, files := testEnv(t)
+	files[filepath.Join(env.Dir, "Makefile")] = "build:\n\t@echo build\n"
+
+	m := press(sized(Options{Env: env}), "build")
+	m.cursor, m.offset = 1, 1
+
+	// Saving a theme re-discovers the task sources.
+	m = update(m, ctrlTKey)
+	m = update(m, downKey)
+	next, cmd := m.Update(enterKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
+
+	if !m.snapshot.valid {
+		t.Fatal("snapshot after the task refresh is invalid")
+	}
+	want := rankTasks(m.tasks, strings.Fields(strings.ToLower(m.filter)), m.shell)
+	got := taskNames(m.visible())
+	if !slices.Equal(got, taskNames(want)) {
+		t.Errorf("visible tasks after the refresh = %v, want %v", got, taskNames(want))
+	}
+	if !slices.Equal(got, []string{"build"}) {
+		t.Errorf("visible tasks after the refresh = %v, want the new Makefile target", got)
+	}
+	if m.cursor != 0 || m.offset != 0 {
+		t.Errorf("cursor and offset after the refresh = %d and %d, want 0 and 0", m.cursor, m.offset)
+	}
+	if got, want := m.snapshot.commandWidth, commandWidthFor(want, m.shell); got != want {
+		t.Errorf("command width after the refresh = %d, want %d", got, want)
+	}
+}
+
+// TestFilterSnapshotFollowsFilterChanges pins that every filter edit refreshes
+// the cached ranking and command width. A stale cache would show old rows after
+// a key press.
+func TestFilterSnapshotFollowsFilterChanges(t *testing.T) {
+	m := sized(Options{})
+
+	steps := []struct {
+		name string
+		msg  tea.Msg
+	}{
+		{"type m", tea.KeyPressMsg{Code: 'm', Text: "m"}},
+		{"type a", tea.KeyPressMsg{Code: 'a', Text: "a"}},
+		{"type k", tea.KeyPressMsg{Code: 'k', Text: "k"}},
+		{"type e", tea.KeyPressMsg{Code: 'e', Text: "e"}},
+		{"type t", tea.KeyPressMsg{Code: 't', Text: "t"}},
+		{"backspace", tea.KeyPressMsg{Code: tea.KeyBackspace}},
+		{"ctrl+u", ctrlUKey},
+		{"type z", tea.KeyPressMsg{Code: 'z', Text: "z"}},
+		{"type z", tea.KeyPressMsg{Code: 'z', Text: "z"}},
+		{"type z", tea.KeyPressMsg{Code: 'z', Text: "z"}},
+		{"esc", escKey},
+	}
+
+	for _, step := range steps {
+		m = update(m, step.msg)
+
+		if !m.snapshot.valid {
+			t.Fatalf("after %s the snapshot is invalid, want the new results", step.name)
+		}
+		want := rankTasks(m.tasks, strings.Fields(strings.ToLower(m.filter)), m.shell)
+		if got := taskNames(m.snapshot.tasks); !slices.Equal(got, taskNames(want)) {
+			t.Fatalf("after %s ranked tasks = %v, want %v", step.name, got, taskNames(want))
+		}
+		if got, want := m.snapshot.commandWidth, commandWidthFor(want, m.shell); got != want {
+			t.Fatalf("after %s command width = %d, want %d", step.name, got, want)
+		}
 	}
 }
 

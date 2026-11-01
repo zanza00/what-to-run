@@ -57,3 +57,9 @@ gates passed (`task all`, `task check-md`, `scripts/check-changelog.sh
 origin/main`), and the whole CI went green on `9c98c4b`: test on both
 runners, cross, nix on both runners, the changelog job and `CI required`.
 The PR stays a draft and the merge stays the maintainer's manual call.
+
+On 2026-11-01 in the evening the maintainer demoted Nix in the README (commit
+`a04517f` on `feat/channel-nix`): the quick start keeps blocks only for
+Homebrew and mise, the pointer line lists Nix with the other channels, and
+the full section stays in `docs/install.md`. The quick start is not where a
+new channel advertises itself by default.

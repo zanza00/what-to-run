@@ -18,20 +18,24 @@ import (
 // borders and the footer.
 const boxChrome = 3
 
+// boxMinWidth is the smallest width that the box draws in. A box narrower than
+// this cannot hold a readable title, body and borders.
+const boxMinWidth = 10
+
 // box is a bordered drawing laid over the frame: a title on the top border,
 // body rows, a footer and the two borders, all fitted to one column width.
 type box struct {
-	title  string      // plain text; render draws it bold in the border color
-	body   []string    // rendered rows; render truncates and pads each to innerW
-	footer string      // rendered; render pads it to innerW or drops it when wider
-	border color.Color // nil = the terminal's default foreground
-	innerW int         // content width; the caller computes it from its content
+	title  string      // The title is plain text. The render method draws it bold in the border color.
+	body   []string    // The body holds the rendered rows. The render method truncates and pads each row to innerW.
+	footer string      // The footer is rendered text. The render method pads it to innerW or drops it when it is wider than innerW.
+	border color.Color // A nil border color means the terminal's default foreground.
+	innerW int         // The innerW is the content width. The caller computes it from its content.
 }
 
 // render draws the box in h x w and returns its lines, top border first.
 // It returns nil when the space is too small for a usable box.
 func (b box) render(h, w int) []string {
-	if h < boxChrome+1 || w < 10 {
+	if h < boxChrome+1 || w < boxMinWidth {
 		return nil
 	}
 	innerW := min(max(b.innerW, 1), max(w-4, 1))

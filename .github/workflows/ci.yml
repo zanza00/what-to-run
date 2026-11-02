@@ -5,8 +5,9 @@ on:
     branches: [main]
   pull_request:
     # edited, labeled and unlabeled change no code: the changelog workflow
-    # owns them, so these events do not re-run the matrix.
-    types: [opened, synchronize, reopened]
+    # owns them, so these events do not re-run the matrix. ready_for_review
+    # starts the checks when a draft pull request becomes ready.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -17,12 +18,20 @@ concurrency:
 
 jobs:
   checks:
+    # Draft pull requests skip the checks: agent sessions open pull requests
+    # as drafts while the work is in progress, and the matrix would run on
+    # every push to a branch that is not ready for review. The changelog
+    # workflow still runs on drafts, because its rule costs seconds and
+    # reports early.
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
     uses: ./.github/workflows/checks.yml
 
   required:
     name: CI required
     needs: checks
-    if: always()
+    # A draft pull request skips the checks job. A skipped run must not fail
+    # the aggregate check.
+    if: always() && needs.checks.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

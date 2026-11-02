@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"maps"
 	"slices"
-	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -77,15 +76,7 @@ func pipenvScriptDesc(v any) (string, bool) {
 	case string:
 		return script, true
 	case []any:
-		parts := make([]string, len(script))
-		for i, item := range script {
-			s, isString := item.(string)
-			if !isString {
-				return "", false
-			}
-			parts[i] = s
-		}
-		return strings.Join(parts, " && "), true
+		return joinStringItems(script, " && ")
 	case map[string]any:
 		if len(script) == 1 {
 			if call, isString := script["call"].(string); isString {

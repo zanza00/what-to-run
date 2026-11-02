@@ -121,15 +121,7 @@ func hatchScriptDesc(v any) (string, bool) {
 	case string:
 		return script, true
 	case []any:
-		parts := make([]string, len(script))
-		for i, item := range script {
-			s, isString := item.(string)
-			if !isString {
-				return "", false
-			}
-			parts[i] = s
-		}
-		return strings.Join(parts, " && "), true
+		return joinStringItems(script, " && ")
 	}
 	return "", false
 }

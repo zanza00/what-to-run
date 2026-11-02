@@ -46,10 +46,36 @@ research note, which cites the upstream primary sources.
 
 ## The PR stack (opened 2026-11-02)
 
-1. docs: the research note, notes/index.md and this page.
-2. The file-name parameter for parsers.
-3. poe, 4. pdm, 5. taskipy, 6. hatch, 7. tox (TOML), 8. tox (INI), 9. pipenv.
+All nine tickets completed on 2026-11-02. Each code PR carries its CHANGELOG
+entry, its docs row and its README bullet; the tickets live under
+`.scratch/python-task-sources/` because the repo has no configured issue
+tracker on that date.
 
-Each code PR carries its CHANGELOG entry, its docs row and its README bullet.
-The tickets live under `.scratch/python-task-sources/` because the repo has no
-configured issue tracker on 2026-11-02.
+1. PR #88 `docs/python-research-note`: the research note, the notes index and
+   this page (commit `a30c0be`).
+2. PR #89 `feat/python-parsers-filename`: the file-name parameter for parsers
+   (commit `6e200c3`), with the `skip-changelog` label.
+3. PR #90 `feat/source-poe`: the poe source (`7bbba5d`).
+4. PR #91 `feat/source-pdm`: the pdm source (`c98d4f3`).
+5. PR #92 `feat/source-taskipy`: the taskipy source (`0e43b8a`).
+6. PR #93 `feat/source-hatch`: the hatch source (`df68117`).
+7. PR #94 `feat/source-tox`: the tox source, TOML half (`8741641`).
+8. PR #95 `feat/source-tox-ini`: the tox source, INI half (`3e798d8`).
+9. PR #96 `feat/source-pipenv`: the pipenv source (`0454871`).
+
+Merges stay manual, in stack order; after a parent merges, the next PR
+retargets to `main`.
+
+## Lessons from the implementer wave (2026-11-02)
+
+- Repo-local skills were not loadable through the skill tool by the
+  implementer subagents: one read `.agents/skills/implement/SKILL.md` from
+  disk and followed it, another substituted the `tdd` and `code-review`
+  skills. Future spawn instructions should name the SKILL.md path on disk,
+  not a skill load.
+- The local ticket tracker (`.scratch/`) is gitignored, so worktrees do not
+  see the tickets: the implementers read them by absolute path from the main
+  checkout. A configured issue tracker would remove that workaround.
+- Every implementer flagged the CI `cross` job as unverifiable locally.
+  `task all` plus the CI-style `go test -race -shuffle=on ./...` is the local
+  ceiling. No finding: that is the design.

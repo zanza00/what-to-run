@@ -1,6 +1,6 @@
-// The tox source: environments of tox, from the [tox] and [testenv] sections
-// of a tox.ini or setup.cfg, or from the [tool.tox] tables of a
-// pyproject.toml or a standalone tox.toml.
+// The tox source: environments of tox, from the [tox] or [tox:tox] core
+// section and the [testenv] sections of a tox.ini or setup.cfg, or from the
+// [tool.tox] tables of a pyproject.toml or a standalone tox.toml.
 package core
 
 import (
@@ -53,7 +53,7 @@ func parseTox(_, name string, data []byte) ([]Task, error) {
 	}
 
 	if name == "tox.ini" || name == "setup.cfg" {
-		return parseToxIni(data)
+		return parseToxIni(name, data)
 	}
 
 	// pyproject.toml keeps the tox configuration under [tool.tox]. A
@@ -162,18 +162,34 @@ func toxCommandDesc(cmd any) (string, bool) {
 }
 
 // parseToxIni returns the environments that the INI form of the tox
-// configuration declares: the names of the [tox] env_list key and the
-// sections named [testenv:<name>]. The run command and the skipping rules are
-// the ones of the TOML form, because both forms describe the same
-// environments.
-func parseToxIni(data []byte) ([]Task, error) {
+// configuration declares: the names of the env_list key of the core section
+// and the sections named [testenv:<name>]. The core section is [tox] in a
+// tox.ini and [tox:tox] in a setup.cfg, and the key also appears in its
+// legacy envlist spelling, which most pre-TOML projects use. The run command
+// and the skipping rules are the ones of the TOML form, because both forms
+// describe the same environments.
+func parseToxIni(name string, data []byte) ([]Task, error) {
 	sections, err := iniSections(data)
 	if err != nil {
 		return nil, err
 	}
 
+	// A setup.cfg hosts the sections of other tools too, so tox reads its
+	// core section under the tox: prefix. The testenv sections keep the
+	// plain spelling in both files.
+	core := sections["tox"]
+	if name == "setup.cfg" {
+		core = sections["tox:tox"]
+	}
+	// The env_list key wins when a file holds both spellings, because the
+	// tox reference documents that spelling first.
+	envList := core["env_list"]
+	if len(envList) == 0 {
+		envList = core["envlist"]
+	}
+
 	names := make(map[string]bool)
-	for _, line := range sections["tox"]["env_list"] {
+	for _, line := range envList {
 		for _, envName := range strings.Split(line, ",") {
 			if envName = strings.TrimSpace(envName); envName != "" {
 				names[envName] = true
@@ -234,8 +250,8 @@ func toxIniEnvDesc(env, base map[string][]string) string {
 // fails, because a half-read file can hide environments.
 func iniSections(data []byte) (map[string]map[string][]string, error) {
 	sections := make(map[string]map[string][]string)
-	var keys map[string][]string // the keys of the current section
-	var key string               // the key that a deeper line continues
+	var section map[string][]string
+	var key string // the key that a deeper line continues
 	var keyIndent int
 
 	for i, raw := range strings.Split(string(data), "\n") {
@@ -246,7 +262,7 @@ func iniSections(data []byte) (map[string]map[string][]string, error) {
 		case content == "", strings.HasPrefix(content, "#"), strings.HasPrefix(content, ";"):
 			continue
 		case key != "" && indent > keyIndent:
-			keys[key] = appendIniLine(keys[key], content)
+			section[key] = appendIniLine(section[key], content)
 		case content[0] == '[':
 			if !strings.HasSuffix(content, "]") {
 				return nil, fmt.Errorf("line %d: section %q has no closing bracket", i+1, content)
@@ -255,13 +271,13 @@ func iniSections(data []byte) (map[string]map[string][]string, error) {
 			if name == "" {
 				return nil, fmt.Errorf("line %d: the section name is empty", i+1)
 			}
-			keys = sections[name]
-			if keys == nil {
-				keys = make(map[string][]string)
-				sections[name] = keys
+			section = sections[name]
+			if section == nil {
+				section = make(map[string][]string)
+				sections[name] = section
 			}
 			key, keyIndent = "", 0
-		case keys == nil:
+		case section == nil:
 			return nil, fmt.Errorf("line %d: %q is outside a section", i+1, content)
 		default:
 			sep := strings.IndexAny(content, "=:")
@@ -271,7 +287,7 @@ func iniSections(data []byte) (map[string]map[string][]string, error) {
 			key = strings.TrimSpace(content[:sep])
 			keyIndent = indent
 			if value := strings.TrimSpace(content[sep+1:]); value != "" {
-				keys[key] = appendIniLine(keys[key], value)
+				section[key] = appendIniLine(section[key], value)
 			}
 		}
 	}

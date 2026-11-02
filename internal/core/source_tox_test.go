@@ -29,6 +29,29 @@ deps = ruff
 commands = ruff check {posargs:.}
 `
 
+// toxSetupCfgFixture is a real setup.cfg: the core section carries the tox:
+// prefix, because the file hosts the sections of other tools, while the
+// testenv sections keep the plain spelling. The environments match the
+// tox.ini fixture, so the parity test holds for both spellings of the core
+// section.
+const toxSetupCfgFixture = `[metadata]
+name = demo
+
+[tox:tox]
+env_list = 3.13, lint
+
+[testenv]
+description = run the test suite with pytest
+deps = pytest>=8
+commands = pytest {posargs:tests}
+
+[testenv:lint]
+description = run linters
+skip_install = true
+deps = ruff
+commands = ruff check {posargs:.}
+`
+
 func TestDiscoverToxEnvironments(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -100,20 +123,53 @@ commands = [["ruff", "check", { replace = "posargs", default = ["."], extend = t
 			},
 		},
 		{
-			name: "a setup.cfg holds the same ini sections",
+			name: "a setup.cfg holds the core section under the tox prefix",
 			files: map[string]string{
-				"setup.cfg": toxIniFixture,
+				"setup.cfg": toxSetupCfgFixture,
 			},
+			// Only the core section carries the tox: prefix in a
+			// setup.cfg, so the [testenv] and [testenv:lint] sections
+			// parse like the ones of a tox.ini.
 			want: []Task{
 				{Source: "setup.cfg", Name: "3.13", Desc: "run the test suite with pytest", Args: []string{"tox", "run", "-e", "3.13"}},
 				{Source: "setup.cfg", Name: "lint", Desc: "run linters", Args: []string{"tox", "run", "-e", "lint"}},
 			},
 		},
 		{
+			name: "the legacy envlist spelling lists the same environments",
+			files: map[string]string{
+				"tox.ini": `
+[tox]
+envlist = py312,py311
+
+[testenv]
+deps = pytest
+commands = pytest tests
+`,
+			},
+			// A classic pre-TOML file names its environments through
+			// the legacy spelling of the key. The base section is
+			// the only one that holds commands, so its first command
+			// describes every environment.
+			want: []Task{
+				{Source: "tox.ini", Name: "py311", Desc: "pytest tests", Args: []string{"tox", "run", "-e", "py311"}},
+				{Source: "tox.ini", Name: "py312", Desc: "pytest tests", Args: []string{"tox", "run", "-e", "py312"}},
+			},
+		},
+		{
+			name: "env_list wins when a file holds both spellings",
+			files: map[string]string{
+				"tox.ini": "[tox]\nenv_list = lint\nenvlist = wrong\n\n[testenv:lint]\ndescription = run linters\n",
+			},
+			want: []Task{
+				{Source: "tox.ini", Name: "lint", Desc: "run linters", Args: []string{"tox", "run", "-e", "lint"}},
+			},
+		},
+		{
 			name: "a tox.ini wins over the other candidates",
 			files: map[string]string{
 				"tox.ini":        toxIniFixture,
-				"setup.cfg":      "[tox]\nenv_list = wrong\n",
+				"setup.cfg":      "[tox:tox]\nenv_list = wrong\n",
 				"pyproject.toml": "[tool.tox]\nenv_list = [\"wrong\"]\n",
 				"tox.toml":       "env_list = [\"wrong\"]\n",
 			},
@@ -125,7 +181,7 @@ commands = [["ruff", "check", { replace = "posargs", default = ["."], extend = t
 		{
 			name: "a setup.cfg wins over the toml candidates",
 			files: map[string]string{
-				"setup.cfg":      toxIniFixture,
+				"setup.cfg":      toxSetupCfgFixture,
 				"pyproject.toml": "[tool.tox]\nenv_list = [\"wrong\"]\n",
 				"tox.toml":       "env_list = [\"wrong\"]\n",
 			},
@@ -362,6 +418,11 @@ skip_install = true
 			want:  nil,
 		},
 		{
+			name:  "a [tox] section in a setup.cfg is not the core section",
+			files: map[string]string{"setup.cfg": "[tox]\nenv_list = wrong\n"},
+			want:  nil,
+		},
+		{
 			name:  "no tox table",
 			files: map[string]string{"pyproject.toml": "[project]\nname = \"demo\"\n"},
 			want:  nil,
@@ -411,9 +472,10 @@ func TestDiscoverToxMissingFile(t *testing.T) {
 
 // TestDiscoverToxIniMatchesToml: the same configuration in the INI and the
 // TOML form lists the same environments with the same run command, whichever
-// candidate file holds it. The descriptions are not compared, because the
-// [testenv] base describes an environment that only env_list names, while
-// the env_run_base table does not.
+// candidate file holds it. The setup.cfg fixture holds the core section under
+// the tox: prefix, the spelling that the file requires. The descriptions are
+// not compared, because the [testenv] base describes an environment that
+// only env_list names, while the env_run_base table does not.
 func TestDiscoverToxIniMatchesToml(t *testing.T) {
 	toxTomlFixture := `
 [tool.tox]
@@ -432,7 +494,7 @@ commands = [["ruff", "check", { replace = "posargs", default = ["."], extend = t
 `
 	files := map[string]string{
 		"tox.ini":        toxIniFixture,
-		"setup.cfg":      toxIniFixture,
+		"setup.cfg":      toxSetupCfgFixture,
 		"pyproject.toml": toxTomlFixture,
 	}
 

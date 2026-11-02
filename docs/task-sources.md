@@ -102,8 +102,10 @@ The `env_run_base` and `env_pkg_base` tables are bases, not environments, so
 they contribute no tasks. An environment that only `env_list` names has no
 table of its own, so it shows no description.
 
-In the INI files, the environments come from the `[tox]` `env_list` key and
-from the `[testenv:<env>]` sections. The `[testenv]` section is the base of
+In the INI files, the environments come from the `env_list` key of the core
+section and from the `[testenv:<env>]` sections. The core section is `[tox]`
+in a `tox.ini` and `[tox:tox]` in a `setup.cfg`. The source also reads the
+legacy `envlist` spelling of the key. The `[testenv]` section is the base of
 every run environment: its `description` describes an environment that
 declares none of its own, and without a description anywhere, the first
 command shows. An environment that only `env_list` names inherits from the

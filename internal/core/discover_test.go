@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -429,7 +430,7 @@ func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 
 	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo"}})
 	want := `disable: unknown source "cargo"; known sources: ` +
-		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe"
+		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm"
 	if len(errs) != 1 || errs[0].Error() != want {
 		t.Errorf("Discover() errors = %v, want exactly %q", errs, want)
 	}
@@ -472,12 +473,25 @@ func TestCheckSourceID(t *testing.T) {
 	})
 
 	t.Run("every file name suggests its source", func(t *testing.T) {
+		// A file name may be shared, such as the pyproject.toml of poe and
+		// pdm, so the suggestion lists every matching ID in registry order.
+		idsByFile := make(map[string][]string)
 		for _, src := range registry {
 			for _, name := range src.Files {
-				want := fmt.Sprintf("%q is a file name; use %q", name, src.ID)
-				if err := checkSourceID(registry, name); err == nil || err.Error() != want {
-					t.Errorf("checkSourceID(%q) = %v, want %q", name, err, want)
+				idsByFile[name] = append(idsByFile[name], src.ID)
+			}
+		}
+		for name, ids := range idsByFile {
+			want := fmt.Sprintf("%q is a file name; use %q", name, ids[0])
+			if len(ids) > 1 {
+				quoted := make([]string, len(ids))
+				for i, id := range ids {
+					quoted[i] = strconv.Quote(id)
 				}
+				want = fmt.Sprintf("%q is a file name; use one of %s", name, strings.Join(quoted, ", "))
+			}
+			if err := checkSourceID(registry, name); err == nil || err.Error() != want {
+				t.Errorf("checkSourceID(%q) = %v, want %q", name, err, want)
 			}
 		}
 	})
@@ -519,7 +533,7 @@ func TestCheckSourceID(t *testing.T) {
 			name:      "unknown name lists the known sources",
 			candidate: "cargo",
 			want: "unknown source \"cargo\"; known sources: " +
-				"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe",
+				"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm",
 		},
 		{
 			name:      "a file name shared by two sources lists both",

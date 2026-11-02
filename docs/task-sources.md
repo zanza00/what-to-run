@@ -1,8 +1,8 @@
 # Task sources
 
-`wtr` discovers tasks in the current directory. For `Taskfile`, `justfile` and
-Poe tasks, it also searches parent directories (nearest file wins) and shows
-the relative path in the badge.
+`wtr` discovers tasks in the current directory. For `Taskfile`, `justfile`,
+Poe tasks and PDM scripts, it also searches parent directories (nearest file
+wins) and shows the relative path in the badge.
 
 | ID | File | Discovered tasks | Command |
 | --- | --- | --- | --- |
@@ -17,6 +17,7 @@ the relative path in the badge.
 | `deno` | `deno.json`, `deno.jsonc` | `tasks` | `deno task <name>` |
 | `mise` | `mise.toml`, `.mise.toml` | `[tasks]` | `mise run <name>` |
 | `poe` | `pyproject.toml`, `poe_tasks.toml` | `[tool.poe.tasks]` | `poe <name>` |
+| `pdm` | `pyproject.toml` | `[tool.pdm.scripts]` | `pdm run <name>` |
 
 Use the `ID` column in the `disable` setting (see [Configuration](config.md)).
 `devbox.json`, `deno.json`, `deno.jsonc` and `composer.json` accept comments and
@@ -56,3 +57,11 @@ prefix stay hidden, as in poe's own listing.
 
 `poe_tasks.toml` works without a `pyproject.toml`: its tasks sit at the top
 level or under `[tool.poe.tasks]`.
+
+## PDM scripts
+
+Scripts of every pdm shape are listed: strings and the `cmd`, `shell`, `call`
+and `composite` tables. A `cmd` given as an array joins with a space, because
+pdm splits one command across it. A script's `help` is its description.
+Without one, the body shows as text. The shared-options `_` key and scripts
+with a `_` prefix stay hidden, as in pdm's own listing.

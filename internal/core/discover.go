@@ -129,6 +129,7 @@ func defaultSources(settings Settings, files Files) []source {
 		denoSource(),
 		miseSource(),
 		poeSource(),
+		pdmSource(),
 	}
 }
 

@@ -71,6 +71,7 @@ The picker reads tasks from:
 - `deno.json`
 - `mise.toml`
 - Poe tasks (`pyproject.toml`)
+- PDM scripts (`pyproject.toml`)
 
 See [Task sources](docs/task-sources.md) for the commands and caveats.
 

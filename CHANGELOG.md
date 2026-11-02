@@ -23,6 +23,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `pyproject.toml` and the tasks of a standalone `poe_tasks.toml`, and runs
   the chosen task with `poe <name>`. Tasks whose name starts with `_` stay
   hidden, as in poe's own listing.
+- Added PDM scripts as a source: the picker lists the `[tool.pdm.scripts]` of
+  `pyproject.toml` and runs the chosen script with `pdm run <name>`. A
+  script of every pdm shape is listed, and its `help` is its description. The
+  shared-options `_` key and scripts whose name starts with `_` stay hidden,
+  as in pdm's own listing.
 
 ### Changed
 

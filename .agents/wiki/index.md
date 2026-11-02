@@ -19,8 +19,10 @@ locally or on origin; the wiki files are tracked on `main` again.)
 
 - [CI cost guardrails](ci-cost-guardrails.md) - 2026-11-02 audit: the CI costs
   $0.00 because the repo is public (billable 0 ms, 0 artifacts); what could
-  charge the card, the one manual budgets check, and the two residual trigger
-  wastes, fixed in draft PR #100 (2026-11-02).
+  charge the card, the one manual budgets check, and the runner-usage fixes:
+  the trigger wastes in draft PR #100, and the darwin legs moved off the
+  per-PR matrix — the nix install to flake paths and dispatch (PR #101), the
+  Go test leg to the release cut (PR #103, 2026-11-02).
 
 ## Research
 

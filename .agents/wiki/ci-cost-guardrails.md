@@ -85,3 +85,18 @@ reruns legs the pool cancelled before assigning a runner. On the PR's own head t
 leg went green in 40 seconds, the darwin leg queued about nine minutes and
 then went green too, and both printed `wtr 0.9.0` from the ref-installed
 binary — the first CI proof of the user install path.
+
+On 2026-11-02 the maintainer moved the last per-PR darwin leg out of the
+everyday matrix: draft PR #103 (branch `chore/darwin-test-at-release`,
+commit c0e1d61) gives `checks.yml` a `darwin` input that gates the
+`test (macos-latest)` leg, and `ci.yml` passes it only for the
+`chore/cut-changelog-*` cut branch and for a dispatch with `darwin=true`.
+The cut pull request's `CI required` aggregate carries the darwin proof
+before the tag, and the release skill's step 4 records the queue wait and
+the rerun of cancelled legs. This supersedes the everyday darwin test above:
+after the merge, an ordinary pull request queues nothing on macOS, and the
+nix install workflow (PR #101) stays the only other darwin consumer, on
+flake-touching pull requests and dispatches. The same day PR #97 measured
+the queue the PRs were paying: the darwin leg of `checks / test` queued
+about ten minutes and ran green in 59 seconds, while the ubuntu leg had
+been green for ten minutes already.

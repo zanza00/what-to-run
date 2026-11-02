@@ -10,6 +10,8 @@ Long-form research, one file per topic:
 - [npm-js-launcher-and-release-pipeline](npm-js-launcher-and-release-pipeline.md) — how the npm launcher and the release pipeline interact.
 - [changelog-cut-with-protected-main](changelog-cut-with-protected-main.md) — cutting a changelog release while main is protected.
 - [nixos-install-comparable-clis](nixos-install-comparable-clis.md) — how comparable CLIs install on NixOS.
+- [python-task-sources](python-task-sources.md) — which files a Python project
+  declares runnable tasks in, and which are static-parseable.
 
 ## Agent wiki
 

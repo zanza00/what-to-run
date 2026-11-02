@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
-    # edited, labeled and unlabeled change no code: the changelog workflow
-    # owns them, so these events do not re-run the matrix. ready_for_review
-    # starts the checks when a draft pull request becomes ready.
+    # The changelog workflow owns the events that change no code: edited,
+    # labeled and unlabeled. ready_for_review starts the checks when a draft
+    # pull request becomes ready.
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   checks:
-    # Draft pull requests skip the checks: agent sessions open pull requests
+    # Draft pull requests skip the checks. Agent sessions open pull requests
     # as drafts while the work is in progress, and the matrix would run on
     # every push to a branch that is not ready for review. The changelog
     # workflow still runs on drafts, because its rule costs seconds and
@@ -29,8 +29,10 @@ jobs:
   required:
     name: CI required
     needs: checks
-    # A draft pull request skips the checks job. A skipped run must not fail
-    # the aggregate check.
+    # The draft gate can skip the checks job. The aggregate then skips too, so
+    # a draft pull request carries no CI verdict. The changelog aggregate
+    # works the other way: there a skip is a decision of the skip-changelog
+    # label, and the aggregate reports it green.
     if: always() && needs.checks.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 15

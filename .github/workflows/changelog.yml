@@ -2,10 +2,11 @@ name: changelog
 
 on:
   pull_request:
-    # The events that change no code live here and not in ci.yml: a label
-    # opts the pull request in or out, and edited fires when a stacked pull
-    # request is retargeted to a new base branch. edited also fires on title
-    # and body edits, which cost seconds here.
+    # The pull request events that change no code live in this workflow. They
+    # re-run seconds of rule, not minutes of matrix. The skip-changelog label
+    # opts a pull request in or out. edited fires when a stacked pull request
+    # is retargeted to a new base branch, and also on title and body edits,
+    # which cost seconds here.
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
@@ -43,7 +44,9 @@ jobs:
     steps:
       - name: Require the changelog check to pass
         # A skipped check means the skip-changelog label opted the pull
-        # request out, so the aggregate stays green.
+        # request out, so the aggregate stays green. The ci aggregate skips
+        # together with its checks job instead, because a draft pull request
+        # carries no verdict.
         env:
           CHANGELOG_RESULT: ${{ needs.changelog.result }}
         run: test "$CHANGELOG_RESULT" = success || test "$CHANGELOG_RESULT" = skipped

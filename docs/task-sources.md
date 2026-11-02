@@ -1,9 +1,9 @@
 # Task sources
 
 `wtr` discovers tasks in the current directory. For `Taskfile`, `justfile`,
-Poe tasks, PDM scripts, taskipy tasks, Hatch scripts and tox environments, it
-also searches parent directories (nearest file wins) and shows the relative
-path in the badge.
+Poe tasks, PDM scripts, taskipy tasks, Hatch scripts, tox environments and
+Pipenv scripts, it also searches parent directories (nearest file wins) and
+shows the relative path in the badge.
 
 | ID | File | Discovered tasks | Command |
 | --- | --- | --- | --- |
@@ -22,6 +22,7 @@ path in the badge.
 | `taskipy` | `pyproject.toml` | `[tool.taskipy.tasks]` | `task <name>` |
 | `hatch` | `pyproject.toml` | `[tool.hatch.envs.<env>.scripts]` | `hatch run <env>:<script>` |
 | `tox` | `tox.ini`, `setup.cfg`, `pyproject.toml`, `tox.toml` | `env_list` and `[tool.tox.env.<env>]` or `[testenv:<env>]` | `tox run -e <env>` |
+| `pipenv` | `Pipfile` | `[scripts]` | `pipenv run <name>` |
 
 Use the `ID` column in the `disable` setting (see [Configuration](config.md)).
 `devbox.json`, `deno.json`, `deno.jsonc` and `composer.json` accept comments and
@@ -110,3 +111,15 @@ every run environment: its `description` describes an environment that
 declares none of its own, and without a description anywhere, the first
 command shows. An environment that only `env_list` names inherits from the
 base the same way.
+
+## Pipenv scripts
+
+Every script of the `[scripts]` section is listed and runs with
+`pipenv run <name>`, so the script runs in the virtual environment of the
+project. A Pipfile has no description field, so the body of a script shows as
+text: a string shows its command, an array joins its commands with `&&`, and
+a `call` table shows its Python reference.
+
+A `cmd` table is listed with its command too, because the pipenv
+documentation presents that shape and `pipenv run <name>` runs the script
+either way. A table of any other shape stays out of the list.

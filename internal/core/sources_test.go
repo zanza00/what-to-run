@@ -173,12 +173,12 @@ func TestRegistryInvariants(t *testing.T) {
 		{
 			name:   "missing source",
 			mutate: func(srcs []source) []source { return srcs[1:] },
-			want:   "14 sources, want 15",
+			want:   "15 sources, want 16",
 		},
 		{
 			name:   "extra source",
 			mutate: func(srcs []source) []source { return append(srcs, srcs[0]) },
-			want:   "16 sources, want 15",
+			want:   "17 sources, want 16",
 		},
 	}
 
@@ -344,6 +344,13 @@ var registryOrder = []struct {
 		label:         "tox environments",
 		firstFile:     "tox.ini",
 		displayFile:   "tox.ini",
+		searchParents: true,
+	},
+	{
+		id:            "pipenv",
+		label:         "Pipenv scripts",
+		firstFile:     "Pipfile",
+		displayFile:   "Pipfile",
 		searchParents: true,
 	},
 }

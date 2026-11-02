@@ -52,6 +52,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   its core in `[tox:tox]`. In the INI files, the `[testenv]` base describes an
   environment that declares none of its own. The run command stays
   `tox run -e <env>`.
+- Added Pipenv scripts as a source: the picker lists the `[scripts]` section
+  of the `Pipfile` and runs the chosen script with `pipenv run <name>`. The
+  body of a script shows as text, because a Pipfile has no description field:
+  a string shows its command, an array joins its commands with `&&`, and a
+  `call` table shows its Python reference. A `cmd` table is listed with its
+  command too, because the pipenv documentation presents that shape. A table
+  of any other shape stays out of the list.
 
 ### Changed
 

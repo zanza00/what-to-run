@@ -133,6 +133,7 @@ func defaultSources(settings Settings, files Files) []source {
 		taskipySource(),
 		hatchSource(),
 		toxSource(),
+		pipenvSource(),
 	}
 }
 

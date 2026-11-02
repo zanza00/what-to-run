@@ -79,3 +79,17 @@ retargets to `main`.
 - Every implementer flagged the CI `cross` job as unverifiable locally.
   `task all` plus the CI-style `go test -race -shuffle=on ./...` is the local
   ceiling. No finding: that is the design.
+
+## The final review (2026-11-02)
+
+A two-axis review of the whole stack (`main...feat/source-pipenv`, 8 commits)
+found no hard standard breaches and a complete spec, with two real bugs in
+the tox INI half and one duplicated loop. Outcomes:
+
+- Fix `7594033` on PR #95: the parser now reads the legacy `envlist` key and
+  the `[tox:tox]` core section of a setup.cfg, verified against the tox
+  4.67.5 source (`env_list` wins when a file holds both spellings; the
+  testenv sections in setup.cfg are unprefixed).
+- PR #97 `refactor/string-items-helper` (`4590033`): one shared string-items
+  join helper for the hatch, pipenv and pdm parsers; poe keeps its variant,
+  because its fallback is the opposite contract.

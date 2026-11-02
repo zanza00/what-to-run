@@ -80,9 +80,10 @@ Write in **CEFR B2** American English:
 
 ## Completion criteria
 
-Every doc change is done when all four checks hold:
+Every doc change is done when all five checks hold:
 
 1. **Single owner**: no fact is stated in two files; cross-references link to `[Title](path#anchor)` and every target heading exists.
 2. **Ground truth**: every flag, subcommand and key in the touched sections matches `wtr --help` and `cmd/wtr`.
 3. **Formatting**: `task check-md` exits 0 with no diff.
 4. **Source parity**: `go test ./cmd/wtr` passes.
+5. **De-slop**: load the `stop-slop` skill and pass everything you wrote through it, revising what its scoring flags.

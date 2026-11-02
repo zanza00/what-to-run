@@ -1,8 +1,9 @@
 # Task sources
 
 `wtr` discovers tasks in the current directory. For `Taskfile`, `justfile`,
-Poe tasks, PDM scripts and taskipy tasks, it also searches parent directories
-(nearest file wins) and shows the relative path in the badge.
+Poe tasks, PDM scripts, taskipy tasks and Hatch scripts, it also searches
+parent directories (nearest file wins) and shows the relative path in the
+badge.
 
 | ID | File | Discovered tasks | Command |
 | --- | --- | --- | --- |
@@ -19,6 +20,7 @@ Poe tasks, PDM scripts and taskipy tasks, it also searches parent directories
 | `poe` | `pyproject.toml`, `poe_tasks.toml` | `[tool.poe.tasks]` | `poe <name>` |
 | `pdm` | `pyproject.toml` | `[tool.pdm.scripts]` | `pdm run <name>` |
 | `taskipy` | `pyproject.toml` | `[tool.taskipy.tasks]` | `task <name>` |
+| `hatch` | `pyproject.toml` | `[tool.hatch.envs.<env>.scripts]` | `hatch run <env>:<script>` |
 
 Use the `ID` column in the `disable` setting (see [Configuration](config.md)).
 `devbox.json`, `deno.json`, `deno.jsonc` and `composer.json` accept comments and
@@ -73,3 +75,12 @@ Both taskipy shapes are listed: strings and the `cmd`/`help` tables. A task's
 `help` is its description. Without one, the command shows as text. The
 `[tool.taskipy.variables]` and `[tool.taskipy.settings]` tables declare no
 tasks, so they contribute nothing.
+
+## Hatch scripts
+
+Every script is listed as `<env>:<script>`, because two environments can
+declare the same script name. The environment's `description` is the
+description of its scripts. Without one, the script shows as text, and an
+array script joins its commands. Environments named with the `hatch-` prefix,
+and environments with a `matrix` or an `overrides` table, stay hidden, because
+their names expand or mutate at run time.

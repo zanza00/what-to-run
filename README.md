@@ -73,6 +73,7 @@ The picker reads tasks from:
 - Poe tasks (`pyproject.toml`)
 - PDM scripts (`pyproject.toml`)
 - taskipy tasks (`pyproject.toml`)
+- Hatch scripts (`pyproject.toml`)
 
 See [Task sources](docs/task-sources.md) for the commands and caveats.
 

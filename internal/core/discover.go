@@ -131,6 +131,7 @@ func defaultSources(settings Settings, files Files) []source {
 		poeSource(),
 		pdmSource(),
 		taskipySource(),
+		hatchSource(),
 	}
 }
 

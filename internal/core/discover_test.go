@@ -430,7 +430,7 @@ func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 
 	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo"}})
 	want := `disable: unknown source "cargo"; known sources: ` +
-		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy"
+		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy, hatch"
 	if len(errs) != 1 || errs[0].Error() != want {
 		t.Errorf("Discover() errors = %v, want exactly %q", errs, want)
 	}
@@ -474,8 +474,8 @@ func TestCheckSourceID(t *testing.T) {
 
 	t.Run("every file name suggests its source", func(t *testing.T) {
 		// A file name may be shared, such as the pyproject.toml of poe,
-		// pdm and taskipy, so the suggestion lists every matching ID in
-		// registry order.
+		// pdm, taskipy and hatch, so the suggestion lists every matching ID
+		// in registry order.
 		idsByFile := make(map[string][]string)
 		for _, src := range registry {
 			for _, name := range src.Files {
@@ -534,7 +534,7 @@ func TestCheckSourceID(t *testing.T) {
 			name:      "unknown name lists the known sources",
 			candidate: "cargo",
 			want: "unknown source \"cargo\"; known sources: " +
-				"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy",
+				"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy, hatch",
 		},
 		{
 			name:      "a file name shared by two sources lists both",

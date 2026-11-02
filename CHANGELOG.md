@@ -33,6 +33,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every taskipy shape is listed, and its `help` is its description. The
   `[tool.taskipy.variables]` and `[tool.taskipy.settings]` tables contribute
   nothing.
+- Added Hatch scripts as a source: the picker lists the scripts of the
+  environments of `[tool.hatch.envs]` in `pyproject.toml` and runs the chosen
+  script with `hatch run <env>:<script>`. Every script is named after its
+  environment, because two environments can declare the same script name. The
+  environment's `description` describes its scripts. Environments named with
+  the `hatch-` prefix, and environments with a `matrix` or an `overrides`
+  table, stay hidden, because their names expand or mutate at run time.
 
 ### Changed
 

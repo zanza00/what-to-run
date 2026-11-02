@@ -22,7 +22,7 @@ func makeSource() source {
 }
 
 // parseMakeFile adapts parseMakeTargets to the parser signature of a source.
-func parseMakeFile(_ string, data []byte) ([]Task, error) {
+func parseMakeFile(_, _ string, data []byte) ([]Task, error) {
 	return parseMakeTargets(data), nil
 }
 

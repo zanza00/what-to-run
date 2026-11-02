@@ -16,6 +16,15 @@ files in a checkout. That branch merged into `main` through PR #82 on
   and winget channel work, how PR #61 was aligned with main on 2026-11-01,
   and which branches are stale.
 
+## CI
+
+- [CI cost guardrails](ci-cost-guardrails.md) - 2026-11-02 audit: the CI costs
+  $0.00 because the repo is public (billable 0 ms, 0 artifacts); what could
+  charge the card, the one manual budgets check, and the runner-usage fixes:
+  the trigger wastes in draft PR #100, and the darwin legs moved off the
+  per-PR matrix — the nix install to flake paths and dispatch (PR #101), the
+  Go test leg to the release cut (PR #103, 2026-11-02).
+
 ## Research
 
 - [NixOS install landscape](nixos-install-landscape.md) - how eleven

@@ -2,12 +2,25 @@ name: checks
 
 on:
   workflow_call:
+    inputs:
+      darwin:
+        description: Run the darwin leg of the test matrix.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   test:
+    # The macOS arm64 pool can queue a leg for tens of minutes, and it can
+    # cancel the leg before a runner takes it. The binary is pure Go, and
+    # the cross job builds both darwin architectures on Linux, so a tree
+    # that passes this job on Linux rarely fails on darwin. The darwin leg
+    # therefore runs only where it changes the verdict: the release cut,
+    # the last gate before the tag. The caller selects the leg through the
+    # darwin input.
+    if: matrix.os != 'macos-latest' || inputs.darwin
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -78,12 +91,12 @@ jobs:
         # paths keep this run inside a temporary directory.
         run: sudo env "PATH=$PATH" python3 -m unittest discover -s scripts -p 'setup_scripts_test.py'
 
+  # Linux only. The macOS arm64 pool can queue a run for tens of minutes,
+  # so the nix darwin leg and the install-by-ref proof live in
+  # nix-install.yml, which runs where the flake can change and for the
+  # release cut.
   nix:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -94,26 +107,3 @@ jobs:
         run: nix flake check
       - name: Build the package
         run: nix build .#default
-
-  changelog:
-    name: Changelog entry
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    # ci.yml calls this workflow for pull requests and for pushes to main;
-    # the job needs a pull request, because it reads the base branch and the
-    # labels from the calling event. The skip-changelog label opts a pull
-    # request out.
-    if: >-
-      github.event_name == 'pull_request' &&
-      !contains(github.event.pull_request.labels.*.name, 'skip-changelog')
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          # The script reads the base branch through its remote-tracking ref,
-          # so the checkout fetches every branch.
-          fetch-depth: 0
-      - name: Require a changelog entry under Unreleased
-        env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: scripts/check-changelog.sh "origin/$BASE_REF"

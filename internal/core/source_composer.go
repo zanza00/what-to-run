@@ -27,7 +27,7 @@ func composerSource() source {
 // hand. A script is a command string or an array of commands, and
 // scripts-descriptions overrides the description, which otherwise shows those
 // commands.
-func parseComposer(_ string, data []byte) ([]Task, error) {
+func parseComposer(_, _ string, data []byte) ([]Task, error) {
 	// An empty file declares no scripts, so report it like a missing file
 	// instead of failing on invalid JSON.
 	if len(bytes.TrimSpace(data)) == 0 {

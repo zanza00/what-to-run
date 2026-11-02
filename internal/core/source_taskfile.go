@@ -32,7 +32,7 @@ func taskfileSource(files Files) source {
 			Files:         slices.Clone(taskfileNames),
 			SearchParents: true,
 		},
-		Parse: func(dir string, data []byte) ([]Task, error) {
+		Parse: func(dir, _ string, data []byte) ([]Task, error) {
 			return parseTaskfile(files, dir, data)
 		},
 	}

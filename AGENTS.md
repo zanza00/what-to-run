@@ -35,7 +35,10 @@ follow it: it ends with a code-review of your own diff.
 - `task all` is the full check and runs before every commit. CI
   (`.github/workflows/checks.yml`) runs `go build ./...`, `gofmt -l`,
   `dprint check`, `go vet ./...` and `go test -race -shuffle=on ./...` on
-  Linux and macOS. Its `cross` job adds the GoReleaser check, the six
+  Linux; the darwin leg of the matrix runs only where `ci.yml` asks for
+  it — the release cut pull request and an on-demand dispatch — because
+  the macOS arm64 pool can queue a leg for tens of minutes. Its `cross`
+  job adds the GoReleaser check, the six
   cross-builds, the Windows vet, the Python tests of the release publishers
   and of the setup scripts, and the launcher's Node tests (`node --test`,
   Node 24). The Node tests are not in `task all`, so run `task test-npm`

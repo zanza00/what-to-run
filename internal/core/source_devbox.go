@@ -25,7 +25,7 @@ func devboxSource() source {
 // a command string or an array of commands, and the description shows those
 // commands. The parser ignores shell.init_hook and the rest of the file, and it
 // skips a script without usable commands.
-func parseDevbox(_ string, data []byte) ([]Task, error) {
+func parseDevbox(_, _ string, data []byte) ([]Task, error) {
 	// An empty file declares no scripts, so report it like a missing file
 	// instead of failing on invalid JSON.
 	if len(bytes.TrimSpace(data)) == 0 {

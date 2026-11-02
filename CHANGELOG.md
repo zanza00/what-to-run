@@ -19,6 +19,47 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and `nix profile install github:zanza00/what-to-run` builds `wtr` from source
   on Linux and Apple silicon macOS. On NixOS, add the flake as an input to the
   system configuration.
+- Added Poe tasks as a source: the picker lists the `[tool.poe.tasks]` of
+  `pyproject.toml` and the tasks of a standalone `poe_tasks.toml`, and runs
+  the chosen task with `poe <name>`. Tasks whose name starts with `_` stay
+  hidden, as in poe's own listing.
+- Added PDM scripts as a source: the picker lists the `[tool.pdm.scripts]` of
+  `pyproject.toml` and runs the chosen script with `pdm run <name>`. A
+  script of every pdm shape is listed, and its `help` is its description. The
+  shared-options `_` key and scripts whose name starts with `_` stay hidden,
+  as in pdm's own listing.
+- Added taskipy as a source: the picker lists the `[tool.taskipy.tasks]` of
+  `pyproject.toml` and runs the chosen task with `task <name>`. A task of
+  every taskipy shape is listed, and its `help` is its description. The
+  `[tool.taskipy.variables]` and `[tool.taskipy.settings]` tables declare
+  no tasks.
+- Added Hatch scripts as a source: the picker lists the scripts of the
+  environments of `[tool.hatch.envs]` in `pyproject.toml` and runs the chosen
+  script with `hatch run <env>:<script>`. Every script is named after its
+  environment, because two environments can declare the same script name. The
+  environment's `description` describes its scripts. Environments named with
+  the `hatch-` prefix, and environments with a `matrix` or an `overrides`
+  table, stay hidden, because their names expand or mutate at run time.
+- Added tox environments as a source: the picker lists the environments of the
+  `[tool.tox]` tables of `pyproject.toml` and of a standalone `tox.toml`, and
+  runs the chosen environment with `tox run -e <env>`. An environment's
+  `description` is its description, and without one its first command shows
+  as text. Names with template braces stay hidden, because they expand at
+  run time.
+- Added the INI configuration of tox to the source: the picker lists the
+  environments of `tox.ini` and `setup.cfg` too. The `[tox]` section accepts
+  both `env_list` and the legacy `envlist` spelling, and a `setup.cfg` holds
+  its core in `[tox:tox]`. In the INI files, the `[testenv]` base describes an
+  environment that declares none of its own. Every environment runs with
+  `tox run -e <env>`.
+- Added Pipenv scripts as a source: the picker lists the `[scripts]` section
+  of the `Pipfile` and runs the chosen script with `pipenv run <name>`. A
+  Pipfile has no description field, so the body of a script shows as text:
+  the command for a string, the commands joined with `&&` for an array, and
+  the Python reference for a `call` table. A `cmd` table is listed with its
+  command too: the pipenv documentation presents that shape, and
+  `pipenv run <name>` runs it either way. A table of any other shape stays
+  out of the list.
 
 ### Changed
 

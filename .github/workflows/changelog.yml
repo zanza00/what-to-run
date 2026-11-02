@@ -1,0 +1,52 @@
+name: changelog
+
+on:
+  pull_request:
+    # The pull request events that change no code live in this workflow. They
+    # re-run seconds of rule, not minutes of matrix. The skip-changelog label
+    # opts a pull request in or out. edited fires when a stacked pull request
+    # is retargeted to a new base branch, and also on title and body edits,
+    # which cost seconds here.
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changelog:
+    name: Changelog entry
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The skip-changelog label opts a pull request out.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          # The script reads the base branch through its remote-tracking ref,
+          # so the checkout fetches every branch.
+          fetch-depth: 0
+      - name: Require a changelog entry under Unreleased
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: scripts/check-changelog.sh "origin/$BASE_REF"
+
+  required:
+    name: Changelog required
+    needs: changelog
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the changelog check to pass
+        # A skipped check means the skip-changelog label opted the pull
+        # request out, so the aggregate stays green. The ci aggregate skips
+        # together with its checks job instead, because a draft pull request
+        # carries no verdict.
+        env:
+          CHANGELOG_RESULT: ${{ needs.changelog.result }}
+        run: test "$CHANGELOG_RESULT" = success || test "$CHANGELOG_RESULT" = skipped

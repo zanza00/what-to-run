@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -201,6 +202,63 @@ func TestDiscoverSourceFirstFileWins(t *testing.T) {
 	}
 }
 
+// TestDiscoverSourcePassesFileNameToParser: a source with several candidate
+// files can list formats that need different parsers, such as the INI and TOML
+// files of tox. The framework hands the parser the base name of the winning
+// file, next to the directory and the bytes, so the parser can dispatch on the
+// file it actually read. The fixtures write each file's name as its content,
+// so the test can tell the three arguments apart.
+func TestDiscoverSourcePassesFileNameToParser(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing []string
+		want     string
+	}{
+		{
+			name:     "the second of two candidates wins",
+			existing: []string{"second.cfg"},
+			want:     "second.cfg",
+		},
+		{
+			name:     "the first candidate wins when both exist",
+			existing: []string{"first.cfg", "second.cfg"},
+			want:     "first.cfg",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, name := range tt.existing {
+				writeFile(t, dir, name, name)
+			}
+
+			var gotDir, gotName string
+			var gotData []byte
+			src := source{
+				SourceInfo: SourceInfo{ID: "probe", Label: "probe", Files: []string{"first.cfg", "second.cfg"}},
+				Parse: func(dir, name string, data []byte) ([]Task, error) {
+					gotDir, gotName, gotData = dir, name, data
+					return nil, nil
+				},
+			}
+
+			if _, err := discoverSource(osFiles{}, src, dir); err != nil {
+				t.Fatalf("discoverSource() error = %v", err)
+			}
+			if gotName != tt.want {
+				t.Errorf("parser file name = %q, want %q", gotName, tt.want)
+			}
+			if gotDir != dir {
+				t.Errorf("parser directory = %q, want %q", gotDir, dir)
+			}
+			if string(gotData) != tt.want {
+				t.Errorf("parser data = %q, want the content of %s", gotData, tt.want)
+			}
+		})
+	}
+}
+
 func TestDiscoverCargoMakeTasks(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile.toml", `
@@ -372,7 +430,7 @@ func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 
 	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo"}})
 	want := `disable: unknown source "cargo"; known sources: ` +
-		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise"
+		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy, hatch, tox, pipenv"
 	if len(errs) != 1 || errs[0].Error() != want {
 		t.Errorf("Discover() errors = %v, want exactly %q", errs, want)
 	}
@@ -415,12 +473,26 @@ func TestCheckSourceID(t *testing.T) {
 	})
 
 	t.Run("every file name suggests its source", func(t *testing.T) {
+		// A file name may be shared, such as the pyproject.toml of poe,
+		// pdm, taskipy and hatch, so the suggestion lists every matching ID
+		// in registry order.
+		idsByFile := make(map[string][]string)
 		for _, src := range registry {
 			for _, name := range src.Files {
-				want := fmt.Sprintf("%q is a file name; use %q", name, src.ID)
-				if err := checkSourceID(registry, name); err == nil || err.Error() != want {
-					t.Errorf("checkSourceID(%q) = %v, want %q", name, err, want)
+				idsByFile[name] = append(idsByFile[name], src.ID)
+			}
+		}
+		for name, ids := range idsByFile {
+			want := fmt.Sprintf("%q is a file name; use %q", name, ids[0])
+			if len(ids) > 1 {
+				quoted := make([]string, len(ids))
+				for i, id := range ids {
+					quoted[i] = strconv.Quote(id)
 				}
+				want = fmt.Sprintf("%q is a file name; use one of %s", name, strings.Join(quoted, ", "))
+			}
+			if err := checkSourceID(registry, name); err == nil || err.Error() != want {
+				t.Errorf("checkSourceID(%q) = %v, want %q", name, err, want)
 			}
 		}
 	})
@@ -462,7 +534,7 @@ func TestCheckSourceID(t *testing.T) {
 			name:      "unknown name lists the known sources",
 			candidate: "cargo",
 			want: "unknown source \"cargo\"; known sources: " +
-				"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise",
+				"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy, hatch, tox, pipenv",
 		},
 		{
 			name:      "a file name shared by two sources lists both",

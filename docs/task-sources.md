@@ -1,9 +1,9 @@
 # Task sources
 
 `wtr` discovers tasks in the current directory. For `Taskfile`, `justfile`,
-Poe tasks, PDM scripts, taskipy tasks and Hatch scripts, it also searches
-parent directories (nearest file wins) and shows the relative path in the
-badge.
+Poe tasks, PDM scripts, taskipy tasks, Hatch scripts and tox environments, it
+also searches parent directories (nearest file wins) and shows the relative
+path in the badge.
 
 | ID | File | Discovered tasks | Command |
 | --- | --- | --- | --- |
@@ -21,6 +21,7 @@ badge.
 | `pdm` | `pyproject.toml` | `[tool.pdm.scripts]` | `pdm run <name>` |
 | `taskipy` | `pyproject.toml` | `[tool.taskipy.tasks]` | `task <name>` |
 | `hatch` | `pyproject.toml` | `[tool.hatch.envs.<env>.scripts]` | `hatch run <env>:<script>` |
+| `tox` | `pyproject.toml`, `tox.toml` | `env_list` and `[tool.tox.env.<env>]` | `tox run -e <env>` |
 
 Use the `ID` column in the `disable` setting (see [Configuration](config.md)).
 `devbox.json`, `deno.json`, `deno.jsonc` and `composer.json` accept comments and
@@ -84,3 +85,17 @@ description of its scripts. Without one, the script shows as text, and an
 array script joins its commands. Environments named with the `hatch-` prefix,
 and environments with a `matrix` or an `overrides` table, stay hidden, because
 their names expand or mutate at run time.
+
+## tox environments
+
+Every environment of `env_list` and of the `[tool.tox.env]` tables is listed
+and runs with `tox run -e <env>`. A `tox.toml` holds the same tables without
+the `tool.tox` prefix. An environment's `description` is its description.
+Without one, its first command shows as text. Names with template braces stay
+hidden, because they expand at run time.
+
+The `env_run_base` and `env_pkg_base` tables are bases, not environments, so
+they contribute no tasks. An environment that only `env_list` names has no
+table of its own, so it shows no description. `tox.ini` and `setup.cfg` are
+also tox configuration files. They hold the same environments in the
+deprecated INI format, and the picker learns them in the next change.

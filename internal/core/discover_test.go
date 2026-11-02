@@ -430,7 +430,7 @@ func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 
 	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo"}})
 	want := `disable: unknown source "cargo"; known sources: ` +
-		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy, hatch"
+		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy, hatch, tox"
 	if len(errs) != 1 || errs[0].Error() != want {
 		t.Errorf("Discover() errors = %v, want exactly %q", errs, want)
 	}
@@ -534,7 +534,7 @@ func TestCheckSourceID(t *testing.T) {
 			name:      "unknown name lists the known sources",
 			candidate: "cargo",
 			want: "unknown source \"cargo\"; known sources: " +
-				"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy, hatch",
+				"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy, hatch, tox",
 		},
 		{
 			name:      "a file name shared by two sources lists both",

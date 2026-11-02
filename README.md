@@ -74,6 +74,7 @@ The picker reads tasks from:
 - PDM scripts (`pyproject.toml`)
 - taskipy tasks (`pyproject.toml`)
 - Hatch scripts (`pyproject.toml`)
+- tox environments (`pyproject.toml`)
 
 See [Task sources](docs/task-sources.md) for the commands and caveats.
 

@@ -132,6 +132,7 @@ func defaultSources(settings Settings, files Files) []source {
 		pdmSource(),
 		taskipySource(),
 		hatchSource(),
+		toxSource(),
 	}
 }
 

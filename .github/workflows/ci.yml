@@ -4,10 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
-    # labeled and unlabeled re-run the workflow when a PR takes or drops the
-    # skip-changelog label. edited re-runs it when a stacked PR is retargeted
-    # to a new base branch; it also fires on title and body edits.
-    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+    # edited, labeled and unlabeled change no code: the changelog workflow
+    # owns them, so these events do not re-run the matrix.
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read

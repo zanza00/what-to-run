@@ -23,7 +23,7 @@ func justfileSource(files Files) source {
 			Files:         []string{"justfile", "Justfile", ".justfile"},
 			SearchParents: true,
 		},
-		Parse: func(dir string, data []byte) ([]Task, error) {
+		Parse: func(dir, _ string, data []byte) ([]Task, error) {
 			return parseJustfileFor(runtime.GOOS, files, dir, data)
 		},
 	}

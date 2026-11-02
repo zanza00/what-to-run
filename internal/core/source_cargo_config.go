@@ -32,7 +32,7 @@ func cargoAliasSource() source {
 // the way cargo does (zellij's q -> x -> xtask). Shell aliases ("!...") are
 // shown verbatim. An entry that is not a string, or whose expansion is empty,
 // is skipped, because cargo would not run it either.
-func parseCargoConfig(_ string, data []byte) ([]Task, error) {
+func parseCargoConfig(_, _ string, data []byte) ([]Task, error) {
 	// An empty file declares no aliases, so report it like a missing file
 	// instead of failing on invalid TOML.
 	if len(bytes.TrimSpace(data)) == 0 {

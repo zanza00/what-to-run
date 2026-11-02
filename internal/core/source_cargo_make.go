@@ -33,7 +33,7 @@ type cargoTask struct {
 // parseCargoMakefile returns the cargo-make tasks that the [tasks] section of
 // the project's Makefile.toml declares, sorted by name. It skips private and
 // disabled tasks, because the picker could not run them directly.
-func parseCargoMakefile(_ string, data []byte) ([]Task, error) {
+func parseCargoMakefile(_, _ string, data []byte) ([]Task, error) {
 	var doc struct {
 		Tasks map[string]cargoTask `toml:"tasks"`
 	}

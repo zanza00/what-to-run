@@ -70,6 +70,12 @@ The picker reads tasks from:
 - `composer.json`
 - `deno.json`
 - `mise.toml`
+- Poe tasks (`pyproject.toml`)
+- PDM scripts (`pyproject.toml`)
+- taskipy tasks (`pyproject.toml`)
+- Hatch scripts (`pyproject.toml`)
+- tox environments (`tox.ini`)
+- Pipenv scripts (`Pipfile`)
 
 See [Task sources](docs/task-sources.md) for the commands and caveats.
 

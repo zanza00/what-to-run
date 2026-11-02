@@ -13,10 +13,6 @@ import (
 // palette, and the previewed row is highlighted. The box is composited cell by
 // cell (see overlay), so the styled rows around it stay intact.
 
-// themeModalChrome is the number of rows that the box adds around the theme
-// list: two borders and the hints line.
-const themeModalChrome = 3
-
 // themeModalListRows is how many theme rows the box shows at a time. The list
 // scrolls under the cursor when it holds more themes.
 const themeModalListRows = 5
@@ -41,7 +37,7 @@ const themeModalTitle = " ↑ themes 14/14 ↓ "
 // themeModalRows returns how many theme rows the box shows at height h: five,
 // or fewer when the space is too short for them.
 func themeModalRows(h int) int {
-	return min(len(themes), themeModalListRows, max(h-themeModalChrome, 1))
+	return min(len(themes), themeModalListRows, max(h-boxChrome, 1))
 }
 
 // themeModalWindow returns how many theme rows the box shows right now.
@@ -63,21 +59,11 @@ func (m *model) keepThemeVisible() {
 }
 
 // themeModalLines renders the theme picker box: the title and the position on
-// the top border, one row per visible theme, the key hints and the bottom
-// border. It returns nil when the space is too small for a usable box.
+// the top border, one row per visible theme, and the key hints in the footer.
+// The box module draws the borders. It returns nil when the space is too
+// small for a usable box.
 func (m model) themeModalLines(h, w int) []string {
-	if h < themeModalChrome+1 || w < 10 {
-		return nil
-	}
-
 	nameCol, innerW := themeModalLayout(w)
-	bw := innerW + 4
-
-	border := lipgloss.NewStyle()
-	if accent := m.themeAt(m.themeIdx).accent; accent != nil {
-		border = border.Foreground(accent)
-	}
-
 	n := themeModalRows(h)
 	off := min(m.themeOffset, max(len(themes)-n, 0))
 
@@ -88,21 +74,32 @@ func (m model) themeModalLines(h, w int) []string {
 	if off+n < len(themes) {
 		down = " ↓"
 	}
-	title := border.Bold(true).Render(fmt.Sprintf(" %sthemes %d/%d%s ", up, m.themeIdx+1, len(themes), down))
-	title = ansi.Truncate(title, max(bw-3, 0), "")
-	lines := make([]string, 0, n+themeModalChrome)
-	lines = append(lines,
-		border.Render("╭─")+title+
-			border.Render(strings.Repeat("─", max(bw-3-lipgloss.Width(title), 0)))+
-			border.Render("╮"))
+	title := fmt.Sprintf(" %sthemes %d/%d%s ", up, m.themeIdx+1, len(themes), down)
+
+	// One row holds one visible theme. The themeModalRow call already pads
+	// each row to innerW, so the box adds no padding of its own.
+	rows := make([]string, 0, n)
 	for i := off; i < off+n; i++ {
-		lines = append(lines,
-			border.Render("│")+" "+themeModalRow(m.themeAt(i), i == m.themeIdx, nameCol, innerW)+" "+border.Render("│"))
+		rows = append(rows, themeModalRow(m.themeAt(i), i == m.themeIdx, nameCol, innerW))
 	}
-	lines = append(lines,
-		border.Render("│")+" "+m.themeModalFooter(innerW)+" "+border.Render("│"),
-		border.Render("╰")+border.Render(strings.Repeat("─", bw-2))+border.Render("╯"))
-	return lines
+
+	// The hints are content, so the caller drops them when they do not fit.
+	// The dropped hints still go through the dim style, because lipgloss
+	// renders the empty string as a zero-width escape pair, and the box must
+	// not replace that pair with bare text.
+	hints := themeModalHints
+	if lipgloss.Width(hints) > innerW {
+		hints = ""
+	}
+
+	b := box{
+		title:  title,
+		body:   rows,
+		footer: m.styles.dim.Render(hints),
+		border: m.themeAt(m.themeIdx).accent,
+		innerW: innerW,
+	}
+	return b.render(h, w)
 }
 
 // themeModalLayout returns the name column and the content width of the box
@@ -142,14 +139,4 @@ func themeModalRow(th theme, selected bool, nameCol, innerW int) string {
 
 	left := "  " + st.title.Render(name)
 	return left + strings.Repeat(" ", max(innerW-lipgloss.Width(left), 0))
-}
-
-// themeModalFooter renders the hints line, padded to the content width. It
-// drops the hints when the box is too narrow.
-func (m model) themeModalFooter(innerW int) string {
-	hints := themeModalHints
-	if lipgloss.Width(hints) > innerW {
-		hints = ""
-	}
-	return m.styles.dim.Render(hints) + strings.Repeat(" ", max(innerW-lipgloss.Width(hints), 0))
 }

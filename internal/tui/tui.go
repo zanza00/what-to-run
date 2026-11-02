@@ -1292,8 +1292,8 @@ func overlay(lines []string, boxes ...placedBox) string {
 	return lipgloss.NewCompositor(layers...).Render()
 }
 
-// boxes returns the overlays to draw over the picker: the transient notice in
-// the top-right corner, the warning box, and the centered theme picker.
+// boxes returns the placed boxes to draw over the picker: the transient notice
+// in the top-right corner, the warning box, and the centered theme picker.
 func (m model) boxes(h, w int) []placedBox {
 	var boxes []placedBox
 	if box := m.noticeBox(w); box != nil {

@@ -23,10 +23,6 @@ import (
 // pop the modal open again for the same warning. The warning count and ctrl+w
 // stay available in the bottom chrome.
 
-// warningModalChrome is the number of rows that the box adds around the
-// wrapped warning text: two borders and the key hints line.
-const warningModalChrome = 3
-
 // warningModalMaxInnerWidth caps the text column of the warning box on a wide
 // terminal, so the wrapped lines stay comfortable to read.
 const warningModalMaxInnerWidth = 60
@@ -116,7 +112,7 @@ func (m *model) applyWarningDismissed(msg warningDismissedMsg) {
 // key hints and the bottom border. It returns nil when there are no warnings or
 // when the space is too small for a usable box.
 func (m model) warningModalLines(h, w int) []string {
-	if len(m.warnings) == 0 || h < warningModalChrome+1 || w < 10 {
+	if len(m.warnings) == 0 {
 		return nil
 	}
 
@@ -125,39 +121,26 @@ func (m model) warningModalLines(h, w int) []string {
 	rawTitle := m.warningModalTitle(idx)
 	hints := m.warningModalHintText(maxInnerW)
 
-	body := wrapWarning(warningKey(m.warnings[idx]), maxInnerW, max(h-warningModalChrome, 1))
+	body := wrapWarning(warningKey(m.warnings[idx]), maxInnerW, max(h-boxChrome, 1))
 	innerW := max(lipgloss.Width(rawTitle)-1, lipgloss.Width(hints))
 	for _, line := range body {
 		innerW = max(innerW, lipgloss.Width(line))
 	}
 	innerW = min(max(innerW, 1), maxInnerW)
-	bw := innerW + 4
-
-	border := lipgloss.NewStyle()
-	if errColor := m.themeAt(m.themeIdx).err; errColor != nil {
-		border = border.Foreground(errColor)
+	// The blank row becomes the spacer between the text and the hints when the
+	// space has a row to spare.
+	if len(body)+boxChrome < h {
+		body = append(body, "")
 	}
 
-	title := border.Bold(true).Render(rawTitle)
-	title = ansi.Truncate(title, max(bw-3, 0), "")
-
-	lines := make([]string, 0, len(body)+warningModalChrome)
-	lines = append(lines,
-		border.Render("╭─")+title+
-			border.Render(strings.Repeat("─", max(bw-3-lipgloss.Width(title), 0)))+
-			border.Render("╮"))
-	for _, line := range body {
-		line = ansi.Truncate(line, innerW, "…")
-		pad := strings.Repeat(" ", max(innerW-lipgloss.Width(line), 0))
-		lines = append(lines, border.Render("│")+" "+line+pad+" "+border.Render("│"))
+	b := box{
+		title:  rawTitle,
+		body:   body,
+		footer: m.styles.dim.Render(hints),
+		border: m.themeAt(m.themeIdx).err,
+		innerW: innerW,
 	}
-	if len(body)+warningModalChrome < h {
-		lines = append(lines, border.Render("│")+strings.Repeat(" ", innerW+2)+border.Render("│"))
-	}
-	lines = append(lines,
-		border.Render("│")+" "+m.warningModalFooter(innerW)+" "+border.Render("│"),
-		border.Render("╰")+border.Render(strings.Repeat("─", bw-2))+border.Render("╯"))
-	return lines
+	return b.render(h, w)
 }
 
 // warningModalTitle returns the plain title that goes on the top border of the
@@ -207,12 +190,6 @@ func (m model) warningModalHintText(innerW int) string {
 	default:
 		return ""
 	}
-}
-
-// warningModalFooter renders the hints line, padded to innerW.
-func (m model) warningModalFooter(innerW int) string {
-	hints := m.warningModalHintText(innerW)
-	return m.styles.dim.Render(hints) + strings.Repeat(" ", max(innerW-lipgloss.Width(hints), 0))
 }
 
 // warningKey normalizes a warning error into a single line, for display and for

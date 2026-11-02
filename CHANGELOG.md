@@ -31,8 +31,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Added taskipy as a source: the picker lists the `[tool.taskipy.tasks]` of
   `pyproject.toml` and runs the chosen task with `task <name>`. A task of
   every taskipy shape is listed, and its `help` is its description. The
-  `[tool.taskipy.variables]` and `[tool.taskipy.settings]` tables contribute
-  nothing.
+  `[tool.taskipy.variables]` and `[tool.taskipy.settings]` tables declare
+  no tasks.
 - Added Hatch scripts as a source: the picker lists the scripts of the
   environments of `[tool.hatch.envs]` in `pyproject.toml` and runs the chosen
   script with `hatch run <env>:<script>`. Every script is named after its
@@ -50,15 +50,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   environments of `tox.ini` and `setup.cfg` too. The `[tox]` section accepts
   both `env_list` and the legacy `envlist` spelling, and a `setup.cfg` holds
   its core in `[tox:tox]`. In the INI files, the `[testenv]` base describes an
-  environment that declares none of its own. The run command stays
+  environment that declares none of its own. Every environment runs with
   `tox run -e <env>`.
 - Added Pipenv scripts as a source: the picker lists the `[scripts]` section
-  of the `Pipfile` and runs the chosen script with `pipenv run <name>`. The
-  body of a script shows as text, because a Pipfile has no description field:
-  a string shows its command, an array joins its commands with `&&`, and a
-  `call` table shows its Python reference. A `cmd` table is listed with its
-  command too, because the pipenv documentation presents that shape. A table
-  of any other shape stays out of the list.
+  of the `Pipfile` and runs the chosen script with `pipenv run <name>`. A
+  Pipfile has no description field, so the body of a script shows as text:
+  the command for a string, the commands joined with `&&` for an array, and
+  the Python reference for a `call` table. A `cmd` table is listed with its
+  command too: the pipenv documentation presents that shape, and
+  `pipenv run <name>` runs it either way. A table of any other shape stays
+  out of the list.
 
 ### Changed
 

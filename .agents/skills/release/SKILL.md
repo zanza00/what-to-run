@@ -20,6 +20,7 @@ moved; step 4 marks the point of no return.
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
 | Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` |
 | Nix | the `version` attribute in `flake.nix`, bumped with the tag and checked by the validate job; the flake builds the default branch; the `nix install` workflow proves the user install path on Linux and Apple silicon, on the cut head before the tag (step 4) |
+| Darwin test | the darwin leg of the `test` matrix runs only on the cut pull request and on a `ci` dispatch with `darwin=true`; the macOS arm64 pool can queue the leg for tens of minutes and cancel it before a runner takes it (step 4) |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | Scoop | `bucket/what-to-run.json` in `zanza00/scoop-bucket` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
@@ -192,10 +193,20 @@ failed jobs when the pool cancelled them before a darwin runner took them:
 
 A red run from a real build failure stops the release: fix the flake on the
 cut branch, push, and rerun the script. The script also accepts a tag, to
-re-prove an already published tree. Show the version, the release-notes
-outline, the cut pull request and the commit at its head, then ask for
-confirmation. The user marks the cut pull request ready and merges it; run
-these commands after the merge lands on `origin/main`:
+re-prove an already published tree.
+
+The cut pull request also runs the darwin leg of the test matrix: the `ci`
+workflow turns the leg on for the cut branch, so the `CI required` aggregate
+waits for it. The macOS arm64 pool can queue the leg for tens of minutes and
+cancel it before a runner takes it; when the aggregate reports the leg
+cancelled, rerun the failed jobs of the cut pull request
+(`gh run rerun --failed`) and wait for the green aggregate. Do not merge the
+cut pull request before its checks are green.
+
+Show the version, the release-notes outline, the cut pull request and the
+commit at its head, then ask for confirmation. The user marks the cut pull
+request ready and merges it; run these commands after the merge lands on
+`origin/main`:
 
 ```sh
 git fetch origin

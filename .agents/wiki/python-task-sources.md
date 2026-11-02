@@ -63,8 +63,10 @@ tracker on that date.
 8. PR #95 `feat/source-tox-ini`: the tox source, INI half (`3e798d8`).
 9. PR #96 `feat/source-pipenv`: the pipenv source (`0454871`).
 
-Merges stay manual, in stack order; after a parent merges, the next PR
-retargets to `main`.
+Merges stay manual, in stack order. Since 2026-11-02 the nine code PRs are
+also linked as GitHub stack #98 (created with `gh stack link`, no local
+tracking state); merging from the stack view retargets the next PR to the
+parent base automatically. PR #88 sits outside the stack, based on `main`.
 
 ## Lessons from the implementer wave (2026-11-02)
 

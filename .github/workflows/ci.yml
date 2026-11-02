@@ -8,6 +8,14 @@ on:
     # labeled and unlabeled. ready_for_review starts the checks when a draft
     # pull request becomes ready.
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    # The dispatch runs the full gate on any ref. The darwin input turns
+    # the darwin leg on for refs outside the release cut.
+    inputs:
+      darwin:
+        description: Run the darwin leg of the test matrix on this ref.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -22,9 +30,17 @@ jobs:
     # as drafts while the work is in progress, and the matrix would run on
     # every push to a branch that is not ready for review. The changelog
     # workflow still runs on drafts, because its rule costs seconds and
-    # reports early.
-    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    # reports early. Every event that is not a pull request runs the checks:
+    # a push and a dispatch alike.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     uses: ./.github/workflows/checks.yml
+    with:
+      # The darwin leg waits behind the macOS arm64 pool, so a pull request
+      # pays for it only at the release cut: the chore/cut-changelog-* pull
+      # request is the last gate before the tag. The binary is pure Go, so
+      # a tree that passes on Linux rarely fails on darwin, and a dispatch
+      # turns the leg on for any ref.
+      darwin: ${{ inputs.darwin || startsWith(github.head_ref, 'chore/cut-changelog-') }}
 
   required:
     name: CI required

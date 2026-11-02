@@ -4,7 +4,8 @@ Working memory of the chief-of-staff sessions. Every claim in a page is dated an
 cites its source: a commit SHA, a PR, or a report. Pages record history, so they
 say when something was true, never that it is true now. Since 2026-11-01
 evening this wiki lives on the `docs/nix-research-notes` branch, not as loose
-files in a checkout.
+files in a checkout. (Superseded on 2026-11-02: that branch no longer exists
+locally or on origin; the wiki files are tracked on `main` again.)
 
 ## Packaging
 
@@ -13,6 +14,15 @@ files in a checkout.
 - [Packaging channel PRs](packaging-channel-prs.md) - which PRs carry the nix
   and winget channel work, how PR #61 was aligned with main on 2026-11-01,
   and which branches are stale.
+
+## CI
+
+- [CI cost guardrails](ci-cost-guardrails.md) - 2026-11-02 audit: the CI costs
+  $0.00 because the repo is public (billable 0 ms, 0 artifacts); what could
+  charge the card, the one manual budgets check, and the runner-usage fixes:
+  the trigger wastes in draft PR #100, and the darwin legs moved off the
+  per-PR matrix — the nix install to flake paths and dispatch (PR #101), the
+  Go test leg to the release cut (PR #103, 2026-11-02).
 
 ## Research
 

@@ -111,3 +111,10 @@ green the same day (PR #88 at `92ddf7b`, PR #95 at `54f6082`).
   changelog job counts the entries the PR adds over its base branch, so
   extending the entry of the parent PR does not count. The tox INI half
   learned this the hard way.
+
+## The stop-slop rule (2026-11-02)
+
+After the stack's generated markdown received a manual stop-slop pass (PR
+#97, commit `e9dc97f`), the maintainer wired the rule into the docs-writing
+skill: its fifth completion criterion now requires loading the `stop-slop`
+skill and revising what its scoring flags (PR #99).

@@ -93,3 +93,19 @@ the tox INI half and one duplicated loop. Outcomes:
 - PR #97 `refactor/string-items-helper` (`4590033`): one shared string-items
   join helper for the hatch, pipenv and pdm parsers; poe keeps its variant,
   because its fallback is the opposite contract.
+
+## Lessons from the CI failures (2026-11-02)
+
+Two of the ten stack PRs failed CI on their first runs; both were pushed
+green the same day (PR #88 at `92ddf7b`, PR #95 at `54f6082`).
+
+- Hand-written markdown must pass `bin/tools/dprint check` before the push.
+  The implementers ran `dprint fmt` in their worktrees, which do not hold the
+  docs branch, so the research note reached CI unformatted (the `.agents/`
+  tree is excluded from dprint, `notes/` is not).
+- In a stacked chain every PR that touches a watched path (`internal`,
+  `cmd`, `npm`, `scripts`, `go.mod`, `go.sum`, `.goreleaser.yaml`, the
+  release workflow) needs its own new entry under `[Unreleased]`: the
+  changelog job counts the entries the PR adds over its base branch, so
+  extending the entry of the parent PR does not count. The tox INI half
+  learned this the hard way.

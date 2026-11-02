@@ -342,8 +342,8 @@ var registryOrder = []struct {
 	{
 		id:            "tox",
 		label:         "tox environments",
-		firstFile:     "pyproject.toml",
-		displayFile:   "pyproject.toml",
+		firstFile:     "tox.ini",
+		displayFile:   "tox.ini",
 		searchParents: true,
 	},
 }

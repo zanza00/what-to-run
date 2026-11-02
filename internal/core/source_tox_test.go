@@ -9,11 +9,11 @@ import (
 )
 
 // toxIniFixture is the INI form of the tox configuration, with the same
-// environments as the pyproject.toml fixture of the table below. The source
-// reads the TOML candidates only, so no test runs on this fixture yet.
-// Ticket 08 lands tox.ini and setup.cfg as candidates and pins this fixture
-// to the same task list as the TOML cases, which keeps the two formats from
-// drifting apart.
+// environments as the TOML fixtures of the table below. The [testenv] base
+// describes "3.13", because tox falls back to the base for every run
+// environment, and the INI half of the source honors that fallback. The
+// parity test pins this fixture to the same task names as the TOML form,
+// which keeps the two formats from drifting apart.
 const toxIniFixture = `[tox]
 env_list = 3.13, lint
 
@@ -87,6 +87,121 @@ commands = [["ruff", "check", { replace = "posargs", default = ["."], extend = t
 			},
 		},
 		{
+			name: "a tox.ini lists the environments of the ini form",
+			files: map[string]string{
+				"tox.ini": toxIniFixture,
+			},
+			// "3.13" appears in env_list only, so its description comes
+			// from the [testenv] base, which tox applies to every run
+			// environment.
+			want: []Task{
+				{Source: "tox.ini", Name: "3.13", Desc: "run the test suite with pytest", Args: []string{"tox", "run", "-e", "3.13"}},
+				{Source: "tox.ini", Name: "lint", Desc: "run linters", Args: []string{"tox", "run", "-e", "lint"}},
+			},
+		},
+		{
+			name: "a setup.cfg holds the same ini sections",
+			files: map[string]string{
+				"setup.cfg": toxIniFixture,
+			},
+			want: []Task{
+				{Source: "setup.cfg", Name: "3.13", Desc: "run the test suite with pytest", Args: []string{"tox", "run", "-e", "3.13"}},
+				{Source: "setup.cfg", Name: "lint", Desc: "run linters", Args: []string{"tox", "run", "-e", "lint"}},
+			},
+		},
+		{
+			name: "a tox.ini wins over the other candidates",
+			files: map[string]string{
+				"tox.ini":        toxIniFixture,
+				"setup.cfg":      "[tox]\nenv_list = wrong\n",
+				"pyproject.toml": "[tool.tox]\nenv_list = [\"wrong\"]\n",
+				"tox.toml":       "env_list = [\"wrong\"]\n",
+			},
+			want: []Task{
+				{Source: "tox.ini", Name: "3.13", Desc: "run the test suite with pytest", Args: []string{"tox", "run", "-e", "3.13"}},
+				{Source: "tox.ini", Name: "lint", Desc: "run linters", Args: []string{"tox", "run", "-e", "lint"}},
+			},
+		},
+		{
+			name: "a setup.cfg wins over the toml candidates",
+			files: map[string]string{
+				"setup.cfg":      toxIniFixture,
+				"pyproject.toml": "[tool.tox]\nenv_list = [\"wrong\"]\n",
+				"tox.toml":       "env_list = [\"wrong\"]\n",
+			},
+			want: []Task{
+				{Source: "setup.cfg", Name: "3.13", Desc: "run the test suite with pytest", Args: []string{"tox", "run", "-e", "3.13"}},
+				{Source: "setup.cfg", Name: "lint", Desc: "run linters", Args: []string{"tox", "run", "-e", "lint"}},
+			},
+		},
+		{
+			name: "without descriptions the base describes, then the first command shows",
+			files: map[string]string{
+				"tox.ini": `
+[tox]
+env_list = cover
+
+[testenv]
+commands =
+    pytest --cov {posargs:tests}
+
+[testenv:cover]
+
+[testenv:docs]
+commands =
+    sphinx-build docs {posargs:build}
+`,
+			},
+			// "cover" inherits the commands of the [testenv] base, so the
+			// base's first command describes it. "docs" declares commands
+			// of its own, which override the base as a whole.
+			want: []Task{
+				{Source: "tox.ini", Name: "cover", Desc: "pytest --cov {posargs:tests}", Args: []string{"tox", "run", "-e", "cover"}},
+				{Source: "tox.ini", Name: "docs", Desc: "sphinx-build docs {posargs:build}", Args: []string{"tox", "run", "-e", "docs"}},
+			},
+		},
+		{
+			name: "comments, blank lines and continuation lines parse",
+			files: map[string]string{
+				"tox.ini": `# the environments of the project
+[tox]
+; also a comment
+env_list = lint
+
+[testenv:lint]
+description = run the linters with ruff
+commands =
+    ruff check \
+        {posargs:.}
+    ruff format --check .
+    [ -f pyproject.toml ] && echo legacy
+
+[testenv:type]
+    description = run mypy
+    commands = mypy {posargs:src}
+`,
+			},
+			// The backslash joins the first command with its second
+			// physical line, so the description shows one command and
+			// not a dangling backslash. The bracket line stays a
+			// continuation, because it is indented deeper than its key.
+			// The indented keys of [testenv:type] parse like the flat
+			// ones.
+			want: []Task{
+				{Source: "tox.ini", Name: "lint", Desc: "run the linters with ruff", Args: []string{"tox", "run", "-e", "lint"}},
+				{Source: "tox.ini", Name: "type", Desc: "run mypy", Args: []string{"tox", "run", "-e", "type"}},
+			},
+		},
+		{
+			name: "a colon separates a key from its value too",
+			files: map[string]string{
+				"tox.ini": "[tox]\nenv_list: lint\n\n[testenv:lint]\ndescription: run linters\n",
+			},
+			want: []Task{
+				{Source: "tox.ini", Name: "lint", Desc: "run linters", Args: []string{"tox", "run", "-e", "lint"}},
+			},
+		},
+		{
 			name: "an environment without a description falls back to its first command",
 			files: map[string]string{
 				"pyproject.toml": `
@@ -146,6 +261,25 @@ commands = [["ruff", "check"]]
 			},
 		},
 		{
+			name: "ini names with template braces stay hidden",
+			files: map[string]string{
+				"tox.ini": `
+[tox]
+env_list = py3{9-11}, lint
+
+[testenv:py{10,11}-{linux,windows}]
+commands = python -V
+
+[testenv:lint]
+description = run linters
+commands = ruff check
+`,
+			},
+			want: []Task{
+				{Source: "tox.ini", Name: "lint", Desc: "run linters", Args: []string{"tox", "run", "-e", "lint"}},
+			},
+		},
+		{
 			name: "pyproject.toml wins over tox.toml",
 			files: map[string]string{
 				"pyproject.toml": "[tool.tox.env.lint]\ndescription = \"run linters\"\ncommands = [[\"ruff\", \"check\"]]\n",
@@ -193,6 +327,21 @@ skip_install = true
 			wantErr: true,
 		},
 		{
+			name:    "malformed ini: a line without a separator",
+			files:   map[string]string{"tox.ini": "[tox]\nenv_list\n"},
+			wantErr: true,
+		},
+		{
+			name:    "malformed ini: a section header without a closing bracket",
+			files:   map[string]string{"tox.ini": "[testenv:lint\n"},
+			wantErr: true,
+		},
+		{
+			name:    "malformed ini: a key outside a section",
+			files:   map[string]string{"setup.cfg": "env_list = lint\n"},
+			wantErr: true,
+		},
+		{
 			name:  "empty file",
 			files: map[string]string{"pyproject.toml": ""},
 			want:  nil,
@@ -200,6 +349,16 @@ skip_install = true
 		{
 			name:  "whitespace only file",
 			files: map[string]string{"pyproject.toml": " \n\t "},
+			want:  nil,
+		},
+		{
+			name:  "an ini file with comments only",
+			files: map[string]string{"tox.ini": "# no environments here\n; still none\n"},
+			want:  nil,
+		},
+		{
+			name:  "a setup.cfg without tox sections contributes nothing",
+			files: map[string]string{"setup.cfg": "[metadata]\nname = demo\n\n[options]\npackages = find:\n"},
 			want:  nil,
 		},
 		{
@@ -247,6 +406,59 @@ func TestDiscoverToxMissingFile(t *testing.T) {
 	got, err := discoverSource(osFiles{}, toxSource(), t.TempDir())
 	if err != nil || got != nil {
 		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	}
+}
+
+// TestDiscoverToxIniMatchesToml: the same configuration in the INI and the
+// TOML form lists the same environments with the same run command, whichever
+// candidate file holds it. The descriptions are not compared, because the
+// [testenv] base describes an environment that only env_list names, while
+// the env_run_base table does not.
+func TestDiscoverToxIniMatchesToml(t *testing.T) {
+	toxTomlFixture := `
+[tool.tox]
+env_list = ["3.13", "lint"]
+
+[tool.tox.env_run_base]
+description = "run the test suite with pytest"
+deps = ["pytest>=8"]
+commands = [["pytest", { replace = "posargs", default = ["tests"], extend = true }]]
+
+[tool.tox.env.lint]
+description = "run linters"
+skip_install = true
+deps = ["ruff"]
+commands = [["ruff", "check", { replace = "posargs", default = ["."], extend = true }]]
+`
+	files := map[string]string{
+		"tox.ini":        toxIniFixture,
+		"setup.cfg":      toxIniFixture,
+		"pyproject.toml": toxTomlFixture,
+	}
+
+	var want []string
+	for _, name := range []string{"tox.ini", "setup.cfg", "pyproject.toml"} {
+		dir := t.TempDir()
+		writeFile(t, dir, name, files[name])
+
+		tasks, err := discoverSource(osFiles{}, toxSource(), dir)
+		if err != nil {
+			t.Fatalf("discoverSource() on %s error = %v", name, err)
+		}
+		var got []string
+		for _, task := range tasks {
+			got = append(got, task.Name+" "+strings.Join(task.Args, " "))
+		}
+		if want == nil {
+			want = got
+			continue
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("discoverSource() on %s lists %v, want %v", name, got, want)
+		}
+	}
+	if want == nil {
+		t.Fatal("discoverSource() listed no environment on any fixture")
 	}
 }
 

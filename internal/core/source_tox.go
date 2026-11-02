@@ -1,9 +1,11 @@
-// The tox source: environments of tox, from the [tool.tox] tables of
-// pyproject.toml or from a standalone tox.toml.
+// The tox source: environments of tox, from the [tox] and [testenv] sections
+// of a tox.ini or setup.cfg, or from the [tool.tox] tables of a
+// pyproject.toml or a standalone tox.toml.
 package core
 
 import (
 	"bytes"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -11,15 +13,15 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// toxSource returns the source for the pyproject.toml or tox.toml of the
-// project, in that order. The source searches the parent directories, because
-// tox walks up to find its configuration.
+// toxSource returns the source for the tox.ini, setup.cfg, pyproject.toml or
+// tox.toml of the project, in that order. The source searches the parent
+// directories, because tox walks up to find its configuration.
 func toxSource() source {
 	return source{
 		SourceInfo: SourceInfo{
 			ID:            "tox",
 			Label:         "tox environments",
-			Files:         []string{"pyproject.toml", "tox.toml"},
+			Files:         []string{"tox.ini", "setup.cfg", "pyproject.toml", "tox.toml"},
 			SearchParents: true,
 		},
 		Parse: parseTox,
@@ -35,18 +37,23 @@ type toxConfig struct {
 }
 
 // parseTox returns the environments that the tox configuration declares,
-// sorted by name: the tables under env and the names in env_list. Each
-// environment runs through "tox run" with -e, because tox owns the
-// environment, the substitutions and the lifecycle. The description comes
-// from the environment's description and otherwise from its first command,
-// which is display text and never a promise of the executed command. A name
-// that contains template braces stays hidden, because it expands at run time.
-// An entry that is not an environment shape is skipped.
+// sorted by name. Each environment runs through "tox run" with -e, because
+// tox owns the environment, the substitutions and the lifecycle. The
+// description is display text and never a promise of the executed command. A
+// name that contains template braces stays hidden, because it expands at run
+// time. An entry that is not an environment shape is skipped. The winning
+// file's name picks the format: tox.ini and setup.cfg hold the INI form, a
+// pyproject.toml keeps the tables under [tool.tox] and a standalone tox.toml
+// holds them at the root.
 func parseTox(_, name string, data []byte) ([]Task, error) {
 	// An empty file declares no environments, so report it like a missing
-	// file instead of failing on invalid TOML.
+	// file instead of failing on the format.
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, nil
+	}
+
+	if name == "tox.ini" || name == "setup.cfg" {
+		return parseToxIni(data)
 	}
 
 	// pyproject.toml keeps the tox configuration under [tool.tox]. A
@@ -152,4 +159,132 @@ func toxCommandDesc(cmd any) (string, bool) {
 		return strings.Join(parts, " "), true
 	}
 	return "", false
+}
+
+// parseToxIni returns the environments that the INI form of the tox
+// configuration declares: the names of the [tox] env_list key and the
+// sections named [testenv:<name>]. The run command and the skipping rules are
+// the ones of the TOML form, because both forms describe the same
+// environments.
+func parseToxIni(data []byte) ([]Task, error) {
+	sections, err := iniSections(data)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make(map[string]bool)
+	for _, line := range sections["tox"]["env_list"] {
+		for _, envName := range strings.Split(line, ",") {
+			if envName = strings.TrimSpace(envName); envName != "" {
+				names[envName] = true
+			}
+		}
+	}
+	for section := range sections {
+		if envName, ok := strings.CutPrefix(section, "testenv:"); ok {
+			names[envName] = true
+		}
+	}
+
+	base := sections["testenv"]
+	out := make([]Task, 0, len(names))
+	for _, envName := range slices.Sorted(maps.Keys(names)) {
+		if strings.ContainsAny(envName, "{}") {
+			continue
+		}
+		out = append(out, Task{
+			Name: envName,
+			Desc: toxIniEnvDesc(sections["testenv:"+envName], base),
+			Args: []string{"tox", "run", "-e", envName},
+		})
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+// toxIniEnvDesc returns the description of one environment of the INI form,
+// as display text. A run environment inherits every key that it does not
+// declare, so the description falls back to the [testenv] base, and the
+// first command falls back with it. The first command of the environment's
+// own commands wins over the base one, because the environment overrides the
+// base as a whole, key by key.
+func toxIniEnvDesc(env, base map[string][]string) string {
+	if desc := strings.Join(env["description"], " "); desc != "" {
+		return desc
+	}
+	if desc := strings.Join(base["description"], " "); desc != "" {
+		return desc
+	}
+	for _, commands := range [][]string{env["commands"], base["commands"]} {
+		if len(commands) > 0 {
+			return commands[0]
+		}
+	}
+	return ""
+}
+
+// iniSections scans the INI format that tox.ini and setup.cfg use: section
+// headers in brackets, key = value lines, and # or ; comment lines. A value
+// continues on the lines that are indented deeper than its key, and a
+// trailing backslash joins two physical lines into one logical line. The
+// result holds the logical lines of every key, grouped by section. A line
+// that fits none of these shapes is malformed structure, and the whole file
+// fails, because a half-read file can hide environments.
+func iniSections(data []byte) (map[string]map[string][]string, error) {
+	sections := make(map[string]map[string][]string)
+	var keys map[string][]string // the keys of the current section
+	var key string               // the key that a deeper line continues
+	var keyIndent int
+
+	for i, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimRight(raw, " \t\r")
+		indent := len(line) - len(strings.TrimLeft(line, " \t"))
+		content := strings.TrimLeft(line, " \t")
+		switch {
+		case content == "", strings.HasPrefix(content, "#"), strings.HasPrefix(content, ";"):
+			continue
+		case key != "" && indent > keyIndent:
+			keys[key] = appendIniLine(keys[key], content)
+		case content[0] == '[':
+			if !strings.HasSuffix(content, "]") {
+				return nil, fmt.Errorf("line %d: section %q has no closing bracket", i+1, content)
+			}
+			name := strings.TrimSpace(content[1 : len(content)-1])
+			if name == "" {
+				return nil, fmt.Errorf("line %d: the section name is empty", i+1)
+			}
+			keys = sections[name]
+			if keys == nil {
+				keys = make(map[string][]string)
+				sections[name] = keys
+			}
+			key, keyIndent = "", 0
+		case keys == nil:
+			return nil, fmt.Errorf("line %d: %q is outside a section", i+1, content)
+		default:
+			sep := strings.IndexAny(content, "=:")
+			if sep <= 0 {
+				return nil, fmt.Errorf("line %d: %q is not a key = value line", i+1, content)
+			}
+			key = strings.TrimSpace(content[:sep])
+			keyIndent = indent
+			if value := strings.TrimSpace(content[sep+1:]); value != "" {
+				keys[key] = appendIniLine(keys[key], value)
+			}
+		}
+	}
+	return sections, nil
+}
+
+// appendIniLine adds one physical line to the logical lines of a key. A
+// trailing backslash continues the previous logical line, so the new line
+// joins it with a single space.
+func appendIniLine(lines []string, line string) []string {
+	if n := len(lines); n > 0 && strings.HasSuffix(lines[n-1], `\`) {
+		lines[n-1] = strings.TrimSpace(strings.TrimSuffix(lines[n-1], `\`)) + " " + line
+		return lines
+	}
+	return append(lines, line)
 }

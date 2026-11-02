@@ -21,7 +21,7 @@ path in the badge.
 | `pdm` | `pyproject.toml` | `[tool.pdm.scripts]` | `pdm run <name>` |
 | `taskipy` | `pyproject.toml` | `[tool.taskipy.tasks]` | `task <name>` |
 | `hatch` | `pyproject.toml` | `[tool.hatch.envs.<env>.scripts]` | `hatch run <env>:<script>` |
-| `tox` | `pyproject.toml`, `tox.toml` | `env_list` and `[tool.tox.env.<env>]` | `tox run -e <env>` |
+| `tox` | `tox.ini`, `setup.cfg`, `pyproject.toml`, `tox.toml` | `env_list` and `[tool.tox.env.<env>]` or `[testenv:<env>]` | `tox run -e <env>` |
 
 Use the `ID` column in the `disable` setting (see [Configuration](config.md)).
 `devbox.json`, `deno.json`, `deno.jsonc` and `composer.json` accept comments and
@@ -88,6 +88,10 @@ their names expand or mutate at run time.
 
 ## tox environments
 
+The source prefers `tox.ini`, then `setup.cfg`, then `pyproject.toml`, then
+`tox.toml`, the order that the tox reference documents. The two INI files are
+the deprecated format, but they hold most existing projects.
+
 Every environment of `env_list` and of the `[tool.tox.env]` tables is listed
 and runs with `tox run -e <env>`. A `tox.toml` holds the same tables without
 the `tool.tox` prefix. An environment's `description` is its description.
@@ -96,6 +100,11 @@ hidden, because they expand at run time.
 
 The `env_run_base` and `env_pkg_base` tables are bases, not environments, so
 they contribute no tasks. An environment that only `env_list` names has no
-table of its own, so it shows no description. `tox.ini` and `setup.cfg` are
-also tox configuration files. They hold the same environments in the
-deprecated INI format, and the picker learns them in the next change.
+table of its own, so it shows no description.
+
+In the INI files, the environments come from the `[tox]` `env_list` key and
+from the `[testenv:<env>]` sections. The `[testenv]` section is the base of
+every run environment: its `description` describes an environment that
+declares none of its own, and without a description anywhere, the first
+command shows. An environment that only `env_list` names inherits from the
+base the same way.

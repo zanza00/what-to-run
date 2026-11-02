@@ -78,12 +78,11 @@ jobs:
         # paths keep this run inside a temporary directory.
         run: sudo env "PATH=$PATH" python3 -m unittest discover -s scripts -p 'setup_scripts_test.py'
 
+  # Linux only. The macOS arm64 pool can queue a run for tens of minutes,
+  # so the darwin leg and the install-by-ref proof live in nix-install.yml,
+  # which runs where the flake can change and for the release cut.
   nix:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7

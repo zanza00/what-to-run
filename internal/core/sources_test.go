@@ -173,12 +173,12 @@ func TestRegistryInvariants(t *testing.T) {
 		{
 			name:   "missing source",
 			mutate: func(srcs []source) []source { return srcs[1:] },
-			want:   "9 sources, want 10",
+			want:   "10 sources, want 11",
 		},
 		{
 			name:   "extra source",
 			mutate: func(srcs []source) []source { return append(srcs, srcs[0]) },
-			want:   "11 sources, want 10",
+			want:   "12 sources, want 11",
 		},
 	}
 
@@ -311,6 +311,13 @@ var registryOrder = []struct {
 	{id: "composer", label: "composer.json", firstFile: "composer.json", displayFile: "composer.json"},
 	{id: "deno", label: "deno.json", firstFile: "deno.json", displayFile: "deno.json"},
 	{id: "mise", label: "mise.toml", firstFile: "mise.toml", displayFile: "mise.toml"},
+	{
+		id:            "poe",
+		label:         "Poe tasks",
+		firstFile:     "pyproject.toml",
+		displayFile:   "pyproject.toml",
+		searchParents: true,
+	},
 }
 
 // sourceIDPattern is the shape of a source ID: lowercase kebab-case. Such an

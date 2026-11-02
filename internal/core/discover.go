@@ -128,6 +128,7 @@ func defaultSources(settings Settings, files Files) []source {
 		composerSource(),
 		denoSource(),
 		miseSource(),
+		poeSource(),
 	}
 }
 

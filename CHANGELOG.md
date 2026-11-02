@@ -19,6 +19,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and `nix profile install github:zanza00/what-to-run` builds `wtr` from source
   on Linux and Apple silicon macOS. On NixOS, add the flake as an input to the
   system configuration.
+- Added Poe tasks as a source: the picker lists the `[tool.poe.tasks]` of
+  `pyproject.toml` and the tasks of a standalone `poe_tasks.toml`, and runs
+  the chosen task with `poe <name>`. Tasks whose name starts with `_` stay
+  hidden, as in poe's own listing.
 
 ### Changed
 

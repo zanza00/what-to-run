@@ -28,6 +28,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   script of every pdm shape is listed, and its `help` is its description. The
   shared-options `_` key and scripts whose name starts with `_` stay hidden,
   as in pdm's own listing.
+- Added taskipy as a source: the picker lists the `[tool.taskipy.tasks]` of
+  `pyproject.toml` and runs the chosen task with `task <name>`. A task of
+  every taskipy shape is listed, and its `help` is its description. The
+  `[tool.taskipy.variables]` and `[tool.taskipy.settings]` tables contribute
+  nothing.
 
 ### Changed
 

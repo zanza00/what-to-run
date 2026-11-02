@@ -130,6 +130,7 @@ func defaultSources(settings Settings, files Files) []source {
 		miseSource(),
 		poeSource(),
 		pdmSource(),
+		taskipySource(),
 	}
 }
 

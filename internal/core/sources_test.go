@@ -173,12 +173,12 @@ func TestRegistryInvariants(t *testing.T) {
 		{
 			name:   "missing source",
 			mutate: func(srcs []source) []source { return srcs[1:] },
-			want:   "11 sources, want 12",
+			want:   "12 sources, want 13",
 		},
 		{
 			name:   "extra source",
 			mutate: func(srcs []source) []source { return append(srcs, srcs[0]) },
-			want:   "13 sources, want 12",
+			want:   "14 sources, want 13",
 		},
 	}
 
@@ -321,6 +321,13 @@ var registryOrder = []struct {
 	{
 		id:            "pdm",
 		label:         "PDM scripts",
+		firstFile:     "pyproject.toml",
+		displayFile:   "pyproject.toml",
+		searchParents: true,
+	},
+	{
+		id:            "taskipy",
+		label:         "taskipy tasks",
 		firstFile:     "pyproject.toml",
 		displayFile:   "pyproject.toml",
 		searchParents: true,

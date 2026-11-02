@@ -1,8 +1,8 @@
 # Task sources
 
 `wtr` discovers tasks in the current directory. For `Taskfile`, `justfile`,
-Poe tasks and PDM scripts, it also searches parent directories (nearest file
-wins) and shows the relative path in the badge.
+Poe tasks, PDM scripts and taskipy tasks, it also searches parent directories
+(nearest file wins) and shows the relative path in the badge.
 
 | ID | File | Discovered tasks | Command |
 | --- | --- | --- | --- |
@@ -18,6 +18,7 @@ wins) and shows the relative path in the badge.
 | `mise` | `mise.toml`, `.mise.toml` | `[tasks]` | `mise run <name>` |
 | `poe` | `pyproject.toml`, `poe_tasks.toml` | `[tool.poe.tasks]` | `poe <name>` |
 | `pdm` | `pyproject.toml` | `[tool.pdm.scripts]` | `pdm run <name>` |
+| `taskipy` | `pyproject.toml` | `[tool.taskipy.tasks]` | `task <name>` |
 
 Use the `ID` column in the `disable` setting (see [Configuration](config.md)).
 `devbox.json`, `deno.json`, `deno.jsonc` and `composer.json` accept comments and
@@ -65,3 +66,10 @@ and `composite` tables. A `cmd` given as an array joins with a space, because
 pdm splits one command across it. A script's `help` is its description.
 Without one, the body shows as text. The shared-options `_` key and scripts
 with a `_` prefix stay hidden, as in pdm's own listing.
+
+## taskipy tasks
+
+Both taskipy shapes are listed: strings and the `cmd`/`help` tables. A task's
+`help` is its description. Without one, the command shows as text. The
+`[tool.taskipy.variables]` and `[tool.taskipy.settings]` tables declare no
+tasks, so they contribute nothing.

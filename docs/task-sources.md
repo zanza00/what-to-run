@@ -1,9 +1,8 @@
 # Task sources
 
 `wtr` discovers tasks in the current directory. For `Taskfile`, `justfile`,
-Poe tasks, PDM scripts, taskipy tasks, Hatch scripts, tox environments and
-Pipenv scripts, it also searches parent directories (nearest file wins) and
-shows the relative path in the badge.
+Poe, PDM, taskipy, Hatch, tox and Pipenv, it also searches parent directories
+(nearest file wins) and shows the relative path in the badge.
 
 | ID | File | Discovered tasks | Command |
 | --- | --- | --- | --- |
@@ -76,14 +75,14 @@ with a `_` prefix stay hidden, as in pdm's own listing.
 Both taskipy shapes are listed: strings and the `cmd`/`help` tables. A task's
 `help` is its description. Without one, the command shows as text. The
 `[tool.taskipy.variables]` and `[tool.taskipy.settings]` tables declare no
-tasks, so they contribute nothing.
+tasks.
 
 ## Hatch scripts
 
 Every script is listed as `<env>:<script>`, because two environments can
-declare the same script name. The environment's `description` is the
-description of its scripts. Without one, the script shows as text, and an
-array script joins its commands. Environments named with the `hatch-` prefix,
+declare the same script name. The environment's `description` describes its
+scripts. Without one, the script shows as text, and an array script joins its
+commands. Environments named with the `hatch-` prefix,
 and environments with a `matrix` or an `overrides` table, stay hidden, because
 their names expand or mutate at run time.
 
@@ -99,27 +98,27 @@ the `tool.tox` prefix. An environment's `description` is its description.
 Without one, its first command shows as text. Names with template braces stay
 hidden, because they expand at run time.
 
-The `env_run_base` and `env_pkg_base` tables are bases, not environments, so
-they contribute no tasks. An environment that only `env_list` names has no
+The `env_run_base` and `env_pkg_base` tables are bases for other environments,
+so they contribute no tasks. An environment that only `env_list` names has no
 table of its own, so it shows no description.
 
 In the INI files, the environments come from the `env_list` key of the core
 section and from the `[testenv:<env>]` sections. The core section is `[tox]`
 in a `tox.ini` and `[tox:tox]` in a `setup.cfg`. The source also reads the
 legacy `envlist` spelling of the key. The `[testenv]` section is the base of
-every run environment: its `description` describes an environment that
-declares none of its own, and without a description anywhere, the first
-command shows. An environment that only `env_list` names inherits from the
+every run environment. Its `description` describes an environment that
+declares none of its own. Without a description anywhere, the first command
+shows. An environment that only `env_list` names inherits from the
 base the same way.
 
 ## Pipenv scripts
 
-Every script of the `[scripts]` section is listed and runs with
-`pipenv run <name>`, so the script runs in the virtual environment of the
+Every script of the `[scripts]` section is listed with the command
+`pipenv run <name>`, which puts it inside the virtual environment of the
 project. A Pipfile has no description field, so the body of a script shows as
-text: a string shows its command, an array joins its commands with `&&`, and
-a `call` table shows its Python reference.
+text: the command for a string, the commands joined with `&&` for an array,
+and the Python reference for a `call` table.
 
-A `cmd` table is listed with its command too, because the pipenv
-documentation presents that shape and `pipenv run <name>` runs the script
-either way. A table of any other shape stays out of the list.
+A `cmd` table is listed with its command too: the pipenv documentation
+presents that shape, and `pipenv run <name>` runs it either way. A table of
+any other shape stays out of the list.

@@ -120,11 +120,7 @@ func pdmBodyDesc(typeKey string, body any) (string, bool) {
 		case string:
 			return body, true
 		case []any:
-			parts, ok := pdmStringItems(body)
-			if !ok {
-				return "", false
-			}
-			return strings.Join(parts, " "), true
+			return joinStringItems(body, " ")
 		}
 	case "shell", "call":
 		if s, isString := body.(string); isString {
@@ -135,25 +131,7 @@ func pdmBodyDesc(typeKey string, body any) (string, bool) {
 		if !isArray {
 			return "", false
 		}
-		names, ok := pdmStringItems(items)
-		if !ok {
-			return "", false
-		}
-		return strings.Join(names, " && "), true
+		return joinStringItems(items, " && ")
 	}
 	return "", false
-}
-
-// pdmStringItems returns the items of an array body as strings. ok is false
-// when one item is not a string, because pdm rejects such a script.
-func pdmStringItems(items []any) ([]string, bool) {
-	out := make([]string, len(items))
-	for i, item := range items {
-		s, isString := item.(string)
-		if !isString {
-			return nil, false
-		}
-		out[i] = s
-	}
-	return out, true
 }

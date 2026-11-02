@@ -19,7 +19,7 @@ func packageJSONSource(runnerOverride string, files Files) source {
 			Label: "package.json",
 			Files: []string{"package.json"},
 		},
-		Parse: func(dir string, data []byte) ([]Task, error) {
+		Parse: func(dir, _ string, data []byte) ([]Task, error) {
 			return parsePackageScripts(files, dir, data, runnerOverride)
 		},
 	}

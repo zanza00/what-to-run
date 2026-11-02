@@ -26,7 +26,7 @@ func denoSource() source {
 // string or an object with a command and an optional description. The
 // description shows the command when the object does not declare one. An entry
 // without a usable command is skipped.
-func parseDeno(_ string, data []byte) ([]Task, error) {
+func parseDeno(_, _ string, data []byte) ([]Task, error) {
 	// An empty file declares no tasks, so report it like a missing file
 	// instead of failing on invalid JSON.
 	if len(bytes.TrimSpace(data)) == 0 {

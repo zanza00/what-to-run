@@ -201,6 +201,63 @@ func TestDiscoverSourceFirstFileWins(t *testing.T) {
 	}
 }
 
+// TestDiscoverSourcePassesFileNameToParser: a source with several candidate
+// files can list formats that need different parsers, such as the INI and TOML
+// files of tox. The framework hands the parser the base name of the winning
+// file, next to the directory and the bytes, so the parser can dispatch on the
+// file it actually read. The fixtures write each file's name as its content,
+// so the test can tell the three arguments apart.
+func TestDiscoverSourcePassesFileNameToParser(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing []string
+		want     string
+	}{
+		{
+			name:     "the second of two candidates wins",
+			existing: []string{"second.cfg"},
+			want:     "second.cfg",
+		},
+		{
+			name:     "the first candidate wins when both exist",
+			existing: []string{"first.cfg", "second.cfg"},
+			want:     "first.cfg",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, name := range tt.existing {
+				writeFile(t, dir, name, name)
+			}
+
+			var gotDir, gotName string
+			var gotData []byte
+			src := source{
+				SourceInfo: SourceInfo{ID: "probe", Label: "probe", Files: []string{"first.cfg", "second.cfg"}},
+				Parse: func(dir, name string, data []byte) ([]Task, error) {
+					gotDir, gotName, gotData = dir, name, data
+					return nil, nil
+				},
+			}
+
+			if _, err := discoverSource(osFiles{}, src, dir); err != nil {
+				t.Fatalf("discoverSource() error = %v", err)
+			}
+			if gotName != tt.want {
+				t.Errorf("parser file name = %q, want %q", gotName, tt.want)
+			}
+			if gotDir != dir {
+				t.Errorf("parser directory = %q, want %q", gotDir, dir)
+			}
+			if string(gotData) != tt.want {
+				t.Errorf("parser data = %q, want the content of %s", gotData, tt.want)
+			}
+		})
+	}
+}
+
 func TestDiscoverCargoMakeTasks(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile.toml", `

@@ -30,7 +30,7 @@ func miseSource() source {
 // shows the run commands when the table does not declare one, and the parser
 // keeps a table without a run, because a depends-only task is still runnable.
 // An entry whose value is neither a string nor a table is skipped.
-func parseMise(_ string, data []byte) ([]Task, error) {
+func parseMise(_, _ string, data []byte) ([]Task, error) {
 	// An empty file declares no tasks, so report it like a missing file
 	// instead of failing on invalid TOML.
 	if len(bytes.TrimSpace(data)) == 0 {

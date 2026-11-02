@@ -87,9 +87,9 @@ type source struct {
 
 	// Parse turns the content of the winning file into tasks. It receives the
 	// directory that contains the file, for sibling lookups (lock files,
-	// referenced files), and the bytes of the file. The framework stamps
-	// Task.Source, not the parser.
-	Parse func(dir string, data []byte) ([]Task, error)
+	// referenced files), the base name of the winning file, and the bytes of
+	// the file. The framework stamps Task.Source, not the parser.
+	Parse func(dir, name string, data []byte) ([]Task, error)
 }
 
 // Settings is the part of the rc file that reaches task discovery.
@@ -251,7 +251,7 @@ func readSourceFile(files Files, src source, dir, prefix string) (tasks []Task, 
 		if err != nil {
 			return nil, true, fmt.Errorf("%s: %w", badge, err)
 		}
-		tasks, err := src.Parse(filepath.Dir(path), data)
+		tasks, err := src.Parse(filepath.Dir(path), name, data)
 		if err != nil {
 			return nil, true, fmt.Errorf("%s: %w", badge, err)
 		}

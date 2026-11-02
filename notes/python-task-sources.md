@@ -30,8 +30,8 @@ below as brief exclusions.
   directory (poe, pdm, hatch, tox, taskipy — sources cited per section below). pipenv does
   the same for `Pipfile`. A picker should match that expectation, because users invoke the
   runners from subdirectories.
-- The run command differs per tool: `poe <task>`, `pdm run <script>`, `hatch run
-  <env>:<script>`, `task <task>` (or `poetry run task`), `tox run -e <env>`, `pipenv run
+- The run command differs per tool: ``poe <task>``, ``pdm run <script>``, ``hatch run
+  <env>:<script>``, ``task <task>`` (or ``poetry run task``), ``tox run -e <env>``, `pipenv run
   <script>`. In 2026 most of these are usually invoked through `uv run …` or
   `poetry run …`.
 - Where the human description lives: a per-task `help` field (poe, pdm, taskipy), a
@@ -795,8 +795,8 @@ census of pyproject.toml sections. I will not invent numbers for it. What is ver
     requirements.txt 59%, **pyproject.toml 36%**, setup.py 16%;
   - package-creation tools: Twine 44%, PyPI Publish GitHub Action 31%, Poetry 29%,
     **Hatch 10%, PDM 5%**.
-  The survey never asks about task runners. uv's 11–12% is first-year (2024) data and has
-  very likely grown — but by how much is not measured by this source.
+    The survey never asks about task runners. uv's 11–12% is first-year (2024) data and has
+    very likely grown — but by how much is not measured by this source.
 - **PyPI download counts** (pypistats.org, which serves the official PyPI download dataset;
   "last month" figures read 2026-11-02) are a rough proxy for runner adoption, with the
   standing caveats that downloads count CI runs and dependencies of other tools, not

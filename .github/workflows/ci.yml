@@ -4,10 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
-    # labeled and unlabeled re-run the workflow when a PR takes or drops the
-    # skip-changelog label. edited re-runs it when a stacked PR is retargeted
-    # to a new base branch; it also fires on title and body edits.
-    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+    # The changelog workflow owns the events that change no code: edited,
+    # labeled and unlabeled. ready_for_review starts the checks when a draft
+    # pull request becomes ready.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -18,12 +18,22 @@ concurrency:
 
 jobs:
   checks:
+    # Draft pull requests skip the checks. Agent sessions open pull requests
+    # as drafts while the work is in progress, and the matrix would run on
+    # every push to a branch that is not ready for review. The changelog
+    # workflow still runs on drafts, because its rule costs seconds and
+    # reports early.
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
     uses: ./.github/workflows/checks.yml
 
   required:
     name: CI required
     needs: checks
-    if: always()
+    # The draft gate can skip the checks job. The aggregate then skips too, so
+    # a draft pull request carries no CI verdict. The changelog aggregate
+    # works the other way: there a skip is a decision of the skip-changelog
+    # label, and the aggregate reports it green.
+    if: always() && needs.checks.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

@@ -1,0 +1,49 @@
+name: nix install
+
+on:
+  workflow_dispatch:
+  pull_request:
+    # The darwin leg queues behind the macOS arm64 pool, so it runs only
+    # where the flake can change: on a pull request that touches the flake
+    # files, and on demand for the release cut (the release skill dispatches
+    # the cut branch before the tag).
+    paths: [flake.nix, flake.lock, .github/workflows/nix-install.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        # docs/install.md ships the Nix channel on Linux and Apple silicon.
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: cachix/install-nix-action@v31
+      - name: Check the flake
+        run: nix flake check
+      - name: Build the package
+        run: nix build .#default
+      - name: Install through the user path
+        # The steps above build from a checkout. A user fetches the flake by
+        # ref, so this step repeats the install the way docs/install.md
+        # documents it: the pull request head branch, or the dispatched ref.
+        env:
+          INSTALL_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: nix profile install "github:zanza00/what-to-run/$INSTALL_REF"
+      - name: Run the installed binary
+        run: |
+          expected=$(nix eval --raw .#default.version)
+          actual=$("$HOME/.nix-profile/bin/wtr" --version)
+          echo "$actual"
+          test "$actual" = "wtr $expected"

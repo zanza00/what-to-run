@@ -19,7 +19,7 @@ moved; step 4 marks the point of no return.
 | Branch protection | `main-guard` ruleset: `main` takes changes only through a merged pull request |
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
 | Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` |
-| Nix | the `version` attribute in `flake.nix`, bumped with the tag and checked by the validate job; the flake builds the default branch |
+| Nix | the `version` attribute in `flake.nix`, bumped with the tag and checked by the validate job; the flake builds the default branch; the `nix install` workflow proves the user install path on Linux and Apple silicon, on the cut head before the tag (step 4) |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
 | Scoop | `bucket/what-to-run.json` in `zanza00/scoop-bucket` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
@@ -181,10 +181,21 @@ the user to confirm the release and merge it.
 ## 4. Tag and push — confirm first
 
 The tag push is the point of no return: once `publish` runs, consumers can see
-the release. Show the version, the release-notes outline, the cut pull request
-and the commit at its head, then ask for confirmation. The user marks the cut
-pull request ready and merges it; run these commands after the merge lands on
-`origin/main`:
+the release. Prove the tree the tag will name installs through the Nix
+channel: the cut pull request bumped `flake.nix`, so the `nix install`
+workflow triggered on it, and this script watches the run and reruns the
+failed jobs when the pool cancelled them before a darwin runner took them:
+
+```sh
+.agents/skills/release/scripts/verify-nix-install.sh chore/cut-changelog-vX.Y.Z
+```
+
+A red run from a real build failure stops the release: fix the flake on the
+cut branch, push, and rerun the script. The script also accepts a tag, to
+re-prove an already published tree. Show the version, the release-notes
+outline, the cut pull request and the commit at its head, then ask for
+confirmation. The user marks the cut pull request ready and merges it; run
+these commands after the merge lands on `origin/main`:
 
 ```sh
 git fetch origin

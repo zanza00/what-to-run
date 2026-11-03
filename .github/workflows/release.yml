@@ -304,6 +304,7 @@ jobs:
           # The registry is eventually consistent. A version can answer 404
           # for a few seconds after the publish.
           ready=""
+          # The counter only bounds the retries. No code reads its value.
           for _attempt in $(seq 10); do
             if npm view "what-to-run@$version" version >/dev/null 2>&1; then
               ready=yes

@@ -50,3 +50,8 @@ rules that live in `AGENTS.md` (draft PRs, stacked PRs, manual merges,
   same filename or the title line differs.
 - **2026-11-02**: `git diff main --stat` shows unstaged working-tree state
   too; use the three-dot `git diff main...HEAD` to review only commits.
+- **2026-11-03**: create a ticket's worktree before spawning its
+  implementer. The AUR-removal fixer arrived at a missing worktree and
+  had to build it itself; its brief assumed the worktree existed. The
+  implement-spec dispatch order is: integration branch, ticket worktree,
+  then the brief.

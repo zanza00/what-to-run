@@ -14,7 +14,8 @@ files in a checkout. That branch merged into `main` through PR #82 on
   the branch-ref install of the unmerged PR #61 works; how we test it.
 - [Packaging channel PRs](packaging-channel-prs.md) - which PRs carry the nix
   and winget channel work, how PR #61 was aligned with main on 2026-11-01,
-  and which branches are stale.
+  which branches are stale, and how PR #62 was reviewed after its 2026-11-03
+  rebase.
 
 ## CI
 

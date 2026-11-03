@@ -92,19 +92,18 @@ _wtr_widget() {
   if (( ${#lines[@]} >= 2 )); then mode=${lines[0]}; fi
   local tail=""
   case $mode in
-    run)
-      # Hand the command line to readline and let it submit it: the command
-      # runs like a typed line, land in the history and leave its exit status
-      # to the next prompt.
-      READLINE_LINE=${lines[1]}
-      READLINE_POINT=${#READLINE_LINE}
-      tail=accept-line
-      ;;
-    insert)
-      # Put the command at the cursor; the line stays in the prompt, to edit
-      # or run by hand.
+    run|insert)
+      # Splice the command in at the cursor: the line keeps the text typed
+      # before the key (e.g. ABC=1), and with insert it stays in the prompt,
+      # to edit or run by hand.
       READLINE_LINE="${READLINE_LINE:0:READLINE_POINT}${lines[1]}${READLINE_LINE:READLINE_POINT}"
       READLINE_POINT=$((READLINE_POINT + ${#lines[1]}))
+      if [[ $mode == run ]]; then
+        # Hand the line to readline and let it submit it: the command runs
+        # like a typed line, lands in the history and leaves its exit status
+        # to the next prompt.
+        tail=accept-line
+      fi
       ;;
   esac
   _wtr_tail "$tail"

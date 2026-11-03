@@ -2,7 +2,9 @@
 
 Press `ctrl-o` ([or your own key](#key-binding)) to open the inline picker below
 your prompt, `enter` to run the selected task, `tab` to put the command in the
-prompt without running it, or `ctrl-f` to toggle fullscreen.
+prompt without running it, or `ctrl-f` to toggle fullscreen. Both keys keep the
+text already typed on the line: `ABC=1`, then `ctrl-o` and `enter`, runs
+`ABC=1 <task>`.
 
 ## zsh and bash
 

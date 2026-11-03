@@ -135,6 +135,29 @@ func TestBashInitFlowControlKeyDisablesIXON(t *testing.T) {
 	}
 }
 
+// TestBashInitRunKeepsTheTypedLine pins the enter path: the widget splices the
+// chosen command into the line at the cursor instead of replacing the line, so
+// the text typed before the key (e.g. ABC=1) stays in front of the command,
+// and then lets readline submit it.
+func TestBashInitRunKeepsTheTypedLine(t *testing.T) {
+	got, err := BashInit("wtr", "/bin/wtr", "ctrl-o")
+	if err != nil {
+		t.Fatalf("BashInit() error: %v", err)
+	}
+	if strings.Contains(got, "READLINE_LINE=${lines[1]}") {
+		t.Errorf("run must not replace READLINE_LINE wholesale:\n%s", got)
+	}
+	for _, want := range []string{
+		`READLINE_LINE="${READLINE_LINE:0:READLINE_POINT}${lines[1]}${READLINE_LINE:READLINE_POINT}"`,
+		`if [[ $mode == run ]]; then`,
+		"tail=accept-line",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("BashInit() script does not contain %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestBashInitErrors(t *testing.T) {
 	for _, tt := range []struct{ bin, key string }{
 		{"/bin/wtr", "bogus"},

@@ -84,7 +84,9 @@ _wtr_widget() {
   if (( ${#lines} >= 2 )); then
     case ${lines[1]} in
       run)
-        BUFFER=${lines[2]}
+        # Append to the line being edited, then submit it: the text typed
+        # before the key (e.g. ABC=1) stays in front of the command.
+        LBUFFER+=${lines[2]}
         zle accept-line
         return
         ;;

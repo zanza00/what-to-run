@@ -26,7 +26,7 @@ moved; step 4 marks the point of no return.
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
 | RPM | `rpm/repodata/primary.xml.gz` and `repomd.xml.asc` on `gh-pages` |
 | pacman | `arch/{x86_64,aarch64}/what-to-run.db` on `gh-pages`; the database lists the newest release only, while the directories keep every published package |
-| Setup scripts | `setup.deb.sh` and `setup.rpm.sh` at the root of `gh-pages` |
+| Setup scripts | `setup.deb.sh`, `setup.rpm.sh` and `setup.arch.sh` at the root of `gh-pages` |
 | npm | `what-to-run` plus the six platform packages `what-to-run-<os>-<arch>` |
 | npm opt-in | the `NPM_PUBLISH` repository variable |
 

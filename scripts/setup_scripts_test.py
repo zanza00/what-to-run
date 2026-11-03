@@ -6,13 +6,13 @@ import tempfile
 import unittest
 
 SCRIPTS = Path(__file__).resolve().parent
-NAMES = ("setup.deb.sh", "setup.rpm.sh")
+NAMES = ("setup.deb.sh", "setup.rpm.sh", "setup.arch.sh")
 REPOSITORY = "https://zanza00.github.io/what-to-run"
 
 # The scripts write outside the working tree unless the WTR_* variables point
 # elsewhere, and they refuse to run without root: the behaviour tests stub the
 # tools, redirect every path, and take root from a user namespace when needed.
-TOOLS = ("sh", "id", "install", "mktemp", "rm", "cat")
+TOOLS = ("sh", "id", "install", "mktemp", "rm", "cat", "grep")
 STUBS = {
     "curl": """#!/bin/sh
 out=""
@@ -35,6 +35,12 @@ printf 'dnf %s\\n' "$*" >> "$LOGFILE"
 """,
     "yum": """#!/bin/sh
 printf 'yum %s\\n' "$*" >> "$LOGFILE"
+""",
+    "pacman-key": """#!/bin/sh
+printf 'pacman-key %s\\n' "$*" >> "$LOGFILE"
+""",
+    "pacman": """#!/bin/sh
+printf 'pacman %s\\n' "$*" >> "$LOGFILE"
 """,
 }
 
@@ -151,6 +157,37 @@ class SetupScriptsBehaviourTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("neither dnf nor yum", result.stderr)
         self.assertIn("distribution package manager", result.stdout)
+
+    def test_arch_script_configures_the_repository(self):
+        conf = self.directory / "pacman.conf"
+        conf.write_text("[options]\nSigLevel = Required\n")
+        result = self.run_script("setup.arch.sh", WTR_PACMAN_CONF=str(conf))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.log.read_text().splitlines()
+        self.assertTrue(calls[0].startswith("pacman-key --add "), calls[0])
+        self.assertEqual(
+            calls[1:],
+            ["pacman-key --lsign-key apt@zanza00.github.io", "pacman -Sy"],
+        )
+        self.assertEqual(
+            conf.read_text(),
+            "[options]\nSigLevel = Required\n"
+            "\n[what-to-run]\n"
+            "Server = %s/arch/$arch\n"
+            "SigLevel = PackageOptional DatabaseRequired\n" % REPOSITORY,
+        )
+        self.assertIn("sudo pacman -Syu what-to-run", result.stdout)
+
+    def test_arch_script_skips_the_append_on_the_second_run(self):
+        conf = self.directory / "pacman.conf"
+        conf.write_text("[options]\nSigLevel = Required\n")
+        first = self.run_script("setup.arch.sh", WTR_PACMAN_CONF=str(conf))
+        self.assertEqual(first.returncode, 0, first.stderr)
+        configured = conf.read_text()
+        second = self.run_script("setup.arch.sh", WTR_PACMAN_CONF=str(conf))
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertEqual(conf.read_text(), configured)
+        self.assertIn("skipped the append", second.stdout)
 
     def run_rpm(self):
         key = self.directory / "key.asc"

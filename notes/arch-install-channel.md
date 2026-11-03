@@ -21,6 +21,7 @@ true at.
   `feat/arch-package` at `ec7ac95`) for `pacman -U` installs and
   downgrades. The stack reads #107, then #108, then #110; after the
   parents merge, #110 retargets onto `main`.
+  *(Superseded 2026-11-03 by the claim below.)*
 - **2026-11-03**: bringing the AUR back, if registration ever reopens,
   means reverting PR #110, setting the secret again and re-adding the
   channel rows to the release skill. No placeholder in the tree points
@@ -38,3 +39,13 @@ true at.
   `c9a46f7` on branch `chore/stack-findings`, stacked on
   `chore/remove-aur` (PR #110). The same commit also quiets the
   shellcheck SC2034 finding in the verify-npm job of `release.yml`.
+- **2026-11-03**: the one-time install left the docs. The Arch Linux
+  section of `docs/install.md` leads with the `setup.arch.sh` one-liner,
+  like the apt and dnf sections, and no `pacman -U` path remains in
+  `docs/` or in the `[Unreleased]` changelog entries. The `.pkg.tar.zst`
+  stays attached to every release: it is the package the pacman
+  repository serves. The change is the ticket 05 commit on branch
+  `ticket/05-arch-setup-script`, stacked on `chore/stack-findings`
+  (PR #111): it adds `scripts/setup.arch.sh`, ships it from
+  `publish-repo.py`, and checks it in `verify-release.sh` and the
+  release skill.

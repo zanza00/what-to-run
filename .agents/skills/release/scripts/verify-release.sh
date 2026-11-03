@@ -299,7 +299,7 @@ if [[ $repositories_expected == 1 ]]; then
   fi
   rm -rf "$pacman_keyring" "$pacman_signature" "$pacman_database"
 
-  for script in setup.deb.sh setup.rpm.sh; do
+  for script in setup.deb.sh setup.rpm.sh setup.arch.sh; do
     published=""
     published=$(gh api "repos/$repo/contents/$script?ref=gh-pages" \
       -H "Accept: application/vnd.github.raw" 2>/dev/null) || published=""

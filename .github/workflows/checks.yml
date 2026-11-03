@@ -20,12 +20,15 @@ jobs:
     # therefore runs only where it changes the verdict: the release cut,
     # the last gate before the tag. The caller selects the leg through the
     # darwin input.
-    if: matrix.os != 'macos-latest' || inputs.darwin
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # GitHub evaluates a job-level if before the matrix expands, so the
+        # if cannot read the matrix context. The darwin input builds the
+        # matrix instead: the darwin leg joins the run only when the caller
+        # asks for it.
+        os: ${{ fromJSON(inputs.darwin && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7

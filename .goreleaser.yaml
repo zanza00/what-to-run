@@ -26,9 +26,10 @@ archives:
       - goos: windows
         formats: [zip]
 
-# Linux packages: .deb for Debian/Ubuntu and .rpm for Fedora/RHEL.
-# `apt install ./what-to-run_*.deb` or `dnf install ./what-to-run_*.rpm`
-# installs wtr.
+# Linux packages: .deb for Debian/Ubuntu, .rpm for Fedora/RHEL and
+# .pkg.tar.zst for Arch Linux. `apt install ./what-to-run_*.deb`,
+# `dnf install ./what-to-run_*.rpm` or
+# `pacman -U what-to-run_*.pkg.tar.zst` installs wtr.
 nfpms:
   - id: linux
     package_name: what-to-run
@@ -39,11 +40,15 @@ nfpms:
     license: MIT
     section: utils
     priority: optional
-    formats: [deb, rpm]
+    formats: [deb, rpm, archlinux]
     bindir: /usr/bin
     # Same shape as the archives, so every asset name follows one pattern.
     file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     ids: [wtr]
+    archlinux:
+      # .PKGINFO carries the packager, so pacman -Qi names the maintainer
+      # instead of "Unknown Packager".
+      packager: Simone Picciani <codefloe@simonepicciani.it>
     rpm:
       # The key that signs the apt repository also signs the RPM packages, so
       # the RPM repository can serve them with gpgcheck=1. Local snapshot

@@ -10,6 +10,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Added an Arch Linux package to every release: the release carries
+  `what-to-run_<version>_linux_<arch>.pkg.tar.zst`, and
+  `sudo pacman -U <file>` installs `wtr` without the AUR.
 - Added npm as an install channel: `npm install -g what-to-run` installs a small
   launcher plus one optional dependency per platform that contains the Go
   binary, and runs no install script. It is the shortest install path on

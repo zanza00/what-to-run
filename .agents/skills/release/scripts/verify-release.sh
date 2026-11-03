@@ -125,9 +125,11 @@ if [[ $release_found == 1 ]]; then
     "what-to-run_${version}_darwin_amd64.tar.gz" \
     "what-to-run_${version}_darwin_arm64.tar.gz" \
     "what-to-run_${version}_linux_amd64.deb" \
+    "what-to-run_${version}_linux_amd64.pkg.tar.zst" \
     "what-to-run_${version}_linux_amd64.rpm" \
     "what-to-run_${version}_linux_amd64.tar.gz" \
     "what-to-run_${version}_linux_arm64.deb" \
+    "what-to-run_${version}_linux_arm64.pkg.tar.zst" \
     "what-to-run_${version}_linux_arm64.rpm" \
     "what-to-run_${version}_linux_arm64.tar.gz" \
     "what-to-run_${version}_windows_amd64.zip" \
@@ -135,9 +137,9 @@ if [[ $release_found == 1 ]]; then
   actual=$(gh release view "$tag" --repo "$repo" \
     --json assets --jq '.assets[].name' 2>/dev/null | sort)
   if [[ $actual == "$expected" ]]; then
-    ok "release carries exactly the 11 expected assets"
+    ok "release carries exactly the 13 expected assets"
   else
-    bad "release assets differ from the expected 11"
+    bad "release assets differ from the expected 13"
     while IFS= read -r name; do
       [[ -z $name ]] && continue
       grep -qxF "$name" <<<"$actual" ||

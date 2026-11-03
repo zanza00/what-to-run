@@ -175,9 +175,11 @@ jobs:
             "what-to-run_${version}_darwin_amd64.tar.gz" \
             "what-to-run_${version}_darwin_arm64.tar.gz" \
             "what-to-run_${version}_linux_amd64.deb" \
+            "what-to-run_${version}_linux_amd64.pkg.tar.zst" \
             "what-to-run_${version}_linux_amd64.rpm" \
             "what-to-run_${version}_linux_amd64.tar.gz" \
             "what-to-run_${version}_linux_arm64.deb" \
+            "what-to-run_${version}_linux_arm64.pkg.tar.zst" \
             "what-to-run_${version}_linux_arm64.rpm" \
             "what-to-run_${version}_linux_arm64.tar.gz" \
             "what-to-run_${version}_windows_amd64.zip" \

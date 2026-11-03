@@ -145,6 +145,20 @@ EOF
 sudo dnf install what-to-run
 ```
 
+## Arch Linux
+
+Every release carries a pacman package, so the AUR is not needed. Download the
+`.pkg.tar.zst` for your architecture from the
+[releases page](https://github.com/zanza00/what-to-run/releases) and install it:
+
+```sh
+sudo pacman -U what-to-run_<version>_linux_amd64.pkg.tar.zst
+```
+
+Download the `amd64` file on an `x86_64` machine and the `arm64` file on an
+`aarch64` machine. pacman tracks the package, so `pacman -Rs what-to-run`
+removes it. Updates stay manual: repeat the download for each new release.
+
 ## Scoop
 
 On Windows, [Scoop](https://scoop.sh/) installs per user without administrator

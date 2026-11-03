@@ -75,10 +75,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Pressing `enter` in the widget now runs the chosen task with the text typed
-  before the key still in front of it, like `tab` already did: `ABC=1`, then
-  `ctrl-o` and `enter` runs `ABC=1 <task>` instead of dropping `ABC=1` and
-  running the task on a fresh line. Applies to the zsh, bash and PowerShell
-  widgets.
+  before the key still in front of it, like `tab` does: `ABC=1`, then `ctrl-o`
+  and `enter` runs `ABC=1 <task>` instead of dropping `ABC=1` and running the
+  task on a fresh line. The fix covers the zsh, bash and PowerShell widgets.
 
 ## [0.9.0] - 2026-10-25
 

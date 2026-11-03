@@ -5,8 +5,8 @@
 #
 # Checks the GitHub release and its exact asset set, the Homebrew formula, the
 # Scoop manifest in its bucket, the apt index, the RPM metadata and the pacman
-# databases (with their signatures) on gh-pages, the npm registry when those
-# channels are configured, and a downloaded binary of this machine's platform.
+# databases (with their signatures) on gh-pages, the npm registry when that
+# channel is configured, and a downloaded binary of this machine's platform.
 # The script reports a channel the workflow skips (a secret is unset, or the
 # npm opt-in variable is off) as skipped, not failed.
 set -uo pipefail

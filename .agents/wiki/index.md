@@ -26,6 +26,13 @@ files in a checkout. That branch merged into `main` through PR #82 on
   per-PR matrix — the nix install to flake paths and dispatch (PR #101), the
   Go test leg to the release cut (PR #103, 2026-11-02).
 
+## Features
+
+- [Invisible runner](invisible-runner.md) - the 2026-11-03 feasibility verdict
+  for a typed `wtr build` becoming the real command at Enter: verified zsh and
+  bash history-rewrite mechanics, the resolve gap in `cmd/wtr`, design
+  direction A, the Enter-takeover risk and the open decisions.
+
 ## Research
 
 - [NixOS install landscape](nixos-install-landscape.md) - how eleven

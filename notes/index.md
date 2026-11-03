@@ -12,6 +12,12 @@ Long-form research, one file per topic:
 - [nixos-install-comparable-clis](nixos-install-comparable-clis.md) — how comparable CLIs install on NixOS.
 - [python-task-sources](python-task-sources.md) — which files a Python project
   declares runnable tasks in, and which are static-parseable.
+- [invisible-runner-repo-map](invisible-runner-repo-map.md) — what the repo
+  has, and lacks, for turning `wtr build` into the real command before the
+  shell accepts it.
+- [invisible-runner-shell-history](invisible-runner-shell-history.md) — the
+  verified zsh and bash mechanics for rewriting the accepted line before it
+  lands in history.
 
 ## Agent wiki
 

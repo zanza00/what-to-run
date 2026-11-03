@@ -87,12 +87,6 @@ publishers:
     cmd: python3 scripts/publish-homebrew.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
     env:
       - GH_TOKEN={{ .Env.HOMEBREW_TAP_TOKEN }}
-  - name: aur
-    checksum: true
-    # The script publishes once for checksums.txt and ignores other artifacts.
-    cmd: python3 scripts/publish-aur.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
-    env:
-      - AUR_SSH_KEY_FILE={{ .Env.AUR_SSH_KEY_FILE }}
   - name: packages
     checksum: true
     # The script publishes once for checksums.txt and ignores other artifacts.

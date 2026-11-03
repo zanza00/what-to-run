@@ -71,7 +71,6 @@ jobs:
         id: credentials
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
           NPM_PUBLISH: ${{ vars.NPM_PUBLISH }}
@@ -91,20 +90,6 @@ jobs:
             echo "::warning title=$2::$3"
             return 1
           }
-          # AUR publishing is optional while its secret is unset, because
-          # AUR registration is closed.
-          if optional_channel "$AUR_SSH_PRIVATE_KEY" "AUR publishing skipped" \
-            "Set the AUR_SSH_PRIVATE_KEY secret to publish what-to-run-bin to the AUR."; then
-            umask 077
-            printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/aur_key"
-            if ! ssh-keygen -y -f "$RUNNER_TEMP/aur_key" >/dev/null 2>&1; then
-              echo 'AUR_SSH_PRIVATE_KEY is not a valid unencrypted SSH private key.' >&2
-              exit 1
-            fi
-            echo "AUR_SSH_KEY_FILE=$RUNNER_TEMP/aur_key" >> "$GITHUB_ENV"
-          else
-            echo 'AUR_SSH_KEY_FILE=' >> "$GITHUB_ENV"
-          fi
           # Package repository publishing is optional while its key is unset.
           if optional_channel "$APT_GPG_PRIVATE_KEY" "Package repositories skipped" \
             "Set the APT_GPG_PRIVATE_KEY secret to publish the apt and RPM repositories."; then

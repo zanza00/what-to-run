@@ -68,8 +68,6 @@ func TestPowerShellInitScript(t *testing.T) {
 		`$flags = $env:WTR_FLAGS.Trim() -split '\s+'`,
 		`$result = @(& $bin --inline --shell powershell @flags)`,
 		"[Microsoft.PowerShell.PSConsoleReadLine]::InvokePrompt()",
-		"[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)",
-		"[Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $result[1])",
 		"[Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()",
 		"[Microsoft.PowerShell.PSConsoleReadLine]::Insert($result[1])",
 		"Set-PSReadLineKeyHandler -Chord 'Ctrl+g' -ScriptBlock { Invoke-WtrWidget }",
@@ -81,6 +79,38 @@ func TestPowerShellInitScript(t *testing.T) {
 	for _, forbidden := range []string{"/dev/tty", "stty", "export "} {
 		if strings.Contains(got, forbidden) {
 			t.Errorf("PowerShellInit() script should not contain %q:\n%s", forbidden, got)
+		}
+	}
+}
+
+// TestPowerShellInitRunKeepsTheTypedLine pins the enter path: the widget
+// inserts the chosen command at the cursor and submits the line, so the text
+// typed before the key (e.g. ABC=1) stays in front of the command instead of
+// being replaced by it.
+func TestPowerShellInitRunKeepsTheTypedLine(t *testing.T) {
+	got, err := PowerShellInit("wtr", `C:\wtr\wtr.exe`, "ctrl-o")
+	if err != nil {
+		t.Fatalf("PowerShellInit() error: %v", err)
+	}
+	start := strings.Index(got, "'run' {")
+	if start < 0 {
+		t.Fatalf("PowerShellInit() script has no run branch:\n%s", got)
+	}
+	rest := got[start:]
+	end := strings.Index(rest, "\n        }")
+	if end < 0 {
+		t.Fatalf("PowerShellInit() run branch is not closed:\n%s", rest)
+	}
+	branch := rest[:end]
+	if strings.Contains(branch, "Replace(") {
+		t.Errorf("run branch must not replace the whole line:\n%s", branch)
+	}
+	for _, want := range []string{
+		"[Microsoft.PowerShell.PSConsoleReadLine]::Insert($result[1])",
+		"[Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()",
+	} {
+		if !strings.Contains(branch, want) {
+			t.Errorf("PowerShellInit() run branch does not contain %q:\n%s", want, branch)
 		}
 	}
 }

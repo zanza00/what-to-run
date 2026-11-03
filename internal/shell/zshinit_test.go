@@ -144,6 +144,32 @@ func TestDefaultKeyLeavesFlowControlAlone(t *testing.T) {
 	}
 }
 
+// TestZshInitRunKeepsTheTypedLine pins the enter path: the widget appends the
+// chosen command to the line being edited and submits that, so the text typed
+// before the key (e.g. ABC=1) stays in front of the command instead of being
+// replaced by it.
+func TestZshInitRunKeepsTheTypedLine(t *testing.T) {
+	got, err := ZshInit("wtr", "/bin/wtr", "ctrl-o")
+	if err != nil {
+		t.Fatalf("ZshInit() error: %v", err)
+	}
+	start := strings.Index(got, "run)")
+	if start < 0 {
+		t.Fatalf("ZshInit() script has no run branch:\n%s", got)
+	}
+	rest := got[start:]
+	branch := rest[:strings.Index(rest, ";;")]
+	if strings.Contains(branch, "BUFFER=") {
+		t.Errorf("run branch must not replace the whole buffer:\n%s", branch)
+	}
+	if !strings.Contains(branch, "LBUFFER+=${lines[2]}") {
+		t.Errorf("run branch must append the command to the left buffer:\n%s", branch)
+	}
+	if !strings.Contains(branch, "zle accept-line") {
+		t.Errorf("run branch must submit the line:\n%s", branch)
+	}
+}
+
 func TestZshInitErrors(t *testing.T) {
 	for _, tt := range []struct{ bin, key string }{
 		{"/bin/wtr", "bogus"},

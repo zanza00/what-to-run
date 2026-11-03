@@ -21,10 +21,11 @@ import (
 // line. The widget then runs the line (enter) or inserts it in the prompt
 // (tab).
 //
-// PSReadLine hands the line back through its own editor. GetBufferState reads
-// it, Replace and AcceptLine submit the chosen command, and Insert puts it at
-// the cursor. The script needs no invisible sequences, unlike the bash widget,
-// because PSReadLine exposes the buffer to the key handler directly.
+// PSReadLine hands the line back through its own editor. Insert puts the
+// chosen command at the cursor, keeping the text typed before the key, and
+// AcceptLine submits the line. The script needs no invisible sequences, unlike
+// the bash widget, because PSReadLine exposes the buffer to the key handler
+// directly.
 //
 // prog is the name that the binary was invoked as, and it appears in the
 // comments of the script. bin is the command that the widget launches: the
@@ -59,10 +60,6 @@ $script:WtrBin = '%s'
 # captured to receive its result here) and reports a mode line ("run" or
 # "insert") followed by the command line.
 function global:Invoke-WtrWidget {
-    $line = ''
-    $cursor = 0
-    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
-
     # Read the overrides when the key is pressed, like the zsh and bash
     # widgets: WTR_BIN picks the binary, WTR_FLAGS adds flags (split on
     # whitespace), e.g. $env:WTR_FLAGS = '--debug-area'.
@@ -83,10 +80,11 @@ function global:Invoke-WtrWidget {
 
     switch ($result[0]) {
         'run' {
-            # Hand the command line to PSReadLine and let it submit it: the
-            # command runs like a typed line, lands in the history and leaves
-            # its exit status to the prompt.
-            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $result[1])
+            # Insert the command at the cursor, keeping the text typed before
+            # the key (e.g. ABC=1), then submit the line: the command runs like
+            # a typed line, lands in the history and leaves its exit status to
+            # the prompt.
+            [Microsoft.PowerShell.PSConsoleReadLine]::Insert($result[1])
             [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
         }
         'insert' {

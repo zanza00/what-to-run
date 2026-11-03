@@ -4,9 +4,10 @@
 # Usage: verify-release.sh vX.Y.Z
 #
 # Checks the GitHub release and its exact asset set, the Homebrew formula, the
-# Scoop manifest in its bucket, the apt index and RPM metadata (including its
-# signature) on gh-pages, the AUR package and the npm registry when those
-# channels are configured, and a downloaded binary of this machine's platform.
+# Scoop manifest in its bucket, the apt index, the RPM metadata and the pacman
+# databases (with their signatures) on gh-pages, the AUR package and the npm
+# registry when those channels are configured, and a downloaded binary of this
+# machine's platform.
 # The script reports a channel the workflow skips (a secret is unset, or the
 # npm opt-in variable is off) as skipped, not failed.
 set -uo pipefail
@@ -258,6 +259,48 @@ if [[ $repositories_expected == 1 ]]; then
     fi
     rm -rf "$keyring" "$signature" "$repomd"
   fi
+
+  # The pacman repository serves one database per architecture under arch/,
+  # because one database keys its entries by name and version only.
+  for arch in x86_64 aarch64; do
+    if gh api "repos/$repo/contents/arch/$arch/what-to-run.db?ref=gh-pages" \
+        -H "Accept: application/vnd.github.raw" 2>/dev/null |
+        tar -tzf - 2>/dev/null | grep -qxF "what-to-run-$version-1/desc"; then
+      ok "pacman database for $arch carries $version"
+    else
+      bad_or_warn "pacman database for $arch does not carry $version"
+    fi
+  done
+
+  for pair in "x86_64:amd64" "aarch64:arm64"; do
+    arch=${pair%%:*}
+    go_arch=${pair##*:}
+    name="what-to-run_${version}_linux_${go_arch}.pkg.tar.zst"
+    if gh api "repos/$repo/contents/arch/$arch/$name?ref=gh-pages" >/dev/null 2>&1; then
+      ok "pacman repository carries $name"
+    else
+      bad_or_warn "pacman repository does not carry $name"
+    fi
+  done
+
+  need gpg
+  pacman_keyring=$(mktemp -d)
+  pacman_signature=$(mktemp)
+  pacman_database=$(mktemp)
+  if ! gh api "repos/$repo/contents/key.asc?ref=gh-pages" \
+      -H "Accept: application/vnd.github.raw" >"$pacman_keyring/key.asc" 2>/dev/null ||
+    ! gh api "repos/$repo/contents/arch/x86_64/what-to-run.db.sig?ref=gh-pages" \
+      -H "Accept: application/vnd.github.raw" >"$pacman_signature" 2>/dev/null ||
+    ! gh api "repos/$repo/contents/arch/x86_64/what-to-run.db?ref=gh-pages" \
+      -H "Accept: application/vnd.github.raw" >"$pacman_database" 2>/dev/null; then
+    bad_or_warn "cannot read the pacman database signature from gh-pages"
+  elif GNUPGHOME="$pacman_keyring" gpg --batch --quiet --import "$pacman_keyring/key.asc" 2>/dev/null &&
+    GNUPGHOME="$pacman_keyring" gpg --batch --quiet --verify "$pacman_signature" "$pacman_database" 2>/dev/null; then
+    ok "pacman database signature verifies with the repository key"
+  else
+    bad_or_warn "pacman database signature does not verify"
+  fi
+  rm -rf "$pacman_keyring" "$pacman_signature" "$pacman_database"
 
   for script in setup.deb.sh setup.rpm.sh; do
     published=""

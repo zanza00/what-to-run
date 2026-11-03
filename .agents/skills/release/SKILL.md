@@ -25,6 +25,7 @@ moved; step 4 marks the point of no return.
 | Scoop | `bucket/what-to-run.json` in `zanza00/scoop-bucket` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
 | RPM | `rpm/repodata/primary.xml.gz` and `repomd.xml.asc` on `gh-pages` |
+| pacman | `arch/{x86_64,aarch64}/what-to-run.db` on `gh-pages` |
 | Setup scripts | `setup.deb.sh` and `setup.rpm.sh` at the root of `gh-pages` |
 | AUR | `what-to-run-bin` |
 | npm | `what-to-run` plus the six platform packages `what-to-run-<os>-<arch>` |
@@ -287,8 +288,8 @@ for and rerun.
 Treat a `FAIL` as a real problem even when the workflow is green: the
 verifier, not the workflow, is the source of truth for every channel. For a
 failing channel, inspect the `publish` step of the run, then follow section 5
-of `references/recovery.md`. If this is the first AUR publish, add an Arch
-Linux section to `docs/install.md` that advertises `yay -S what-to-run-bin`.
+of `references/recovery.md`. If this is the first AUR publish, add the
+`yay -S what-to-run-bin` line to the Arch Linux section of `docs/install.md`.
 This step is done when the verifier prints `N checks, 0 failed` and no
 `warn` is left.
 

@@ -2,7 +2,8 @@ name: republish packages
 
 # Recovery path for a release whose GitHub assets were published but whose
 # repository step failed (for example on the gh-pages push): publishes an
-# existing tag to the apt and RPM repositories without recreating the release.
+# existing tag to the apt, RPM and pacman repositories without recreating the
+# release.
 on:
   workflow_dispatch:
     inputs:
@@ -87,3 +88,86 @@ jobs:
             exit 0
           fi
           scripts/check-rpm-repository.sh "$RELEASE_TAG"
+
+  pacman:
+    # The pacman repository needs repo-add, which only ships with pacman, so
+    # this job runs in an Arch Linux container like the release job. The
+    # packages job has already pushed gh-pages, so this job is the last
+    # writer of the branch.
+    needs: packages
+    runs-on: ubuntu-latest
+    container: archlinux:base
+    timeout-minutes: 15
+    steps:
+      - name: Install the container tools
+        # gpg and curl are dependencies of pacman, so the image carries them.
+        run: pacman -Sy --noconfirm git python
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Require package repository credentials
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$APT_GPG_PRIVATE_KEY" ]; then
+            echo 'Configure the APT_GPG_PRIVATE_KEY Actions secret before republishing.' >&2
+            exit 1
+          fi
+          umask 077
+          printf '%s\n' "$APT_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/apt_key"
+          echo "APT_GPG_KEY_FILE=$RUNNER_TEMP/apt_key" >> "$GITHUB_ENV"
+      - name: Stop for releases without Arch packages
+        # Releases made before the pacman channel have no .pkg.tar.zst
+        # assets; there is nothing to republish for them.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          names=$(curl -fsSL -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            | python3 -c 'import json,sys; print("".join(a["name"] + "\n" for a in json.load(sys.stdin)["assets"]))')
+          if grep -q '\.pkg\.tar\.zst$' <<<"$names"; then
+            echo 'PACMAN_ASSETS=true' >> "$GITHUB_ENV"
+          else
+            echo "No .pkg.tar.zst assets for $RELEASE_TAG; skipping the pacman repository."
+            echo 'PACMAN_ASSETS=false' >> "$GITHUB_ENV"
+          fi
+      - name: Download release assets
+        if: env.PACMAN_ASSETS == 'true'
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          directory=$(mktemp -d)
+          base_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+            -o "$directory/checksums.txt" "$base_url/checksums.txt"
+          for goarch in amd64 arm64; do
+            curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+              -o "$directory/what-to-run_${version}_linux_${goarch}.pkg.tar.zst" \
+              "$base_url/what-to-run_${version}_linux_${goarch}.pkg.tar.zst"
+          done
+          echo "WTR_DIST=$directory" >> "$GITHUB_ENV"
+      - name: Publish the pacman repository
+        if: env.PACMAN_ASSETS == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: >-
+          python3 scripts/publish-pacman.py --tag "$RELEASE_TAG"
+          --artifact "$WTR_DIST/checksums.txt"
+      - name: Verify the pacman repository
+        if: env.PACMAN_ASSETS == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          database=$(mktemp)
+          curl -fsSL -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/arch/x86_64/what-to-run.db?ref=gh-pages" \
+            -o "$database"
+          # repo-add names each entry <name>-<version>-<pkgrel>, and the
+          # release packages always carry pkgrel 1.
+          bsdtar -tf "$database" | grep -qxF "what-to-run-$version-1/desc"

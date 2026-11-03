@@ -11,10 +11,12 @@ gh run view "$run_id" --log-failed
 ```
 
 The workflow jobs are `validate`, `checks` (the reusable `checks.yml`) and
-`publish`, plus `verify-npm` when `NPM_PUBLISH` is `true`. Only `publish`
-creates the GitHub release and updates the package channels; `verify-npm`
-only checks the npm channel after `publish` succeeded, so a failure there
-changes nothing — repair npm as in its section below.
+`publish`, plus `repo-arch` after it, which publishes the pacman repository
+and skips while `APT_GPG_PRIVATE_KEY` is unset, and `verify-npm` when
+`NPM_PUBLISH` is `true`. Only `publish`
+creates the GitHub release and updates the package channels; `repo-arch` and
+`verify-npm` only check or add to what `publish` already published, so a
+failure there changes nothing — repair them as in their sections below.
 
 First question: does the release exist?
 
@@ -61,7 +63,7 @@ Repair the channel directly. A repair is done when the verifier passes again:
 .agents/skills/release/scripts/verify-release.sh vX.Y.Z
 ```
 
-### apt and RPM repositories
+### apt, RPM and pacman repositories
 
 The `republish packages` workflow is the recovery path, also used when
 `gh-pages` rejected the push:
@@ -72,8 +74,17 @@ gh run list --workflow=republish-packages.yml --limit 1
 gh run watch <run-id> --exit-status
 ```
 
-It republishes the existing release without recreating it, and requires
-`APT_GPG_PRIVATE_KEY`.
+It republishes the existing release to the apt, RPM and pacman repositories
+without recreating it, and requires `APT_GPG_PRIVATE_KEY`. The pacman job runs
+`repo-add` inside an Arch Linux container, like the release workflow does.
+To repair the pacman repository from a workstation, run the publisher in the
+same container with the release assets staged next to `checksums.txt`:
+
+```sh
+docker run --rm -it -v "$PWD":/work -w /work archlinux:base bash
+pacman -Sy --noconfirm git python
+python3 scripts/publish-pacman.py --tag vX.Y.Z --artifact dist/checksums.txt
+```
 
 ### Homebrew and AUR
 

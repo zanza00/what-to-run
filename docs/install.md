@@ -147,17 +147,42 @@ sudo dnf install what-to-run
 
 ## Arch Linux
 
-Every release carries a pacman package, so the AUR is not needed. Download the
-`.pkg.tar.zst` for your architecture from the
-[releases page](https://github.com/zanza00/what-to-run/releases) and install it:
+On Arch Linux, add the project's pacman repository and install the package.
+The repository key is the same one that signs the apt repository, so import it
+and mark it trusted:
+
+```sh
+curl -fsSL -o /tmp/what-to-run.asc https://zanza00.github.io/what-to-run/key.asc
+sudo pacman-key --add /tmp/what-to-run.asc
+sudo pacman-key --lsign-key apt@zanza00.github.io
+```
+
+Then add the repository to `/etc/pacman.conf` and install:
+
+```sh
+sudo tee -a /etc/pacman.conf >/dev/null <<'EOF'
+
+[what-to-run]
+Server = https://zanza00.github.io/what-to-run/arch/$arch
+SigLevel = PackageOptional DatabaseRequired
+EOF
+sudo pacman -Syu what-to-run
+```
+
+The repository supports `x86_64` and `aarch64`. It serves one database per
+architecture, like the official repositories, so pacman expands `$arch`.
+
+For a one-time install without the repository, download the `.pkg.tar.zst`
+from the [releases page](https://github.com/zanza00/what-to-run/releases) and
+install it:
 
 ```sh
 sudo pacman -U what-to-run_<version>_linux_amd64.pkg.tar.zst
 ```
 
 Download the `amd64` file on an `x86_64` machine and the `arm64` file on an
-`aarch64` machine. pacman tracks the package, so `pacman -Rs what-to-run`
-removes it. Updates stay manual: repeat the download for each new release.
+`aarch64` machine. Updates stay manual: repeat the download for each new
+release.
 
 ## Scoop
 

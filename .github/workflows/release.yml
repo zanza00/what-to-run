@@ -232,6 +232,74 @@ jobs:
               -H "Accept: application/vnd.github.raw" | diff -u "scripts/$script" -
           done
 
+  repo-arch:
+    # The pacman databases need repo-add, which only ships with pacman, so the
+    # job runs in an Arch Linux container. The publish job has already
+    # uploaded the release assets and pushed the apt and RPM repositories, so
+    # this job is the last writer of gh-pages.
+    needs: publish
+    runs-on: ubuntu-latest
+    container: archlinux:base
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+    steps:
+      - name: Install the container tools
+        # gpg and curl are dependencies of pacman, so the image carries them.
+        run: pacman -Sy --noconfirm git python
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Prepare the repository key
+        run: |
+          # The key that signs the apt repository and the RPM packages also
+          # signs the pacman databases.
+          if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
+            umask 077
+            printf '%s\n' "$APT_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/apt_key"
+            echo "APT_GPG_KEY_FILE=$RUNNER_TEMP/apt_key" >> "$GITHUB_ENV"
+          else
+            echo "::warning title=Pacman repository skipped::Set the APT_GPG_PRIVATE_KEY secret to publish the pacman repository."
+            echo 'APT_GPG_KEY_FILE=' >> "$GITHUB_ENV"
+          fi
+      - name: Publish the pacman repository
+        # Publishing is skipped when the GPG secret is unset, so there is
+        # nothing to download in that case.
+        if: env.APT_GPG_KEY_FILE != ''
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          directory=$(mktemp -d)
+          base_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+            -o "$directory/checksums.txt" "$base_url/checksums.txt"
+          for goarch in amd64 arm64; do
+            curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+              -o "$directory/what-to-run_${version}_linux_${goarch}.pkg.tar.zst" \
+              "$base_url/what-to-run_${version}_linux_${goarch}.pkg.tar.zst"
+          done
+          python3 scripts/publish-pacman.py \
+            --tag "$GITHUB_REF_NAME" --artifact "$directory/checksums.txt"
+      - name: Verify the pacman repository
+        if: env.APT_GPG_KEY_FILE != ''
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          database=$(mktemp)
+          curl -fsSL -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/arch/x86_64/what-to-run.db?ref=gh-pages" \
+            -o "$database"
+          # repo-add names each entry <name>-<version>-<pkgrel>, and the
+          # release packages always carry pkgrel 1.
+          bsdtar -tf "$database" | grep -qxF "what-to-run-$version-1/desc"
+
   verify-npm:
     # The channel is skipped while the repository variable is unset, so there
     # is nothing to verify then. This job cannot read

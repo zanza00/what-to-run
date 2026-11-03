@@ -35,6 +35,6 @@ true at.
 - **2026-11-03**: the known gap closed. The method table in
   `docs/install.md` lists pacman for Arch Linux and links to the Arch
   Linux section, like the apt, dnf and Scoop rows. The fix is commit
-  `73b9533` on branch `ticket/04-close-stack-findings`, stacked on
+  `c9a46f7` on branch `chore/stack-findings`, stacked on
   `chore/remove-aur` (PR #110). The same commit also quiets the
   shellcheck SC2034 finding in the verify-npm job of `release.yml`.

@@ -5,9 +5,8 @@
 #
 # Checks the GitHub release and its exact asset set, the Homebrew formula, the
 # Scoop manifest in its bucket, the apt index, the RPM metadata and the pacman
-# databases (with their signatures) on gh-pages, the AUR package and the npm
-# registry when those channels are configured, and a downloaded binary of this
-# machine's platform.
+# databases (with their signatures) on gh-pages, the npm registry when those
+# channels are configured, and a downloaded binary of this machine's platform.
 # The script reports a channel the workflow skips (a secret is unset, or the
 # npm opt-in variable is off) as skipped, not failed.
 set -uo pipefail
@@ -15,7 +14,6 @@ set -uo pipefail
 repo=zanza00/what-to-run
 tap_repo=zanza00/homebrew-tap
 scoop_repo=zanza00/scoop-bucket
-aur_package=what-to-run-bin
 pages_url=https://zanza00.github.io/what-to-run
 
 failures=0
@@ -65,14 +63,13 @@ need tar
 # this script is part of.
 repo_root=$(cd "$(dirname "$0")/../../../.." && pwd)
 
-# The release workflow skips the package repositories and the AUR when their
-# secret is unset. Read the names (not the values) to know what this release
-# promised.
+# The release workflow skips the package repositories when their secret is
+# unset. Read the names (not the values) to know what this release promised.
 secrets=""
 known_secrets=1
 if ! secrets=$(gh api "repos/$repo/actions/secrets" --jq '.secrets[].name' 2>/dev/null); then
   known_secrets=0
-  warn "cannot read Actions secrets; repository and AUR problems are reported without failing"
+  warn "cannot read Actions secrets; repository problems are reported without failing"
 fi
 has_secret() {
   [[ $known_secrets == 1 ]] && grep -qx "$1" <<<"$secrets"
@@ -314,33 +311,6 @@ if [[ $repositories_expected == 1 ]]; then
       ok "setup script $script is published on gh-pages"
     fi
   done
-fi
-
-# --- AUR ------------------------------------------------------------------
-
-if [[ $known_secrets == 1 ]] && ! has_secret AUR_SSH_PRIVATE_KEY; then
-  skip "AUR: AUR_SSH_PRIVATE_KEY is not configured"
-elif ! command -v curl >/dev/null 2>&1; then
-  warn "curl not available: cannot check the AUR package"
-else
-  pkgbuild=$(curl -fsSL --max-time 20 \
-    "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=$aur_package" \
-    2>/dev/null) || pkgbuild=""
-  if [[ -z $pkgbuild ]]; then
-    if [[ $known_secrets == 1 ]]; then
-      bad "cannot read the AUR PKGBUILD for $aur_package"
-    else
-      warn "cannot read the AUR PKGBUILD for $aur_package"
-    fi
-  elif grep -qx "pkgver=$version" <<<"$pkgbuild"; then
-    ok "AUR $aur_package carries $version"
-  else
-    if [[ $known_secrets == 1 ]]; then
-      bad "AUR $aur_package does not carry $version"
-    else
-      warn "AUR $aur_package does not carry $version"
-    fi
-  fi
 fi
 
 # --- npm --------------------------------------------------------------------

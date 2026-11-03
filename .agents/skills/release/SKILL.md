@@ -18,7 +18,7 @@ moved; step 4 marks the point of no return.
 | Trigger | `vX.Y.Z` tag on a commit contained in `origin/main` |
 | Branch protection | `main-guard` ruleset: `main` takes changes only through a merged pull request |
 | Required secret | `HOMEBREW_TAP_TOKEN` (the workflow fails without it) |
-| Optional secrets | `APT_GPG_PRIVATE_KEY`, `AUR_SSH_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` |
+| Optional secrets | `APT_GPG_PRIVATE_KEY`, `SCOOP_BUCKET_TOKEN` |
 | Nix | the `version` attribute in `flake.nix`, bumped with the tag and checked by the validate job; the flake builds the default branch; the `nix install` workflow proves the user install path on Linux and Apple silicon, on the cut head before the tag (step 4) |
 | Darwin test | the darwin leg of the `test` matrix runs only on the cut pull request and on a `ci` dispatch with `darwin=true`; the macOS arm64 pool can queue the leg for tens of minutes and cancel it before a runner takes it (step 4) |
 | Homebrew | formula `Formula/what-to-run.rb` in `zanza00/homebrew-tap` |
@@ -27,7 +27,6 @@ moved; step 4 marks the point of no return.
 | RPM | `rpm/repodata/primary.xml.gz` and `repomd.xml.asc` on `gh-pages` |
 | pacman | `arch/{x86_64,aarch64}/what-to-run.db` on `gh-pages`; the database lists the newest release only, while the directories keep every published package |
 | Setup scripts | `setup.deb.sh` and `setup.rpm.sh` at the root of `gh-pages` |
-| AUR | `what-to-run-bin` |
 | npm | `what-to-run` plus the six platform packages `what-to-run-<os>-<arch>` |
 | npm opt-in | the `NPM_PUBLISH` repository variable |
 
@@ -291,10 +290,8 @@ Treat a `FAIL` as a real problem even when the workflow is green: the
 verifier, not the workflow, is the source of truth for every channel. For a
 failing channel, inspect the `publish` step of the run, or the `repo-arch`
 job when the pacman repository is the failing channel, then follow section 5
-of `references/recovery.md`. If this is the first AUR publish, add the
-`yay -S what-to-run-bin` line to the Arch Linux section of `docs/install.md`.
-This step is done when the verifier prints `N checks, 0 failed` and no
-`warn` is left.
+of `references/recovery.md`. This step is done when the verifier prints `N
+checks, 0 failed` and no `warn` is left.
 
 ## 7. Report
 
@@ -304,8 +301,7 @@ Close with a short, concrete summary:
 - the release URL;
 - channels updated, and channels skipped because their secret is unset or the
   npm opt-in is off;
-- the verifier result (`N checks, 0 failed`);
-- anything still manual, such as advertising the AUR package in the docs.
+- the verifier result (`N checks, 0 failed`).
 
 ## When something goes wrong
 

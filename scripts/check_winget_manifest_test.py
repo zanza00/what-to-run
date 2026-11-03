@@ -109,8 +109,8 @@ class CheckTest(unittest.TestCase):
         self.assertEqual(self.problems(), [])
 
     def test_handwritten_manifest_is_accepted(self):
-        # The first package was written by hand: no indentation under
-        # `Installers:` and one NestedInstallerType for the whole list.
+        # The first package was written by hand: it has no indentation under
+        # `Installers:` and sets one NestedInstallerType for the whole list.
         installers = f"""\
 - Architecture: x64
   NestedInstallerFiles:

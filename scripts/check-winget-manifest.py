@@ -20,8 +20,8 @@ ARCHIVES = {
 }
 RELEASE_URL = "https://github.com/zanza00/what-to-run/releases/download/{tag}/{name}"
 
-# Only these keys are read, so a description such as "Runs tasks: fast" can
-# never be mistaken for a manifest field.
+# Only these keys are read, so the reader cannot mistake a description such as
+# "Runs tasks: fast" for a manifest field.
 FIELDS = {
     "PackageIdentifier",
     "PackageVersion",
@@ -54,8 +54,8 @@ def read_fields(text):
     """Return the manifest fields in file order.
 
     A line reader is enough for these manifests and keeps the checker free of a
-    YAML dependency. Indentation is dropped before the key is read, so the
-    GoReleaser output and a hand-written manifest parse the same way.
+    YAML dependency. The reader drops the indentation before it reads the key,
+    so the GoReleaser output and a hand-written manifest parse the same way.
     """
     fields = []
     for line in text.splitlines():
@@ -74,9 +74,9 @@ def read_fields(text):
 def parse_installers(fields):
     """Group the installer entries by architecture.
 
-    `NestedInstallerType` is read as the default until an architecture starts:
-    GoReleaser repeats it in every entry, a hand-written manifest may set it
-    once for the whole list.
+    The reader treats `NestedInstallerType` as the default until an
+    `Architecture` line begins an entry: GoReleaser repeats it in every entry,
+    a hand-written manifest may set it once for the whole list.
     """
     installers = {}
     default_type = None

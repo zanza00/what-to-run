@@ -90,3 +90,17 @@ spec and prose axes) found and fixed, in `d11efb3`, `82c0baf` and `295a09b`:
 Left open on purpose: the workflow and `verify-release.sh` share the WinGet
 verification shape, and the `what-to-run-<version>` branch name lives in three
 places, which a comment in `.goreleaser.yaml` tracks.
+
+A writing-for-agents pass on 2026-11-03, after the fixes above, found one
+routing bug and three criterion gaps, fixed in `2d8d25a`:
+
+- Section 5 of `references/recovery.md` routed `WinGet pending` to `komac`,
+  which opens a duplicate pull request while the original is in review. The
+  bullet now routes on the missing pull request and marks `pending` as a
+  pull request already in review.
+- The step 6 legend restated the verifier's `FAIL` message; the script prints
+  that message itself, so the restatement is gone.
+- The step 6 completion criterion now accepts a `pending` WinGet review as
+  done.
+- The WinGet repair names `pending` as its done state, where `the verifier
+  passes again` read as `ok`.

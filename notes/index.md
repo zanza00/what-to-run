@@ -27,3 +27,5 @@ it was true at.
   decisions and the skills they must load.
 - [differential-testing](differential-testing.md) — the recipe for proving
   a rendering refactor byte-identical (unit sweep + binary check).
+- [arch-install-channel](arch-install-channel.md) — the Arch install
+  channels and the AUR removal decision (2026-11-03).

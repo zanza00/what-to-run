@@ -18,7 +18,7 @@ DEFAULT_REPO_URL = "https://github.com/zanza00/what-to-run.git"
 DEFAULT_BRANCH = "gh-pages"
 RPM_DIRECTORY = "rpm"
 SCRIPT_DIR = Path(__file__).resolve().parent
-SETUP_SCRIPTS = ("setup.deb.sh", "setup.rpm.sh")
+SETUP_SCRIPTS = ("setup.deb.sh", "setup.rpm.sh", "setup.arch.sh")
 ARCHITECTURES = ("amd64", "arm64")
 
 DISTRIBUTIONS = """Origin: zanza00

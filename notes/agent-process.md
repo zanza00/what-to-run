@@ -21,6 +21,13 @@ rules that live in `AGENTS.md` (draft PRs, stacked PRs, manual merges,
   `domain-modeling` skill, as decisions land — not in bulk.
 - **2026-11-01**: before any Go task, load `golang-how-to` (repo rule,
   AGENTS.md); before UI code, also `bubbletea`.
+- **2026-11-03**: subagent briefs must inline the implement discipline.
+  Children in this runtime cannot load `implement` through the Skill tool,
+  so briefs say: read `.agents/skills/implement/SKILL.md` and follow it.
+  Children also have no subagent spawner, so the `code-review` skill's two
+  axes run in-context inside a child; only the main session can spawn the
+  axes in parallel. Learned in the AUR-removal implement-spec run (PR
+  #110), where every implementer hit both limits.
 
 ## Recurring gotchas
 
@@ -43,3 +50,8 @@ rules that live in `AGENTS.md` (draft PRs, stacked PRs, manual merges,
   same filename or the title line differs.
 - **2026-11-02**: `git diff main --stat` shows unstaged working-tree state
   too; use the three-dot `git diff main...HEAD` to review only commits.
+- **2026-11-03**: create a ticket's worktree before spawning its
+  implementer. The AUR-removal implementer arrived at a missing worktree and
+  had to build it itself; its brief assumed the worktree existed. The
+  implement-spec dispatch order is: integration branch, ticket worktree,
+  then the brief.

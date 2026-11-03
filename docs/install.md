@@ -11,6 +11,7 @@ installation.
 | [Nix](#nix) | Linux, Apple silicon macOS | `nix profile install github:zanza00/what-to-run` |
 | [apt](#apt) | Debian, Ubuntu | see [apt](#apt) |
 | [dnf](#dnf) | Fedora, RHEL and derivatives | see [dnf](#dnf) |
+| [pacman](#arch-linux) | Arch Linux | see [pacman](#arch-linux) |
 | [Scoop](#scoop) | Windows | see [Scoop](#scoop) |
 
 ## Homebrew
@@ -144,6 +145,41 @@ gpgkey=https://zanza00.github.io/what-to-run/key.asc
 EOF
 sudo dnf install what-to-run
 ```
+
+## Arch Linux
+
+On Arch Linux, add the project's pacman repository and install the package:
+
+```sh
+curl -fsSL https://zanza00.github.io/what-to-run/setup.arch.sh | sudo bash
+sudo pacman -Syu what-to-run
+```
+
+The script is `scripts/setup.arch.sh` in this repository, so you can read it
+before you pipe it to a shell. It imports the repository key, adds
+`[what-to-run]` to `/etc/pacman.conf`, and refreshes the databases. The
+repository supports `x86_64` and `aarch64`.
+
+To use a mirror, set `WTR_REPOSITORY`. To change the pacman configuration
+file, set `WTR_PACMAN_CONF`.
+
+To add the repository by hand:
+
+```sh
+curl -fsSL -o /tmp/what-to-run.asc https://zanza00.github.io/what-to-run/key.asc
+sudo pacman-key --add /tmp/what-to-run.asc
+sudo pacman-key --lsign-key apt@zanza00.github.io
+sudo tee -a /etc/pacman.conf >/dev/null <<'EOF'
+
+[what-to-run]
+Server = https://zanza00.github.io/what-to-run/arch/$arch
+SigLevel = PackageOptional DatabaseRequired
+EOF
+sudo pacman -Syu what-to-run
+```
+
+The repository serves one database per architecture, like the official
+repositories, so pacman expands `$arch`.
 
 ## Scoop
 

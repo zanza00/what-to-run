@@ -71,7 +71,6 @@ jobs:
         id: credentials
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
           NPM_PUBLISH: ${{ vars.NPM_PUBLISH }}
@@ -91,20 +90,6 @@ jobs:
             echo "::warning title=$2::$3"
             return 1
           }
-          # AUR publishing is optional while its secret is unset, because
-          # AUR registration is closed.
-          if optional_channel "$AUR_SSH_PRIVATE_KEY" "AUR publishing skipped" \
-            "Set the AUR_SSH_PRIVATE_KEY secret to publish what-to-run-bin to the AUR."; then
-            umask 077
-            printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/aur_key"
-            if ! ssh-keygen -y -f "$RUNNER_TEMP/aur_key" >/dev/null 2>&1; then
-              echo 'AUR_SSH_PRIVATE_KEY is not a valid unencrypted SSH private key.' >&2
-              exit 1
-            fi
-            echo "AUR_SSH_KEY_FILE=$RUNNER_TEMP/aur_key" >> "$GITHUB_ENV"
-          else
-            echo 'AUR_SSH_KEY_FILE=' >> "$GITHUB_ENV"
-          fi
           # Package repository publishing is optional while its key is unset.
           if optional_channel "$APT_GPG_PRIVATE_KEY" "Package repositories skipped" \
             "Set the APT_GPG_PRIVATE_KEY secret to publish the apt and RPM repositories."; then
@@ -175,9 +160,11 @@ jobs:
             "what-to-run_${version}_darwin_amd64.tar.gz" \
             "what-to-run_${version}_darwin_arm64.tar.gz" \
             "what-to-run_${version}_linux_amd64.deb" \
+            "what-to-run_${version}_linux_amd64.pkg.tar.zst" \
             "what-to-run_${version}_linux_amd64.rpm" \
             "what-to-run_${version}_linux_amd64.tar.gz" \
             "what-to-run_${version}_linux_arm64.deb" \
+            "what-to-run_${version}_linux_arm64.pkg.tar.zst" \
             "what-to-run_${version}_linux_arm64.rpm" \
             "what-to-run_${version}_linux_arm64.tar.gz" \
             "what-to-run_${version}_windows_amd64.zip" \
@@ -225,10 +212,69 @@ jobs:
               -H "Accept: application/vnd.github.raw" | grep -qx "Version: $version"
           done
           scripts/check-rpm-repository.sh "$RELEASE_TAG"
-          for script in setup.deb.sh setup.rpm.sh; do
+          for script in setup.deb.sh setup.rpm.sh setup.arch.sh; do
             gh api "repos/$GITHUB_REPOSITORY/contents/$script?ref=gh-pages" \
               -H "Accept: application/vnd.github.raw" | diff -u "scripts/$script" -
           done
+
+  repo-arch:
+    # The pacman databases need repo-add, which only ships with pacman, so the
+    # job runs in an Arch Linux container. The publish job has already
+    # uploaded the release assets and pushed the apt and RPM repositories, so
+    # this job is the last writer of gh-pages.
+    needs: publish
+    runs-on: ubuntu-latest
+    container: archlinux:base
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+    steps:
+      - name: Install the container tools
+        # gpg and curl are dependencies of pacman, so the image carries them.
+        run: pacman -Sy --noconfirm git python
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Prepare the repository key
+        run: |
+          # The key that signs the apt repository and the RPM packages also
+          # signs the pacman databases.
+          if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
+            umask 077
+            printf '%s\n' "$APT_GPG_PRIVATE_KEY" > "$RUNNER_TEMP/apt_key"
+            echo "APT_GPG_KEY_FILE=$RUNNER_TEMP/apt_key" >> "$GITHUB_ENV"
+          else
+            echo "::warning title=Pacman repository skipped::Set the APT_GPG_PRIVATE_KEY secret to publish the pacman repository."
+            echo 'APT_GPG_KEY_FILE=' >> "$GITHUB_ENV"
+          fi
+      - name: Publish the pacman repository
+        # Publishing is skipped when the GPG secret is unset, so there is
+        # nothing to download in that case.
+        if: env.APT_GPG_KEY_FILE != ''
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          directory=$(mktemp -d)
+          base_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+            -o "$directory/checksums.txt" "$base_url/checksums.txt"
+          for goarch in amd64 arm64; do
+            curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+              -o "$directory/what-to-run_${version}_linux_${goarch}.pkg.tar.zst" \
+              "$base_url/what-to-run_${version}_linux_${goarch}.pkg.tar.zst"
+          done
+          python3 scripts/publish-pacman.py \
+            --tag "$GITHUB_REF_NAME" --artifact "$directory/checksums.txt"
+      - name: Verify the pacman repository
+        if: env.APT_GPG_KEY_FILE != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/check-pacman-repository.sh "$GITHUB_REF_NAME"
 
   verify-npm:
     # The channel is skipped while the repository variable is unset, so there
@@ -258,7 +304,8 @@ jobs:
           # The registry is eventually consistent. A version can answer 404
           # for a few seconds after the publish.
           ready=""
-          for attempt in $(seq 10); do
+          # The counter only bounds the retries. No code reads its value.
+          for _attempt in $(seq 10); do
             if npm view "what-to-run@$version" version >/dev/null 2>&1; then
               ready=yes
               break

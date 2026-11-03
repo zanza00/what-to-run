@@ -26,9 +26,10 @@ archives:
       - goos: windows
         formats: [zip]
 
-# Linux packages: .deb for Debian/Ubuntu and .rpm for Fedora/RHEL.
-# `apt install ./what-to-run_*.deb` or `dnf install ./what-to-run_*.rpm`
-# installs wtr.
+# Linux packages: .deb for Debian/Ubuntu, .rpm for Fedora/RHEL and
+# .pkg.tar.zst for Arch Linux. `apt install ./what-to-run_*.deb`,
+# `dnf install ./what-to-run_*.rpm` or
+# `pacman -U what-to-run_*.pkg.tar.zst` installs wtr.
 nfpms:
   - id: linux
     package_name: what-to-run
@@ -39,11 +40,15 @@ nfpms:
     license: MIT
     section: utils
     priority: optional
-    formats: [deb, rpm]
+    formats: [deb, rpm, archlinux]
     bindir: /usr/bin
     # Same shape as the archives, so every asset name follows one pattern.
     file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     ids: [wtr]
+    archlinux:
+      # .PKGINFO carries the packager, so pacman -Qi names the maintainer
+      # instead of "Unknown Packager".
+      packager: Simone Picciani <codefloe@simonepicciani.it>
     rpm:
       # The key that signs the apt repository also signs the RPM packages, so
       # the RPM repository can serve them with gpgcheck=1. Local snapshot
@@ -82,12 +87,6 @@ publishers:
     cmd: python3 scripts/publish-homebrew.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
     env:
       - GH_TOKEN={{ .Env.HOMEBREW_TAP_TOKEN }}
-  - name: aur
-    checksum: true
-    # The script publishes once for checksums.txt and ignores other artifacts.
-    cmd: python3 scripts/publish-aur.py --tag {{ .Tag }} --artifact {{ .ArtifactPath }}
-    env:
-      - AUR_SSH_KEY_FILE={{ .Env.AUR_SSH_KEY_FILE }}
   - name: packages
     checksum: true
     # The script publishes once for checksums.txt and ignores other artifacts.

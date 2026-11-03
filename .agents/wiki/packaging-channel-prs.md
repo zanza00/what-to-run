@@ -63,3 +63,44 @@ On 2026-11-01 in the evening the maintainer demoted Nix in the README (commit
 Homebrew and mise, the pointer line lists Nix with the other channels, and
 the full section stays in `docs/install.md`. The quick start is not where a
 new channel advertises itself by default.
+
+## PR #62 after its rebase (2026-11-03)
+
+The maintainer rebased `feat/channel-winget` onto `main` at `0d4e441`, leaving
+exactly two commits (`b253ad5`, `76d6eea`). A review on 2026-11-03 (standards,
+spec and prose axes) found and fixed, in `d11efb3`, `82c0baf` and `295a09b`:
+
+- The changelog gate would fail: the PR touches the watched paths `scripts`,
+  `.goreleaser.yaml` and `release.yml` with no `CHANGELOG.md` entry and no
+  `skip-changelog` label. `d11efb3` adds a WinGet entry under
+  `[Unreleased]`/`### Added` that stays honest while the first manifest review
+  in `microsoft/winget-pkgs` is open (microsoft/winget-pkgs#461382).
+- The PR body was stale, not the diff: it listed `docs/development.md` and
+  `AGENTS.md` under Docs, but the one-owner rule in `AGENTS.md` puts those
+  facts in the release skill, which the PR does update. The body was corrected
+  on 2026-11-03; its "61 tests" claim was also pre-rebase, and the suite runs
+  90 tests.
+- `SKILL.md` carried the WinGet repository row twice (a rebase artifact), and
+  `references/recovery.md` still said `warn` where commit `76d6eea` had
+  introduced the `pending` state. The stale text would make a routine review
+  look like a blocker. Both were fixed in `82c0baf`.
+- `295a09b` rewords the passive comments in the checker and rewraps the
+  verifier header, per the comment rules in `AGENTS.md`.
+
+Left open on purpose: the workflow and `verify-release.sh` share the WinGet
+verification shape, and the `what-to-run-<version>` branch name lives in three
+places, which a comment in `.goreleaser.yaml` tracks.
+
+A writing-for-agents pass on 2026-11-03, after the fixes above, found one
+routing bug and three criterion gaps, fixed in `2d8d25a`:
+
+- Section 5 of `references/recovery.md` routed `WinGet pending` to `komac`,
+  which opens a duplicate pull request while the original is in review. The
+  bullet now routes on the missing pull request and marks `pending` as a
+  pull request already in review.
+- The step 6 legend restated the verifier's `FAIL` message; the script prints
+  that message itself, so the restatement is gone.
+- The step 6 completion criterion now accepts a `pending` WinGet review as
+  done.
+- The WinGet repair names `pending` as its done state, where `the verifier
+  passes again` read as `ok`.

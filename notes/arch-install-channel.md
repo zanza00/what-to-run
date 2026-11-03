@@ -44,8 +44,8 @@ true at.
   like the apt and dnf sections, and no `pacman -U` path remains in
   `docs/` or in the `[Unreleased]` changelog entries. The `.pkg.tar.zst`
   stays attached to every release: it is the package the pacman
-  repository serves. The change is the ticket 05 commit on branch
-  `ticket/05-arch-setup-script`, stacked on `chore/stack-findings`
-  (PR #111): it adds `scripts/setup.arch.sh`, ships it from
-  `publish-repo.py`, and checks it in `verify-release.sh` and the
-  release skill.
+  repository serves. The change is commit `ceba63d` on branch
+  `chore/stack-findings` (PR #111), with the follow-up
+  `274e6b0`: it adds `scripts/setup.arch.sh`, ships it from
+  `publish-repo.py`, and checks it in `verify-release.sh`, the release
+  skill and the publish job's gh-pages diff.

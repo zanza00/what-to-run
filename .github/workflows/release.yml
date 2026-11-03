@@ -288,17 +288,8 @@ jobs:
         if: env.APT_GPG_KEY_FILE != ''
         shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          database=$(mktemp)
-          curl -fsSL -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github.raw" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/arch/x86_64/what-to-run.db?ref=gh-pages" \
-            -o "$database"
-          # repo-add names each entry <name>-<version>-<pkgrel>, and the
-          # release packages always carry pkgrel 1.
-          bsdtar -tf "$database" | grep -qxF "what-to-run-$version-1/desc"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/check-pacman-repository.sh "$GITHUB_REF_NAME"
 
   verify-npm:
     # The channel is skipped while the repository variable is unset, so there

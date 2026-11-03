@@ -33,7 +33,7 @@ FILES_DATABASE = "what-to-run.files"
 ARCHITECTURES = (("x86_64", "amd64"), ("aarch64", "arm64"))
 
 
-def render(tag, checksums):
+def package_hashes(tag, checksums):
     """Return the {asset name: SHA-256} map of the release's Arch packages."""
     if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
         raise ValueError("Expected a stable vX.Y.Z tag")
@@ -96,19 +96,20 @@ def _verify_digest(path, digest):
         raise ValueError("SHA-256 mismatch for %s" % path.name)
 
 
-def _settle_database(directory, name):
-    """Leave one real database file named `name`, dropping the .tar.gz twin.
+def _materialize_database(directory, name):
+    """Serve `name` as a real file, keeping the .tar.gz twin for repo-add.
 
     repo-add writes `<name>.tar.gz` and links `name` to it, or the other way
-    around. The repository serves the file under the name pacman requests.
+    around. The repository serves the file under the name pacman requests,
+    while repo-add reads the `.tar.gz` name when the next release appends to
+    the database, so both must exist as real files.
     """
     base = directory / name
     tarball = directory / (name + ".tar.gz")
-    for path in (base, tarball):
-        if path.is_symlink():
-            path.unlink()
+    if base.is_symlink():
+        base.unlink()
     if tarball.is_file():
-        shutil.move(str(tarball), str(base))
+        shutil.copy2(tarball, base)
 
 
 def _build_arch_repository(arch_dir, package, environment):
@@ -127,7 +128,7 @@ def _build_arch_repository(arch_dir, package, environment):
             "it ships with pacman, so run the script on Arch Linux"
         ) from error
     for name in (DATABASE, FILES_DATABASE):
-        _settle_database(arch_dir, name)
+        _materialize_database(arch_dir, name)
 
 
 def _sign(arch_dir, name, environment, fingerprint):
@@ -251,14 +252,11 @@ def main():
     parser.add_argument("--gpg-key-file", type=Path)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    # GoReleaser invokes publishers for each archive and the checksum artifact.
-    if args.artifact.name != "checksums.txt":
-        return
     key_file = args.gpg_key_file or os.environ.get("APT_GPG_KEY_FILE") or None
     if key_file is None and not args.dry_run:
         print("Skipping pacman repository publish: APT_GPG_KEY_FILE is not set")
         return
-    hashes = render(args.tag, args.artifact.read_text())
+    hashes = package_hashes(args.tag, args.artifact.read_text())
     publish(
         args.tag,
         hashes,

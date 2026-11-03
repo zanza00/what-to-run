@@ -161,13 +161,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: |
-          version="${RELEASE_TAG#v}"
-          database=$(mktemp)
-          curl -fsSL -H "Authorization: token $GH_TOKEN" \
-            -H "Accept: application/vnd.github.raw" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/arch/x86_64/what-to-run.db?ref=gh-pages" \
-            -o "$database"
-          # repo-add names each entry <name>-<version>-<pkgrel>, and the
-          # release packages always carry pkgrel 1.
-          bsdtar -tf "$database" | grep -qxF "what-to-run-$version-1/desc"
+        run: scripts/check-pacman-repository.sh "$RELEASE_TAG"

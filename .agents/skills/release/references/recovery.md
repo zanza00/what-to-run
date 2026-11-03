@@ -76,15 +76,8 @@ gh run watch <run-id> --exit-status
 
 It republishes the existing release to the apt, RPM and pacman repositories
 without recreating it, and requires `APT_GPG_PRIVATE_KEY`. The pacman job runs
-`repo-add` inside an Arch Linux container, like the release workflow does.
-To repair the pacman repository from a workstation, run the publisher in the
-same container with the release assets staged next to `checksums.txt`:
-
-```sh
-docker run --rm -it -v "$PWD":/work -w /work archlinux:base bash
-pacman -Sy --noconfirm git python
-python3 scripts/publish-pacman.py --tag vX.Y.Z --artifact dist/checksums.txt
-```
+`repo-add` inside an Arch Linux container, like the release workflow does, so
+the pacman repository cannot be repaired from a workstation that lacks pacman.
 
 ### Homebrew and AUR
 
@@ -165,7 +158,7 @@ still published.
 
 For a channel that is on:
 
-- apt or RPM stale → run the `republish packages` workflow above;
+- apt, RPM or pacman stale → run the `republish packages` workflow above;
 - Homebrew stale → run `publish-homebrew.py` locally;
 - AUR stale → run `publish-aur.py` locally with the key;
 - Scoop stale → update `bucket/what-to-run.json` in the bucket as above;

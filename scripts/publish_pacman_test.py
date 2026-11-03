@@ -14,7 +14,7 @@ publisher = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(publisher)
 
 
-class RenderTest(unittest.TestCase):
+class PackageHashesTest(unittest.TestCase):
     def setUp(self):
         self.entries = {
             "what-to-run_1.2.3_linux_amd64.pkg.tar.zst": "1" * 64,
@@ -22,20 +22,20 @@ class RenderTest(unittest.TestCase):
         }
         self.checksums = "\n".join("%s  %s" % (digest, name) for name, digest in self.entries.items())
 
-    def test_render_returns_the_arch_package_hashes(self):
-        self.assertEqual(publisher.render("v1.2.3", self.checksums), self.entries)
+    def test_package_hashes_returns_the_arch_package_hashes(self):
+        self.assertEqual(publisher.package_hashes("v1.2.3", self.checksums), self.entries)
 
     def test_invalid_inputs_fail_before_publication(self):
         for tag in ("v1.2.3-rc1", "1.2.3", 'v1.2.3"'):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
-                publisher.render(tag, self.checksums)
+                publisher.package_hashes(tag, self.checksums)
         with self.assertRaises(ValueError):
-            publisher.render("v1.2.3", self.checksums.replace("1" * 64, "invalid"))
+            publisher.package_hashes("v1.2.3", self.checksums.replace("1" * 64, "invalid"))
         with self.assertRaises(ValueError):
-            publisher.render("v1.2.3", self.checksums + "\n" + self.checksums.splitlines()[0])
+            publisher.package_hashes("v1.2.3", self.checksums + "\n" + self.checksums.splitlines()[0])
         without_arm = "\n".join(line for line in self.checksums.splitlines() if "arm64" not in line)
         with self.assertRaises(KeyError):
-            publisher.render("v1.2.3", without_arm)
+            publisher.package_hashes("v1.2.3", without_arm)
 
 
 class CloneUrlTest(unittest.TestCase):
@@ -54,23 +54,32 @@ class CloneUrlTest(unittest.TestCase):
         self.assertEqual(ssh, "git@github.com:zanza00/what-to-run.git")
 
 
-class SettleDatabaseTest(unittest.TestCase):
+class MaterializeDatabaseTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
 
-    def test_tarball_with_a_symlink_collapses_to_one_file(self):
+    def test_tarball_with_a_symlink_serves_a_real_file_and_keeps_the_twin(self):
         (self.directory / "what-to-run.db.tar.gz").write_text("database")
         os.symlink("what-to-run.db.tar.gz", self.directory / "what-to-run.db")
-        publisher._settle_database(self.directory, "what-to-run.db")
+        publisher._materialize_database(self.directory, "what-to-run.db")
         self.assertEqual((self.directory / "what-to-run.db").read_text(), "database")
-        self.assertFalse((self.directory / "what-to-run.db.tar.gz").exists())
         self.assertFalse((self.directory / "what-to-run.db").is_symlink())
+        # repo-add appends to the .tar.gz name on the next release, so the
+        # twin must stay.
+        self.assertTrue((self.directory / "what-to-run.db.tar.gz").is_file())
+        self.assertEqual((self.directory / "what-to-run.db.tar.gz").read_text(), "database")
+
+    def test_tarball_refreshes_a_stale_served_file(self):
+        (self.directory / "what-to-run.db.tar.gz").write_text("new database")
+        (self.directory / "what-to-run.db").write_text("old database")
+        publisher._materialize_database(self.directory, "what-to-run.db")
+        self.assertEqual((self.directory / "what-to-run.db").read_text(), "new database")
 
     def test_real_file_without_a_tarball_stays(self):
         (self.directory / "what-to-run.files").write_text("files")
-        publisher._settle_database(self.directory, "what-to-run.files")
+        publisher._materialize_database(self.directory, "what-to-run.files")
         self.assertEqual((self.directory / "what-to-run.files").read_text(), "files")
         self.assertFalse((self.directory / "what-to-run.files.tar.gz").exists())
 
@@ -118,14 +127,6 @@ class PublishTest(unittest.TestCase):
                 contextlib.redirect_stdout(stdout):
             publisher.publish("v1.2.3", hashes, dist_dir=dist)
         self.assertIn("Skipping pacman repository publish", stdout.getvalue())
-
-    def test_archive_invocations_do_not_publish(self):
-        artifact = Path(self.temporary.name) / "archive.tar.gz"
-        artifact.write_text("")
-        with patch("sys.argv", ["publisher", "--tag", "v1.2.3", "--artifact", str(artifact)]), \
-                patch.object(publisher, "publish") as publish:
-            publisher.main()
-        publish.assert_not_called()
 
     def test_missing_key_raises(self):
         dist, artifact, hashes = self._dist()

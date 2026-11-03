@@ -254,7 +254,9 @@ gh run watch "$run_id" --exit-status
 ```
 
 This step is done when the run for the tag is green; `--exit-status` enforces
-it. While `NPM_PUBLISH` is `true`, the run also has a `verify-npm` job, which
+it. After `publish`, a `repo-arch` job publishes the pacman repository from an
+Arch Linux container; it skips with a warning while `APT_GPG_PRIVATE_KEY` is
+unset. While `NPM_PUBLISH` is `true`, the run also has a `verify-npm` job, which
 installs the wrapper on Linux and Windows. On failure, read `gh run view
 "$run_id" --log-failed` and follow `references/recovery.md`.
 
@@ -287,7 +289,8 @@ for and rerun.
 
 Treat a `FAIL` as a real problem even when the workflow is green: the
 verifier, not the workflow, is the source of truth for every channel. For a
-failing channel, inspect the `publish` step of the run, then follow section 5
+failing channel, inspect the `publish` step of the run, or the `repo-arch`
+job when the pacman repository is the failing channel, then follow section 5
 of `references/recovery.md`. If this is the first AUR publish, add the
 `yay -S what-to-run-bin` line to the Arch Linux section of `docs/install.md`.
 This step is done when the verifier prints `N checks, 0 failed` and no

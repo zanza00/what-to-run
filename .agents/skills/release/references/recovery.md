@@ -125,8 +125,9 @@ GITHUB_TOKEN=… komac update zanza00.WhatToRun --version X.Y.Z --urls \
 ```
 
 `komac sync` first brings the fork up to date. The pull request still goes
-through the usual review, and the verifier reports it as `pending` until the
-manifest is merged. To fix a merged manifest, open a follow-up pull request
+through the usual review: the repair is done when the verifier reports the
+channel as `pending`, and the channel moves once a reviewer merges the pull
+request. To fix a merged manifest, open a follow-up pull request
 editing the three files under `manifests/z/zanza00/WhatToRun/<version>`;
 never push to `microsoft/winget-pkgs` directly.
 
@@ -178,7 +179,8 @@ For a channel that is on:
 - Homebrew stale → run `publish-homebrew.py` locally;
 - Scoop stale → update `bucket/what-to-run.json` in the bucket as above;
 - npm stale → rerun the publisher as above;
-- WinGet pending → open the update pull request with `komac` as above.
+- WinGet without an open pull request → `komac` opens it, as above;
+  `pending` means the pull request is open and in review.
 
 After any repair, run the verifier again:
 

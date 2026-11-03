@@ -11,6 +11,7 @@ installation.
 | [Nix](#nix) | Linux, Apple silicon macOS | `nix profile install github:zanza00/what-to-run` |
 | [apt](#apt) | Debian, Ubuntu | see [apt](#apt) |
 | [dnf](#dnf) | Fedora, RHEL and derivatives | see [dnf](#dnf) |
+| [pacman](#arch-linux) | Arch Linux | see [pacman](#arch-linux) |
 | [Scoop](#scoop) | Windows | see [Scoop](#scoop) |
 
 ## Homebrew

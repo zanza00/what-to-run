@@ -112,7 +112,7 @@ git -C "$tmp/bucket" push
 
 ### WinGet
 
-The manifest lives in `microsoft/winget-pkgs` and arrives through a pull
+The manifest lives in `microsoft/winget-pkgs` and goes in through a pull
 request from the `zanza00/winget-pkgs` fork, so a failed push leaves the
 channel at the previous version until someone opens that pull request. When
 the automation did not, `komac` opens it from the released assets:
@@ -125,11 +125,10 @@ GITHUB_TOKEN=… komac update zanza00.WhatToRun --version X.Y.Z --urls \
 ```
 
 `komac sync` first brings the fork up to date. The pull request still goes
-through the usual review, so the release is not broken while it waits: the
-verifier reports it as a `warn` until the manifest is merged. To fix a merged
-manifest, open a follow-up pull request editing the three files under
-`manifests/z/zanza00/WhatToRun/<version>`; never push to `microsoft/winget-pkgs`
-directly.
+through the usual review, and the verifier reports it as `pending` until the
+manifest is merged. To fix a merged manifest, open a follow-up pull request
+editing the three files under `manifests/z/zanza00/WhatToRun/<version>`;
+never push to `microsoft/winget-pkgs` directly.
 
 ### npm
 

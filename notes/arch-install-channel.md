@@ -46,6 +46,7 @@ true at.
   stays attached to every release: it is the package the pacman
   repository serves. The change is commit `ceba63d` on branch
   `chore/stack-findings` (PR #111), with the follow-up
-  `274e6b0`: it adds `scripts/setup.arch.sh`, ships it from
-  `publish-repo.py`, and checks it in `verify-release.sh`, the release
-  skill and the publish job's gh-pages diff.
+  `274e6b0`: commit `ceba63d` adds `scripts/setup.arch.sh`, ships it
+  from `publish-repo.py`, and checks it in `verify-release.sh` and the
+  release skill; commit `274e6b0` adds the publish job's gh-pages diff
+  of the script.

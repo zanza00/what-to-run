@@ -10,10 +10,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Added a pacman repository for Arch Linux: the one-line setup script
-  `setup.arch.sh` configures the signed pacman repository, then
-  `pacman -Syu what-to-run` installs `wtr` and keeps it updated with the
-  system. The repository serves one database per architecture.
+- Added a pacman repository for Arch Linux: `sudo pacman -Syu what-to-run`
+  installs `wtr` and keeps it updated with the system. The repository serves
+  one database per architecture.
+- Added the one-line setup script `setup.arch.sh`, which imports the
+  repository key, appends the `[what-to-run]` repository to `/etc/pacman.conf`,
+  and refreshes the databases. Run it with
+  `curl -fsSL https://zanza00.github.io/what-to-run/setup.arch.sh | sudo bash`.
 - Added an Arch Linux package to every release: the release carries
   `what-to-run_<version>_linux_<arch>.pkg.tar.zst`.
 - Added npm as an install channel: `npm install -g what-to-run` installs a small

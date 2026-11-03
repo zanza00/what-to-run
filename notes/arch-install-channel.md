@@ -50,3 +50,10 @@ true at.
   from `publish-repo.py`, and checks it in `verify-release.sh` and the
   release skill; commit `274e6b0` adds the publish job's gh-pages diff
   of the script.
+- **2026-11-03**: the maintainer merged the whole arch stack into `main`
+  by rebase, so the commit hashes changed. The branch hashes in the
+  claims above were true at commits that now live only in the deleted
+  branches; on `main` the same work, patch for patch, is: PR #107
+  `e5a6a4b`, PR #108 `ef97d8c` and `34319d0`, PR #110 `39d2e07`,
+  `880fc35` and `738f575`, PR #111 `ad7dbe8`, `30b5692` and `feab937`.
+  This claim is the index that keeps the citations resolvable.

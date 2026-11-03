@@ -69,6 +69,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   command too: the pipenv documentation presents that shape, and
   `pipenv run <name>` runs it either way. A table of any other shape stays
   out of the list.
+- Added WinGet as an install channel: `winget install zanza00.WhatToRun`
+  installs `wtr` with a native ARM64 build. The channel goes live once the
+  first manifest review in `microsoft/winget-pkgs` completes.
 
 ### Changed
 

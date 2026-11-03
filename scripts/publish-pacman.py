@@ -29,7 +29,10 @@ FILES_DATABASE = "what-to-run.files"
 # A pacman database keys its entries by package name and version only, so the
 # database of one architecture would overwrite the other. The repository
 # serves one database per architecture under arch/<arch>, and the pacman.conf
-# server expands $arch, like the official repositories do.
+# server expands $arch, like the official repositories do. The database keeps
+# one entry per package name, the newest: repo-add removes the older entry
+# when it adds a newer release. The directory keeps every published package,
+# like the RPM directory, so a manual pacman -U can still downgrade.
 ARCHITECTURES = (("x86_64", "amd64"), ("aarch64", "arm64"))
 
 

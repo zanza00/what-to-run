@@ -25,7 +25,7 @@ moved; step 4 marks the point of no return.
 | Scoop | `bucket/what-to-run.json` in `zanza00/scoop-bucket` |
 | apt | `dists/stable/main/binary-{amd64,arm64}/Packages` on `gh-pages` |
 | RPM | `rpm/repodata/primary.xml.gz` and `repomd.xml.asc` on `gh-pages` |
-| pacman | `arch/{x86_64,aarch64}/what-to-run.db` on `gh-pages` |
+| pacman | `arch/{x86_64,aarch64}/what-to-run.db` on `gh-pages`; the database lists the newest release only, while the directories keep every published package |
 | Setup scripts | `setup.deb.sh` and `setup.rpm.sh` at the root of `gh-pages` |
 | AUR | `what-to-run-bin` |
 | npm | `what-to-run` plus the six platform packages `what-to-run-<os>-<arch>` |

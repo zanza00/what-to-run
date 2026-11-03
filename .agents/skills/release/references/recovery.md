@@ -13,10 +13,10 @@ gh run view "$run_id" --log-failed
 The workflow jobs are `validate`, `checks` (the reusable `checks.yml`) and
 `publish`, plus `repo-arch` after it, which publishes the pacman repository
 and skips while `APT_GPG_PRIVATE_KEY` is unset, and `verify-npm` when
-`NPM_PUBLISH` is `true`. Only `publish`
-creates the GitHub release and updates the package channels; `repo-arch` and
-`verify-npm` only check or add to what `publish` already published, so a
-failure there changes nothing — repair them as in their sections below.
+`NPM_PUBLISH` is `true`. Only `publish` creates the GitHub release and
+updates the package channels; `repo-arch` and `verify-npm` only check or add
+to what `publish` published, so a failure there changes nothing. Repair them
+as in their sections below.
 
 First question: does the release exist?
 
@@ -77,7 +77,7 @@ gh run watch <run-id> --exit-status
 It republishes the existing release to the apt, RPM and pacman repositories
 without recreating it, and requires `APT_GPG_PRIVATE_KEY`. The pacman job runs
 `repo-add` inside an Arch Linux container, like the release workflow does, so
-the pacman repository cannot be repaired from a workstation that lacks pacman.
+you cannot repair the pacman repository from a workstation that lacks pacman.
 
 ### Homebrew
 

@@ -13,11 +13,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Added a pacman repository for Arch Linux: import the published repository
   key once, add `[what-to-run]` to `/etc/pacman.conf`, and
   `pacman -Syu what-to-run` installs `wtr` and keeps it updated with the
-  system. The repository serves one database per architecture and does not
-  need the AUR.
+  system. The repository serves one database per architecture.
 - Added an Arch Linux package to every release: the release carries
   `what-to-run_<version>_linux_<arch>.pkg.tar.zst`, and
-  `sudo pacman -U <file>` installs `wtr` without the AUR.
+  `sudo pacman -U <file>` installs `wtr`.
 - Added npm as an install channel: `npm install -g what-to-run` installs a small
   launcher plus one optional dependency per platform that contains the Go
   binary, and runs no install script. It is the shortest install path on

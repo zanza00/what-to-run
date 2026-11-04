@@ -50,3 +50,7 @@ it was true at.
   (2026-11-04): the frame is data — the styled rows, the placed boxes, the
   list row count — with `buildFrame` as its only writer and `paint` at the
   View edge.
+- [windowing](windowing.md) — the settled piece-4 design (2026-11-05): one
+  window module — the cursor, the offset, operations that settle, one render
+  read and one cursor read — serves the task list, the theme picker and the
+  warning list at height one.

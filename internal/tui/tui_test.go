@@ -1093,8 +1093,8 @@ func TestEnterRunsInPlaceFullscreen(t *testing.T) {
 	if m.chosen != nil {
 		t.Error("fullscreen enter should not mark a task to run after quitting")
 	}
-	if !strings.Contains(m.status, "running build") {
-		t.Errorf("status after enter = %q, want it to mention the running task", m.status)
+	if want := (status{kind: statusRunning, text: "running build…"}); m.status != want {
+		t.Errorf("status after enter = %+v, want %+v", m.status, want)
 	}
 }
 
@@ -1102,13 +1102,25 @@ func TestTaskDoneStatus(t *testing.T) {
 	m := update(sized(Options{}), enterKey)
 
 	done := update(m, taskDoneMsg{task: m.tasks[0]})
-	if !strings.Contains(done.status, "✓ build") {
-		t.Errorf("status after a successful run = %q, want it to start with a check mark", done.status)
+	if done.status.kind != statusOk {
+		t.Errorf("status kind after a successful run = %d, want statusOk", done.status.kind)
+	}
+	if !strings.HasPrefix(done.status.text, "✓ build (") || !strings.HasSuffix(done.status.text, ")") {
+		t.Errorf("status after a successful run = %q, want the check mark and the elapsed time", done.status.text)
+	}
+	// The model holds the status as data, and this is the one assertion that
+	// reads it through the paint: the help line that the picker draws
+	// carries the active status.
+	if got := done.View().Content; !strings.Contains(got, "✓ build (") {
+		t.Errorf("the help line does not carry the status:\n%s", got)
 	}
 
 	failed := update(m, taskDoneMsg{task: m.tasks[0], err: errors.New("exit status 1")})
-	if !strings.Contains(failed.status, "✗ build") || !strings.Contains(failed.status, "exit status 1") {
-		t.Errorf("status after a failed run = %q, want the error", failed.status)
+	if failed.status.kind != statusErr {
+		t.Errorf("status kind after a failed run = %d, want statusErr", failed.status.kind)
+	}
+	if !strings.HasPrefix(failed.status.text, "✗ build (") || !strings.HasSuffix(failed.status.text, "): exit status 1") {
+		t.Errorf("status after a failed run = %q, want the check mark and the error", failed.status.text)
 	}
 }
 

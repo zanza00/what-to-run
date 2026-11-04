@@ -140,7 +140,7 @@ type warningDismissedMsg struct {
 // status line and closes the box.
 func (m *model) applyWarningDismissed(msg warningDismissedMsg) {
 	if msg.err != nil {
-		m.status = m.styles.err.Render(fmt.Sprintf("cannot save dismissed warning: %v", msg.err))
+		m.status = status{kind: statusErr, text: fmt.Sprintf("cannot save dismissed warning: %v", msg.err)}
 		m.warningModal = false
 		return
 	}

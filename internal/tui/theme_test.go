@@ -248,6 +248,35 @@ func TestThemePickerPreviewsLive(t *testing.T) {
 	}
 }
 
+// TestThemePickerPreviewRestylesTheStatusLine pins why the status is data: a
+// status written under one theme keeps its text, and the help line paints it
+// in the styles of the theme that the preview shows.
+func TestThemePickerPreviewRestylesTheStatusLine(t *testing.T) {
+	// The running task leaves a status on the help line, painted by classic.
+	m := update(sized(Options{}), enterKey)
+	if want := (status{kind: statusRunning, text: "running build…"}); m.status != want {
+		t.Fatalf("status after enter = %+v, want %+v", m.status, want)
+	}
+	before := m.helpLine(80)
+
+	previewed := update(update(m, ctrlTKey), downKey) // nord
+	if previewed.status != m.status {
+		t.Errorf("the status did not keep its data under the preview: %+v, want %+v", previewed.status, m.status)
+	}
+	// nord paints its dim text in #4C566A; classic paints it in the ANSI
+	// slot 241.
+	got := previewed.helpLine(80)
+	if !strings.Contains(got, "running build…") {
+		t.Errorf("the previewed help line does not carry the status text:\n%q", got)
+	}
+	if !strings.Contains(got, "38;2;76;86;106") {
+		t.Errorf("the previewed help line does not wear nord:\n%q", got)
+	}
+	if strings.Contains(before, "38;2;76;86;106") {
+		t.Errorf("the help line wore nord before the preview:\n%q", before)
+	}
+}
+
 func TestThemePickerConfirmAndCancel(t *testing.T) {
 	env, _ := testEnv(t)
 
@@ -264,8 +293,8 @@ func TestThemePickerConfirmAndCancel(t *testing.T) {
 	if m.notice == "" {
 		t.Error("enter did not confirm the save with a notice")
 	}
-	if m.status != "" {
-		t.Errorf("status after saving = %q, want it untouched", ansi.Strip(m.status))
+	if m.status.kind != statusNone {
+		t.Errorf("status kind after saving = %d, want none", m.status.kind)
 	}
 	if got := m.View().Content; strings.Contains(got, "╰") {
 		t.Errorf("the box is still drawn after enter:\n%s", got)
@@ -509,8 +538,8 @@ func TestThemePickerSavesTheChoice(t *testing.T) {
 	if got := m.View().Content; !strings.Contains(got, "saved to") {
 		t.Errorf("the view does not show the toast:\n%s", got)
 	}
-	if m.status != "" {
-		t.Errorf("status after saving = %q, want it untouched", ansi.Strip(m.status))
+	if m.status.kind != statusNone {
+		t.Errorf("status kind after saving = %d, want none", m.status.kind)
 	}
 	data, ok := files[env.UserFile]
 	if !ok {
@@ -605,8 +634,8 @@ func TestThemePickerSaveFailureStaysInTheStatusLine(t *testing.T) {
 	if m.notice != "" {
 		t.Errorf("notice after a failed save = %q, want none", m.notice)
 	}
-	if got := ansi.Strip(m.status); !strings.Contains(got, "cannot save theme nord: disk full") {
-		t.Errorf("status after a failed save = %q, want the error", got)
+	if want := (status{kind: statusErr, text: "cannot save theme nord: disk full"}); m.status != want {
+		t.Errorf("status after a failed save = %+v, want %+v", m.status, want)
 	}
 	if _, ok := files[env.UserFile]; ok {
 		t.Error("a failed save wrote the user rc file")

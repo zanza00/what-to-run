@@ -83,6 +83,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The `ctrl+t` theme preview now restyles the status line together with the
+  rest of the picker. Before, the message of the last run, or of a failed
+  save, kept the colors of the theme that was active when it was written, so
+  the status line did not follow the preview.
 - Pressing `d` on a warning now dismisses it for good. The persisted dismissal
   no longer holds the warning text but a stable identity, so it survives a
   release that rewords the message, it follows the same broken source file

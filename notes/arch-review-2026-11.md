@@ -100,6 +100,9 @@ core review and the TUI review converged on it from both sides of the seam.
 
 ## Measurements (2026-11-04, Intel N150, Go 1.27.3, benchstat medians)
 
+The benchmark source, the full baseline table and the profile highlights
+live in [arch-bench-2026-11](arch-bench-2026-11.md). Headlines:
+
 - A modal-closed frame costs 145-500 µs and task count does not matter
   (1000 tasks ≈ 100): windowing and the snapshot absorb it.
 - A modal-open frame costs 0.9-3.2 ms, 1.10 MiB/op, 2228 allocs/op; the
@@ -148,7 +151,8 @@ core review and the TUI review converged on it from both sides of the seam.
 
 ## The attack plan (2026-11-04)
 
-The maintainer asked to attack all candidates in order, one spec per piece.
+The living progress table lives in [attack-plan](attack-plan.md). The
+maintainer asked to attack all candidates in order, one spec per piece.
 Drafted order: 1) warning identity; 2) FP7; 3) FP2 with the empty state;
 4) FP6; 5) FP5; 6) FP3; 7) FP1 with Preview; 8) parser frame; 9) justfile
 scanners and split; 10) discovery read/walk; 11) core test friction; 12) the

@@ -639,8 +639,8 @@ func TestViewFullscreenFillsHeightAndScrolls(t *testing.T) {
 	for range 8 {
 		m = update(m, downKey)
 	}
-	if m.cursor != 8 {
-		t.Fatalf("cursor = %d, want 8", m.cursor)
+	if m.listWin.cursor != 8 {
+		t.Fatalf("cursor = %d, want 8", m.listWin.cursor)
 	}
 
 	got := m.View().Content
@@ -833,7 +833,7 @@ func TestTaskSnapshotFollowsRefresh(t *testing.T) {
 	files[filepath.Join(env.Dir, "Makefile")] = "build:\n\t@echo build\n"
 
 	m := press(sized(Options{Env: env}), "build")
-	m.cursor, m.offset = 1, 1
+	m.listWin = window{cursor: 1, offset: 1}
 
 	// Saving a theme re-discovers the task sources.
 	m = update(m, ctrlTKey)
@@ -853,8 +853,8 @@ func TestTaskSnapshotFollowsRefresh(t *testing.T) {
 	if !slices.Equal(got, []string{"build"}) {
 		t.Errorf("visible tasks after the refresh = %v, want the new Makefile target", got)
 	}
-	if m.cursor != 0 || m.offset != 0 {
-		t.Errorf("cursor and offset after the refresh = %d and %d, want 0 and 0", m.cursor, m.offset)
+	if m.listWin != (window{cursor: 0, offset: 0}) {
+		t.Errorf("cursor and offset after the refresh = %d and %d, want 0 and 0", m.listWin.cursor, m.listWin.offset)
 	}
 	if got, want := m.snapshot.commandWidth, commandWidthFor(want, m.shell); got != want {
 		t.Errorf("command width after the refresh = %d, want %d", got, want)
@@ -1091,9 +1091,9 @@ func TestEmptyStateKeys(t *testing.T) {
 				t.Fatalf("%s in the empty state returned %v, want no command", key.name, cmd)
 			}
 			after := next.(model)
-			if after.filter != "" || after.cursor != 0 || after.offset != 0 {
-				t.Errorf("state after %s = filter %q, cursor %d, offset %d, want zeroed",
-					key.name, after.filter, after.cursor, after.offset)
+			if after.filter != "" || after.listWin != (window{}) {
+				t.Errorf("state after %s = filter %q, window %+v, want zeroed",
+					key.name, after.filter, after.listWin)
 			}
 			if after.themeModal || after.warningModal || after.fullscreen {
 				t.Errorf("state after %s opened a modal or took the full screen", key.name)
@@ -1165,38 +1165,38 @@ func TestNavigation(t *testing.T) {
 
 	m = update(m, downKey)
 	m = update(m, downKey)
-	if m.cursor != 2 {
-		t.Errorf("cursor after two downs = %d, want 2", m.cursor)
+	if m.listWin.cursor != 2 {
+		t.Errorf("cursor after two downs = %d, want 2", m.listWin.cursor)
 	}
 
 	m = update(m, upKey)
 	m = update(m, upKey)
 	m = update(m, upKey) // clamped at the top
-	if m.cursor != 0 {
-		t.Errorf("cursor after ups = %d, want 0", m.cursor)
+	if m.listWin.cursor != 0 {
+		t.Errorf("cursor after ups = %d, want 0", m.listWin.cursor)
 	}
 
 	m = update(m, endKey)
-	if m.cursor != 3 {
-		t.Errorf("cursor after end = %d, want 3", m.cursor)
+	if m.listWin.cursor != 3 {
+		t.Errorf("cursor after end = %d, want 3", m.listWin.cursor)
 	}
 	m = update(m, downKey) // clamped at the bottom
-	if m.cursor != 3 {
-		t.Errorf("cursor after down at the bottom = %d, want 3", m.cursor)
+	if m.listWin.cursor != 3 {
+		t.Errorf("cursor after down at the bottom = %d, want 3", m.listWin.cursor)
 	}
 
 	m = update(m, homeKey)
-	if m.cursor != 0 {
-		t.Errorf("cursor after home = %d, want 0", m.cursor)
+	if m.listWin.cursor != 0 {
+		t.Errorf("cursor after home = %d, want 0", m.listWin.cursor)
 	}
 
 	m = update(m, pgDownKey)
-	if m.cursor != 3 {
-		t.Errorf("cursor after pgdown = %d, want 3", m.cursor)
+	if m.listWin.cursor != 3 {
+		t.Errorf("cursor after pgdown = %d, want 3", m.listWin.cursor)
 	}
 	m = update(m, pgUpKey)
-	if m.cursor != 0 {
-		t.Errorf("cursor after pgup = %d, want 0", m.cursor)
+	if m.listWin.cursor != 0 {
+		t.Errorf("cursor after pgup = %d, want 0", m.listWin.cursor)
 	}
 }
 

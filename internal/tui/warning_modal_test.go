@@ -185,12 +185,12 @@ func TestWarningModalMultipleWarnings(t *testing.T) {
 	}
 
 	m = update(m, homeKey)
-	if m.warningIdx != 0 {
-		t.Errorf("warningIdx after home = %d, want 0", m.warningIdx)
+	if m.warnWin.cursor != 0 {
+		t.Errorf("warning window after home = %d, want 0", m.warnWin.cursor)
 	}
 	m = update(m, endKey)
-	if m.warningIdx != 1 {
-		t.Errorf("warningIdx after end = %d, want 1", m.warningIdx)
+	if m.warnWin.cursor != 1 {
+		t.Errorf("warning window after end = %d, want 1", m.warnWin.cursor)
 	}
 
 	// Pressing d on warning 2 dismisses it and advances to warning 1, which is
@@ -199,8 +199,8 @@ func TestWarningModalMultipleWarnings(t *testing.T) {
 	next, cmd := m.Update(dKey)
 	m = next.(model)
 	m = update(m, execCmd(t, cmd))
-	if !m.warningModal || m.warningIdx != 0 {
-		t.Errorf("after dismissing warning 2: modal = %v, idx = %d; want open on 0", m.warningModal, m.warningIdx)
+	if !m.warningModal || m.warnWin.cursor != 0 {
+		t.Errorf("after dismissing warning 2: modal = %v, idx = %d; want open on 0", m.warningModal, m.warnWin.cursor)
 	}
 	next, cmd = m.Update(dKey)
 	m = next.(model)

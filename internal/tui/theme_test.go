@@ -176,7 +176,7 @@ func TestListThemes(t *testing.T) {
 
 func TestUnknownThemeWarnsAndFallsBack(t *testing.T) {
 	m := newModel(Options{Theme: "nope"}, sampleTasks(), nil)
-	if got := themes[m.themeIdx].name; got != defaultTheme {
+	if got := themes[m.themeWin.cursor].name; got != defaultTheme {
 		t.Errorf("theme after an unknown name = %q, want %q", got, defaultTheme)
 	}
 	if len(m.warnings) == 0 || !strings.Contains(m.warnings[0].Error(), `"nope"`) {
@@ -194,8 +194,8 @@ func TestCtrlTOpensTheThemePicker(t *testing.T) {
 	if !m.themeModal {
 		t.Fatal("ctrl+t did not open the theme picker")
 	}
-	if m.themeIdx != 0 || m.themeBefore != 0 {
-		t.Errorf("opening the picker changed the theme: idx = %d, before = %d", m.themeIdx, m.themeBefore)
+	if m.themeWin.cursor != 0 || m.themeBefore != 0 {
+		t.Errorf("opening the picker changed the theme: idx = %d, before = %d", m.themeWin.cursor, m.themeBefore)
 	}
 	if m.filter != "" {
 		t.Errorf("filter after ctrl+t = %q, want empty (it opens the picker, it does not type)", m.filter)
@@ -206,7 +206,7 @@ func TestThemePickerPreviewsLive(t *testing.T) {
 	m := update(sized(Options{}), ctrlTKey)
 
 	m = update(m, downKey)
-	if got := themes[m.themeIdx].name; got != "nord" {
+	if got := themes[m.themeWin.cursor].name; got != "nord" {
 		t.Errorf("theme after one down = %q, want nord", got)
 	}
 	// The preview is live, so the task list behind the box wears the tint of
@@ -227,7 +227,7 @@ func TestThemePickerPreviewsLive(t *testing.T) {
 	}
 
 	m = update(m, upKey)
-	if got := themes[m.themeIdx].name; got != defaultTheme {
+	if got := themes[m.themeWin.cursor].name; got != defaultTheme {
 		t.Errorf("theme after one up = %q, want %q", got, defaultTheme)
 	}
 
@@ -235,16 +235,16 @@ func TestThemePickerPreviewsLive(t *testing.T) {
 	for range len(themes) {
 		m = update(m, upKey)
 	}
-	if m.themeIdx != 0 {
-		t.Errorf("theme after scrolling past the top = %d, want 0", m.themeIdx)
+	if m.themeWin.cursor != 0 {
+		t.Errorf("theme after scrolling past the top = %d, want 0", m.themeWin.cursor)
 	}
 	m = update(m, endKey)
-	if m.themeIdx != len(themes)-1 {
-		t.Errorf("theme after end = %d, want %d", m.themeIdx, len(themes)-1)
+	if m.themeWin.cursor != len(themes)-1 {
+		t.Errorf("theme after end = %d, want %d", m.themeWin.cursor, len(themes)-1)
 	}
 	m = update(m, homeKey)
-	if m.themeIdx != 0 {
-		t.Errorf("theme after home = %d, want 0", m.themeIdx)
+	if m.themeWin.cursor != 0 {
+		t.Errorf("theme after home = %d, want 0", m.themeWin.cursor)
 	}
 }
 
@@ -287,8 +287,8 @@ func TestThemePickerConfirmAndCancel(t *testing.T) {
 	next, cmd := m.Update(enterKey)
 	m = next.(model)
 	m = update(m, execCmd(t, cmd))
-	if m.themeModal || m.themeIdx != 1 {
-		t.Errorf("after enter: modal = %v, theme = %d; want closed on 1", m.themeModal, m.themeIdx)
+	if m.themeModal || m.themeWin.cursor != 1 {
+		t.Errorf("after enter: modal = %v, theme = %d; want closed on 1", m.themeModal, m.themeWin.cursor)
 	}
 	if m.notice == "" {
 		t.Error("enter did not confirm the save with a notice")
@@ -306,8 +306,8 @@ func TestThemePickerConfirmAndCancel(t *testing.T) {
 	next, cmd = m.Update(ctrlTKey)
 	m = next.(model)
 	m = update(m, execCmd(t, cmd))
-	if m.themeModal || m.themeIdx != 1 {
-		t.Errorf("after ctrl+t: modal = %v, theme = %d; want closed on 1", m.themeModal, m.themeIdx)
+	if m.themeModal || m.themeWin.cursor != 1 {
+		t.Errorf("after ctrl+t: modal = %v, theme = %d; want closed on 1", m.themeModal, m.themeWin.cursor)
 	}
 
 	// esc cancels. The theme from before the picker comes back, and the press
@@ -317,8 +317,8 @@ func TestThemePickerConfirmAndCancel(t *testing.T) {
 	m = update(m, downKey)
 	next, cmd = m.Update(escKey)
 	m = next.(model)
-	if m.themeModal || m.themeIdx != 0 {
-		t.Errorf("after esc: modal = %v, theme = %d; want closed on the original 0", m.themeModal, m.themeIdx)
+	if m.themeModal || m.themeWin.cursor != 0 {
+		t.Errorf("after esc: modal = %v, theme = %d; want closed on the original 0", m.themeModal, m.themeWin.cursor)
 	}
 	if m.filter != "npm" {
 		t.Errorf("filter after esc in the picker = %q, want %q", m.filter, "npm")
@@ -336,8 +336,8 @@ func TestThemePickerIgnoresTyping(t *testing.T) {
 	if !m.themeModal {
 		t.Error("typing closed the theme picker")
 	}
-	if m.themeIdx != 0 {
-		t.Errorf("theme after typing = %d, want 0", m.themeIdx)
+	if m.themeWin.cursor != 0 {
+		t.Errorf("theme after typing = %d, want 0", m.themeWin.cursor)
 	}
 }
 
@@ -488,8 +488,8 @@ func TestThemePickerWindowsTheList(t *testing.T) {
 	}
 
 	m = update(m, endKey)
-	if want := len(themes) - themeModalListRows; m.themeOffset != want {
-		t.Errorf("offset after scrolling to the end = %d, want %d", m.themeOffset, want)
+	if want := len(themes) - themeModalListRows; m.themeWin.offset != want {
+		t.Errorf("offset after scrolling to the end = %d, want %d", m.themeWin.offset, want)
 	}
 	got = m.View().Content
 	if !strings.Contains(got, " mono ") {

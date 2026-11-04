@@ -40,22 +40,9 @@ func themeModalRows(h int) int {
 	return min(len(themes), themeModalListRows, max(h-boxChrome, 1))
 }
 
-// themeModalWindow returns how many theme rows the box shows right now.
-func (m model) themeModalWindow() int {
+// themeModalVisibleRows returns how many theme rows the box shows right now.
+func (m model) themeModalVisibleRows() int {
 	return themeModalRows(m.themeModalHeight())
-}
-
-// keepThemeVisible scrolls the window so that the previewed theme stays inside
-// it.
-func (m *model) keepThemeVisible() {
-	h := m.themeModalWindow()
-	m.themeOffset = min(max(m.themeOffset, 0), max(len(themes)-h, 0))
-	if m.themeIdx < m.themeOffset {
-		m.themeOffset = m.themeIdx
-	}
-	if m.themeIdx >= m.themeOffset+h {
-		m.themeOffset = m.themeIdx - h + 1
-	}
 }
 
 // themeModalLines renders the theme picker box: the title and the position on
@@ -65,7 +52,7 @@ func (m *model) keepThemeVisible() {
 func (m model) themeModalLines(h, w int) []string {
 	nameCol, innerW := themeModalLayout(w)
 	n := themeModalRows(h)
-	off := min(m.themeOffset, max(len(themes)-n, 0))
+	off, _ := m.themeWin.visibleRange(len(themes), n)
 
 	up, down := "", ""
 	if off > 0 {
@@ -74,13 +61,13 @@ func (m model) themeModalLines(h, w int) []string {
 	if off+n < len(themes) {
 		down = " ↓"
 	}
-	title := fmt.Sprintf(" %sthemes %d/%d%s ", up, m.themeIdx+1, len(themes), down)
+	title := fmt.Sprintf(" %sthemes %d/%d%s ", up, m.themeWin.cursor+1, len(themes), down)
 
 	// One row holds one visible theme. The themeModalRow call already pads
 	// each row to innerW, so the box adds no padding of its own.
 	rows := make([]string, 0, n)
 	for i := off; i < off+n; i++ {
-		rows = append(rows, themeModalRow(m.themeAt(i), i == m.themeIdx, nameCol, innerW))
+		rows = append(rows, themeModalRow(m.themeAt(i), i == m.themeWin.cursor, nameCol, innerW))
 	}
 
 	// The hints are content, so the caller drops them when they do not fit.
@@ -96,7 +83,7 @@ func (m model) themeModalLines(h, w int) []string {
 		title:  title,
 		body:   rows,
 		footer: m.styles.dim.Render(hints),
-		border: m.themeAt(m.themeIdx).accent,
+		border: m.themeAt(m.themeWin.cursor).accent,
 		innerW: innerW,
 	}
 	return b.render(h, w)

@@ -46,7 +46,7 @@ type Env struct {
 // It reads the rc file first, and its problems become warnings, then it reads
 // every source. The warnings are returned even when tasks were found, because
 // the picker shows them in the status line.
-func (e Env) discover() ([]core.Task, config.Config, []error) {
+func (e Env) discover() ([]core.Task, config.Config, []core.Warning) {
 	cfg, warnings := config.Load(e.Files, config.Paths{
 		Project:      e.ProjectFile,
 		Global:       e.UserFile,

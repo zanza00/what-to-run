@@ -1,12 +1,12 @@
 package tui
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/zanza00/what-to-run/internal/core"
 )
 
 var (
@@ -16,8 +16,9 @@ var (
 
 func TestWarningModalOpensAtStartAndKeepsBottomChrome(t *testing.T) {
 
-	longErr := errors.New("rc file /home/zanza00/.config/what-to-run/config.toml: strict mode: fields in the document are missing in the target struct")
-	m := update(newModel(Options{}, sampleTasks(), []error{longErr}),
+	longErr := core.NewRCWarning("user", "syntax", "",
+		"rc file /home/zanza00/.config/what-to-run/config.toml: strict mode: fields in the document are missing in the target struct")
+	m := update(newModel(Options{}, sampleTasks(), []core.Warning{longErr}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	if !m.warningModal {
@@ -58,7 +59,8 @@ func TestWarningModalOpensAtStartAndKeepsBottomChrome(t *testing.T) {
 func TestWarningModalCloseAndReopenWithCtrlW(t *testing.T) {
 
 	for _, closeKey := range []tea.KeyPressMsg{enterKey, escKey, ctrlWKey} {
-		m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
+		m := update(newModel(Options{}, sampleTasks(), []core.Warning{
+			core.NewSourceWarning("cargo-make", "Makefile.toml", "Makefile.toml: boom")}),
 			tea.WindowSizeMsg{Width: 80, Height: 24})
 		m.filter = "build"
 
@@ -97,7 +99,8 @@ func TestWarningModalCloseAndReopenWithCtrlW(t *testing.T) {
 
 func TestWarningModalIgnoresTyping(t *testing.T) {
 
-	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
+	m := update(newModel(Options{}, sampleTasks(), []core.Warning{
+		core.NewSourceWarning("cargo-make", "Makefile.toml", "Makefile.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = press(m, "npm")
 	if m.filter != "" {
@@ -110,8 +113,9 @@ func TestWarningModalIgnoresTyping(t *testing.T) {
 
 func TestWarningModalDismissWithD(t *testing.T) {
 	env, files := testEnv(t)
-	warn := errors.New("rc file ~/.config/what-to-run/config.toml: unknown theme \"nope\"")
-	m := update(newModel(Options{Env: env}, sampleTasks(), []error{warn}),
+	warn := core.NewThemeWarning("user", "nope",
+		"rc file ~/.config/what-to-run/config.toml: unknown theme \"nope\"")
+	m := update(newModel(Options{Env: env}, sampleTasks(), []core.Warning{warn}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 	if !m.warningModal {
 		t.Fatal("warningModal did not open for a new warning")
@@ -126,17 +130,17 @@ func TestWarningModalDismissWithD(t *testing.T) {
 
 	data, ok := files[env.CacheFile]
 	if !ok {
-		t.Fatalf("dismissed-warnings = missing, want %q", warn.Error())
+		t.Fatalf("dismissed-warnings = missing, want %q", warn.Key())
 	}
-	if !strings.Contains(data, warn.Error()) {
-		t.Errorf("dismissed-warnings = %q, want %q", data, warn.Error())
+	if got, want := data, warn.Key()+"\n"; got != want {
+		t.Errorf("dismissed-warnings = %q, want the key alone on its line: %q", got, want)
 	}
 
 	// The next run with the same warning keeps the modal closed at startup,
 	// while the bottom chrome still shows "1 warning" and ctrl+w opens it.
 	againEnv := *env
 	againEnv.Dismissed = m.env.Dismissed
-	again := update(newModel(Options{Env: &againEnv}, sampleTasks(), []error{warn}),
+	again := update(newModel(Options{Env: &againEnv}, sampleTasks(), []core.Warning{warn}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 	if again.warningModal {
 		t.Error("dismissed warning reopened the modal at startup")
@@ -151,7 +155,7 @@ func TestWarningModalDismissWithD(t *testing.T) {
 	}
 
 	// A different warning still opens the modal at startup.
-	other := newModel(Options{}, sampleTasks(), []error{errors.New("Makefile: syntax error")})
+	other := newModel(Options{}, sampleTasks(), []core.Warning{sampleWarning("Makefile: syntax error")})
 	if !other.warningModal {
 		t.Error("a new undismissed warning did not open the modal at startup")
 	}
@@ -159,9 +163,9 @@ func TestWarningModalDismissWithD(t *testing.T) {
 
 func TestWarningModalMultipleWarnings(t *testing.T) {
 	env, _ := testEnv(t)
-	warnings := []error{
-		errors.New("first warning"),
-		errors.New("second warning"),
+	warnings := []core.Warning{
+		core.NewSourceWarning("make", "Makefile", "first warning"),
+		core.NewSourceWarning("make", "GNUmakefile", "second warning"),
 	}
 	m := update(newModel(Options{Env: env}, sampleTasks(), warnings),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -207,8 +211,9 @@ func TestWarningModalMultipleWarnings(t *testing.T) {
 }
 
 func TestWarningModalFitsInlineAndNarrowTerminals(t *testing.T) {
-	longErr := errors.New("rc file /home/zanza00/.config/what-to-run/config.toml: strict mode: fields in the document are missing in the target struct")
-	m := newModel(Options{Inline: true}, sampleTasks(), []error{longErr})
+	longErr := core.NewRCWarning("user", "syntax", "",
+		"rc file /home/zanza00/.config/what-to-run/config.toml: strict mode: fields in the document are missing in the target struct")
+	m := newModel(Options{Inline: true}, sampleTasks(), []core.Warning{longErr})
 	m = update(m, tea.WindowSizeMsg{Width: 40, Height: 20})
 	m = update(m, tea.CursorPositionMsg{Y: 12}) // The cursor position leaves a 15-row inline area.
 
@@ -256,5 +261,97 @@ func TestSavingThemeReParsesConfigAndClearsResolvedWarning(t *testing.T) {
 	got := ansi.Strip(m.View().Content)
 	if strings.Contains(got, "1 warning") || strings.Contains(got, "ctrl+w") {
 		t.Errorf("bottom chrome still shows a warning after fixing config.toml:\n%s", got)
+	}
+}
+
+// TestLegacyDismissedLineStillMatches pins the migration: a dismissal that an
+// older version wrote holds the message text, not the key. The startup check
+// still matches it, so an upgrade does not pop the modal open again, and the
+// prune still clears it once the warning heals.
+func TestLegacyDismissedLineStillMatches(t *testing.T) {
+	env, files := testEnv(t)
+	warn := core.NewThemeWarning("user", "nope",
+		`rc file ~/.config/what-to-run/config.toml: unknown theme "nope"`)
+	files[env.CacheFile] = warningText(warn) + "\n"
+	env.Dismissed = loadDismissedWarnings(files, env.CacheFile)
+
+	m := update(newModel(Options{Env: env}, sampleTasks(), []core.Warning{warn}),
+		tea.WindowSizeMsg{Width: 80, Height: 24})
+	if m.warningModal {
+		t.Error("a legacy entry did not dismiss the warning at startup")
+	}
+}
+
+// TestModelCollapsesWarningsWithOneKey pins the identity of the listing: the
+// picker holds one warning per underlying problem. A bad disable entry can
+// arrive twice, from the rc loader's validation and from core's safety net,
+// and the same typo can sit in two rc files. Equal keys make one warning, and
+// the first occurrence's message wins the display, because it names the file.
+func TestModelCollapsesWarningsWithOneKey(t *testing.T) {
+	env, files := testEnv(t)
+	files[env.UserFile] = "disable = [\"nmake\"]\n"
+	files[env.ProjectFile] = "disable = [\"nmake\"]\n"
+
+	_, _, configWarnings := env.discover()
+	// The safety net of core sees a hand-built Settings that still carries
+	// the entry the loader would drop.
+	_, sourceWarnings := core.Discover(env.Files, env.Dir, core.Settings{Disable: []string{"nmake"}})
+	warnings := append(configWarnings, sourceWarnings...)
+	if len(warnings) < 2 {
+		t.Fatalf("producers = %v, want the disable entry twice", warnings)
+	}
+
+	m := update(newModel(Options{Env: env}, sampleTasks(), warnings),
+		tea.WindowSizeMsg{Width: 80, Height: 24})
+	if len(m.warnings) != 1 {
+		t.Fatalf("model warnings = %v, want the twin collapsed into one", m.warnings)
+	}
+	if m.warnings[0].Kind() != core.KindRegistry {
+		t.Errorf("kind = %s, want registry", m.warnings[0].Kind())
+	}
+	if !strings.Contains(m.warnings[0].Error(), "config.toml") {
+		t.Errorf("kept message = %q, want the first occurrence, which names the rc file", m.warnings[0].Error())
+	}
+}
+
+// TestThemeSaveRunsOnlyForThemeWarnings pins the guard of the theme-save
+// re-discovery on the warning kind. A warning that merely mentions "theme" in
+// its message does not trigger the save; a theme warning does, even with the
+// chosen theme unchanged.
+func TestThemeSaveRunsOnlyForThemeWarnings(t *testing.T) {
+	env, files := testEnv(t)
+
+	// A source warning whose message mentions "theme".
+	m := update(newModel(Options{Env: env}, sampleTasks(), []core.Warning{
+		core.NewSourceWarning("make", "GNUmakefile", "Makefile theme is broken")}),
+		tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = update(m, escKey) // close the warning modal that opened at startup
+	m = update(m, ctrlTKey)
+	next, cmd := m.Update(enterKey)
+	if cmd != nil {
+		t.Errorf("the theme save ran for a source warning: %v", cmd())
+	}
+	m = next.(model)
+	if _, ok := files[env.UserFile]; ok {
+		t.Error("the theme save wrote the rc file for a source warning")
+	}
+
+	// A theme warning, with the chosen theme unchanged.
+	m = update(newModel(Options{Env: env}, sampleTasks(), []core.Warning{
+		core.NewThemeWarning("user", "nope", `rc file ~/.config/what-to-run/config.toml: unknown theme "nope"`)}),
+		tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = update(m, escKey) // close the warning modal that opened at startup
+	m = update(m, ctrlTKey)
+	next, cmd = m.Update(enterKey)
+	if cmd == nil {
+		t.Fatal("the theme save did not run for a theme warning")
+	}
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
+	if len(m.warnings) != 0 {
+		t.Errorf("warnings after the theme-save re-discovery = %v, want none", m.warnings)
+	}
+	if got := files[env.UserFile]; !strings.Contains(got, `theme = "classic"`) {
+		t.Errorf("user rc = %q, want the default theme written", got)
 	}
 }

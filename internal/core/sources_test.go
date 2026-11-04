@@ -22,9 +22,9 @@ const upwardSearchDir = "testdata/upward-search"
 func TestDiscoverSourceSearchesParentsJust(t *testing.T) {
 	dir := filepath.Join(upwardSearchDir, "a", "b")
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: "../../justfile", Name: "build", Desc: "Build the project", Args: []string{"just", "build"}}}
 	if !reflect.DeepEqual(tasks, want) {
@@ -37,9 +37,9 @@ func TestDiscoverSourceSearchesParentsJust(t *testing.T) {
 func TestDiscoverSourceSearchesParentsTask(t *testing.T) {
 	dir := filepath.Join(upwardSearchDir, "a", "b")
 
-	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: "../../Taskfile.yml", Name: "build", Desc: "Build the project", Args: []string{"task", "build"}}}
 	if !reflect.DeepEqual(tasks, want) {
@@ -53,9 +53,9 @@ func TestDiscoverSourceSearchesParentsTask(t *testing.T) {
 func TestDiscoverSourceDoesNotSearchParentsForPackageJSON(t *testing.T) {
 	dir := filepath.Join(upwardSearchDir, "a", "b")
 
-	got, err := discoverSource(osFiles{}, packageJSONSource("", osFiles{}), dir)
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() from a subdirectory = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, packageJSONSource("", osFiles{}), dir)
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() from a subdirectory = %v, %v; want nil, nil", got, warn)
 	}
 }
 
@@ -507,18 +507,18 @@ func TestDiscoverSourceNearestDirectoryWins(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), grandchild)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, justfileSource(osFiles{}), grandchild)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: "../justfile", Name: "child-only", Args: []string{"just", "child-only"}}}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("discoverSource() from the grandchild = %+v, want %+v", tasks, want)
 	}
 
-	tasks, err = discoverSource(osFiles{}, justfileSource(osFiles{}), child)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn = discoverSource(osFiles{}, justfileSource(osFiles{}), child)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want = []Task{{Source: "justfile", Name: "child-only", Args: []string{"just", "child-only"}}}
 	if !reflect.DeepEqual(tasks, want) {
@@ -531,9 +531,9 @@ func TestDiscoverSourceNearestDirectoryWins(t *testing.T) {
 func TestDiscoverSourceSearchesParentsFromDot(t *testing.T) {
 	t.Chdir(filepath.Join(upwardSearchDir, "a", "b"))
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), ".")
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, justfileSource(osFiles{}), ".")
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: "../../justfile", Name: "build", Desc: "Build the project", Args: []string{"just", "build"}}}
 	if !reflect.DeepEqual(tasks, want) {

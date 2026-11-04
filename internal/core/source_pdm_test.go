@@ -153,18 +153,18 @@ composite = "test"
 				writeFile(t, dir, name, content)
 			}
 
-			got, err := discoverSource(osFiles{}, pdmSource(), dir)
+			got, warn := discoverSource(osFiles{}, pdmSource(), dir)
 			if tt.wantErr {
-				if err == nil {
+				if warn == nil {
 					t.Fatal("discoverSource() succeeded, want error")
 				}
-				if !strings.Contains(err.Error(), "pyproject.toml") {
-					t.Errorf("error = %q, want it to mention pyproject.toml", err)
+				if !strings.Contains(warn.Error(), "pyproject.toml") {
+					t.Errorf("error = %q, want it to mention pyproject.toml", warn)
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("discoverSource() error = %v", err)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
@@ -174,9 +174,9 @@ composite = "test"
 }
 
 func TestDiscoverPdmScriptsMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, pdmSource(), t.TempDir())
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, pdmSource(), t.TempDir())
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, warn)
 	}
 }
 
@@ -191,9 +191,9 @@ func TestDiscoverPdmScriptsSearchesParents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tasks, err := discoverSource(osFiles{}, pdmSource(), sub)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, pdmSource(), sub)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: "../pyproject.toml", Name: "test", Desc: "pytest", Args: []string{"pdm", "run", "test"}}}
 	if !reflect.DeepEqual(tasks, want) {

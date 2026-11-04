@@ -132,18 +132,18 @@ requests = "*"
 				writeFile(t, dir, name, content)
 			}
 
-			got, err := discoverSource(osFiles{}, pipenvSource(), dir)
+			got, warn := discoverSource(osFiles{}, pipenvSource(), dir)
 			if tt.wantErr {
-				if err == nil {
+				if warn == nil {
 					t.Fatal("discoverSource() succeeded, want error")
 				}
-				if !strings.Contains(err.Error(), "Pipfile") {
-					t.Errorf("error = %q, want it to mention Pipfile", err)
+				if !strings.Contains(warn.Error(), "Pipfile") {
+					t.Errorf("error = %q, want it to mention Pipfile", warn)
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("discoverSource() error = %v", err)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
@@ -153,9 +153,9 @@ requests = "*"
 }
 
 func TestDiscoverPipenvScriptsMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, pipenvSource(), t.TempDir())
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, pipenvSource(), t.TempDir())
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, warn)
 	}
 }
 
@@ -170,9 +170,9 @@ func TestDiscoverPipenvScriptsSearchesParents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tasks, err := discoverSource(osFiles{}, pipenvSource(), sub)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, pipenvSource(), sub)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: "../Pipfile", Name: "test", Desc: "pytest", Args: []string{"pipenv", "run", "test"}}}
 	if !reflect.DeepEqual(tasks, want) {

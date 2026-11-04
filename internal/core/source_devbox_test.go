@@ -83,18 +83,18 @@ func TestDiscoverDevboxTasks(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, dir, "devbox.json", tt.file)
 
-			got, err := discoverSource(osFiles{}, devboxSource(), dir)
+			got, warn := discoverSource(osFiles{}, devboxSource(), dir)
 			if tt.wantErr {
-				if err == nil {
+				if warn == nil {
 					t.Fatal("discoverSource() succeeded, want error")
 				}
-				if !strings.Contains(err.Error(), "devbox.json") {
-					t.Errorf("error = %q, want it to mention devbox.json", err)
+				if !strings.Contains(warn.Error(), "devbox.json") {
+					t.Errorf("error = %q, want it to mention devbox.json", warn)
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("discoverSource() error = %v", err)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
@@ -104,8 +104,8 @@ func TestDiscoverDevboxTasks(t *testing.T) {
 }
 
 func TestDiscoverDevboxTasksMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, devboxSource(), t.TempDir())
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, devboxSource(), t.TempDir())
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, warn)
 	}
 }

@@ -656,7 +656,7 @@ func TestViewFullscreenFillsHeightAndScrolls(t *testing.T) {
 }
 
 func TestViewShowsWarnings(t *testing.T) {
-	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
+	m := update(newModel(Options{}, sampleTasks(), []core.Warning{core.NewSourceWarning("cargo-make", "Makefile.toml", "Makefile.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 30})
 	if got := m.View().Content; !strings.Contains(got, "Makefile.toml: boom") {
 		t.Errorf("View() does not show the discovery warning:\n%s", got)

@@ -13,8 +13,12 @@
 // and the loader ignores a project theme with a warning. Without either file,
 // the zero config keeps the built-in behaviour.
 //
-// A problem is a warning, never fatal. The loader skips a file with broken
-// TOML syntax, while an unknown key, a wrong field type, or an invalid task or
+// A problem is a warning, never fatal. The loader returns a typed warning for
+// every problem, and the warning carries its own identity — the kind and the
+// dismissal key — next to the message that the picker displays. The key keeps
+// the file origin, the problem and the offending value apart, so one dismissed
+// problem does not silence a new one. The loader skips a file with broken TOML
+// syntax, while an unknown key, a wrong field type, or an invalid task or
 // project entry drops only that item. Every other valid setting in the file
 // still applies.
 //
@@ -66,9 +70,23 @@ func DefaultFiles(dir string) (project, global string) {
 }
 
 // Paths are the rc files of one load. ProjectLabel names the project file in
-// warnings. An empty label uses ShortPath with Home, like the user file.
+// warnings. An empty label uses ShortPath with Home, like the user file. The
+// label never enters a dismissal key: the project file is "project" there.
 type Paths struct {
 	Project, Global, ProjectLabel, Home string
+}
+
+// The origins of the rc files in the dismissal keys. A [projects."<path>"]
+// block forms its origin from the TOML key, through blockOrigin.
+const (
+	originProject = "project"
+	originUser    = "user"
+)
+
+// blockOrigin returns the key origin of one [projects."<path>"] block of the
+// user rc file.
+func blockOrigin(rawPath string) string {
+	return "projects/" + rawPath
 }
 
 // display returns the text that names path in a warning.
@@ -89,10 +107,10 @@ func (p Paths) display(path string, isProject bool) string {
 // paths names the files and how warnings show them. themeNames are the theme
 // names that the user rc file accepts. The caller owns the registry, and an
 // unknown name is a warning.
-func Load(files core.Files, paths Paths, themeNames []string) (Config, []error) {
-	global, errs := readConfig(files, paths, paths.Global, false, themeNames)
-	project, projectErrs := readConfig(files, paths, paths.Project, true, themeNames)
-	errs = append(errs, projectErrs...)
+func Load(files core.Files, paths Paths, themeNames []string) (Config, []core.Warning) {
+	global, warnings := readConfig(files, paths, paths.Global, false, themeNames)
+	project, projectWarnings := readConfig(files, paths, paths.Project, true, themeNames)
+	warnings = append(warnings, projectWarnings...)
 
 	cfg := Config{
 		Settings: core.Settings{
@@ -111,7 +129,7 @@ func Load(files core.Files, paths Paths, themeNames []string) (Config, []error) 
 	for _, ov := range matchingProjects(global.Projects, projectDir, paths.Home) {
 		cfg = mergeLayer(cfg, ov)
 	}
-	return cfg, errs
+	return cfg, warnings
 }
 
 // mergeLayer applies a more specific layer on top of cfg. A non-empty
@@ -146,7 +164,7 @@ func firstTasks(tasks []core.RCTask) []core.RCTask {
 // a warning. An unknown key, a wrong type and an invalid entry drop only the
 // offending item, with one warning each, so the rest of the file still
 // applies.
-func readConfig(files core.Files, paths Paths, path string, isProject bool, themeNames []string) (Config, []error) {
+func readConfig(files core.Files, paths Paths, path string, isProject bool, themeNames []string) (Config, []core.Warning) {
 	if path == "" {
 		return Config{}, nil
 	}
@@ -155,79 +173,94 @@ func readConfig(files core.Files, paths Paths, path string, isProject bool, them
 		return Config{}, nil
 	}
 	disp := paths.display(path, isProject)
+	origin := originUser
+	if isProject {
+		origin = originProject
+	}
 	if err != nil {
-		return Config{}, []error{fmt.Errorf("rc file %s: %w", disp, err)}
+		return Config{}, []core.Warning{
+			core.NewRCWarning(origin, "read", "", fmt.Sprintf("rc file %s: %v", disp, err)),
+		}
 	}
 
 	var raw map[string]any
 	if err := toml.Unmarshal(data, &raw); err != nil {
-		return Config{}, []error{fmt.Errorf("rc file %s: %w", disp, err)}
+		return Config{}, []core.Warning{
+			core.NewRCWarning(origin, "syntax", "", fmt.Sprintf("rc file %s: %v", disp, err)),
+		}
 	}
-	return decodeConfigMap(raw, disp, isProject, paths.Home, themeNames)
+	return decodeConfigMap(raw, disp, origin, paths.Home, themeNames)
 }
 
 // decodeConfigMap extracts the valid settings from a parsed top-level TOML
 // map. It collects a warning for every unknown key, type mismatch and invalid
-// entry.
-func decodeConfigMap(raw map[string]any, disp string, isProject bool, home string, themeNames []string) (Config, []error) {
+// entry. origin names the file in the warning keys, and when the file is the
+// project one, the theme and the projects table stay user settings.
+func decodeConfigMap(raw map[string]any, disp, origin, home string, themeNames []string) (Config, []core.Warning) {
 	var cfg Config
-	var errs []error
+	var warnings []core.Warning
 
 	for _, key := range slices.Sorted(maps.Keys(raw)) {
 		val := raw[key]
 		switch key {
 		case "package_manager":
-			pm, ok := decodePackageManager(val, disp, "", &errs)
+			pm, ok := decodePackageManager(val, disp, "", origin, &warnings)
 			if ok {
 				cfg.PackageManager = pm
 			}
 
 		case "theme":
-			if isProject {
-				errs = append(errs, fmt.Errorf("rc file %s: theme is a user setting, ignored here", disp))
+			if origin == originProject {
+				warnings = append(warnings, core.NewThemeWarning(origin, "",
+					fmt.Sprintf("rc file %s: theme is a user setting, ignored here", disp)))
 				continue
 			}
 			s, ok := val.(string)
 			if !ok {
-				errs = append(errs, fmt.Errorf("rc file %s: theme must be a string", disp))
+				warnings = append(warnings, core.NewThemeWarning(origin, "",
+					fmt.Sprintf("rc file %s: theme must be a string", disp)))
 				continue
 			}
 			if s != "" {
 				if !slices.Contains(themeNames, s) {
-					errs = append(errs, fmt.Errorf("rc file %s: unknown theme %q", disp, s))
+					warnings = append(warnings, core.NewThemeWarning(origin, s,
+						fmt.Sprintf("rc file %s: unknown theme %q", disp, s)))
 					continue
 				}
 				cfg.Theme = s
 			}
 
 		case "disable":
-			cfg.Disable = decodeDisable(val, disp, "", &errs)
+			cfg.Disable = decodeDisable(val, disp, "", origin, &warnings)
 
 		case "tasks":
-			cfg.Tasks = decodeTasks(val, disp, "", &errs)
+			cfg.Tasks = decodeTasks(val, disp, "", origin, &warnings)
 
 		case "projects":
-			if isProject {
-				errs = append(errs, fmt.Errorf("rc file %s: projects is a user setting, ignored here", disp))
+			if origin == originProject {
+				warnings = append(warnings, core.NewRCWarning(origin, "projects", "",
+					fmt.Sprintf("rc file %s: projects is a user setting, ignored here", disp)))
 				continue
 			}
-			cfg.Projects = decodeProjects(val, disp, home, &errs)
+			cfg.Projects = decodeProjects(val, disp, home, &warnings)
 
 		default:
-			errs = append(errs, fmt.Errorf("rc file %s: unknown key %q", disp, key))
+			warnings = append(warnings, core.NewRCWarning(origin, "unknown-key", key,
+				fmt.Sprintf("rc file %s: unknown key %q", disp, key)))
 		}
 	}
 
-	return cfg, errs
+	return cfg, warnings
 }
 
 // decodePackageManager validates a package_manager value. scope prefixes the
 // field in the warning messages when the value is inside a
 // [projects."<path>"] block.
-func decodePackageManager(val any, disp, scope string, errs *[]error) (string, bool) {
+func decodePackageManager(val any, disp, scope, origin string, warnings *[]core.Warning) (string, bool) {
 	s, ok := val.(string)
 	if !ok {
-		*errs = append(*errs, fmt.Errorf("rc file %s: %spackage_manager must be a string", disp, scope))
+		*warnings = append(*warnings, core.NewRCWarning(origin, "package-manager", "",
+			fmt.Sprintf("rc file %s: %spackage_manager must be a string", disp, scope)))
 		return "", false
 	}
 	if s == "" {
@@ -235,7 +268,8 @@ func decodePackageManager(val any, disp, scope string, errs *[]error) (string, b
 	}
 	name, valid := core.PackageManagerName(s)
 	if !valid {
-		*errs = append(*errs, fmt.Errorf("rc file %s: %sunknown package_manager %q", disp, scope, s))
+		*warnings = append(*warnings, core.NewRCWarning(origin, "package-manager", s,
+			fmt.Sprintf("rc file %s: %sunknown package_manager %q", disp, scope, s)))
 		return "", false
 	}
 	return name, true
@@ -243,25 +277,29 @@ func decodePackageManager(val any, disp, scope string, errs *[]error) (string, b
 
 // decodeDisable validates a disable array. It keeps every valid source ID,
 // even when another element of the array has the wrong type or names no
-// source.
-func decodeDisable(val any, disp, scope string, errs *[]error) []string {
+// source. A bad entry is a registry warning keyed on the raw entry, so it
+// holds the same identity as core's discovery safety net for the same entry.
+func decodeDisable(val any, disp, scope, origin string, warnings *[]core.Warning) []string {
 	items, ok := val.([]any)
 	if !ok {
-		*errs = append(*errs, fmt.Errorf("rc file %s: %sdisable must be an array of strings", disp, scope))
+		*warnings = append(*warnings, core.NewRCWarning(origin, "disable", "",
+			fmt.Sprintf("rc file %s: %sdisable must be an array of strings", disp, scope)))
 		return nil
 	}
 	var out []string
 	for _, item := range items {
 		s, ok := item.(string)
 		if !ok {
-			*errs = append(*errs, fmt.Errorf("rc file %s: %sdisable entries must be strings", disp, scope))
+			*warnings = append(*warnings, core.NewRCWarning(origin, "disable-entry", "",
+				fmt.Sprintf("rc file %s: %sdisable entries must be strings", disp, scope)))
 			continue
 		}
 		if s == "" {
 			continue
 		}
 		if err := core.CheckSourceID(s); err != nil {
-			*errs = append(*errs, fmt.Errorf("rc file %s: %sdisable: %w", disp, scope, err))
+			*warnings = append(*warnings, core.NewRegistryWarning(s,
+				fmt.Sprintf("rc file %s: %sdisable: %v", disp, scope, err)))
 			continue
 		}
 		out = append(out, s)
@@ -272,10 +310,11 @@ func decodeDisable(val any, disp, scope string, errs *[]error) []string {
 // decodeTasks validates a [[tasks]] array of tables. It keeps every valid
 // task, and it even recovers a task that has an unknown extra key next to
 // valid name and command fields.
-func decodeTasks(val any, disp, scope string, errs *[]error) []core.RCTask {
+func decodeTasks(val any, disp, scope, origin string, warnings *[]core.Warning) []core.RCTask {
 	items, ok := val.([]any)
 	if !ok {
-		*errs = append(*errs, fmt.Errorf("rc file %s: %stasks must be an array of tables", disp, scope))
+		*warnings = append(*warnings, core.NewRCWarning(origin, "tasks", "",
+			fmt.Sprintf("rc file %s: %stasks must be an array of tables", disp, scope)))
 		return nil
 	}
 	var tasks []core.RCTask
@@ -283,25 +322,30 @@ func decodeTasks(val any, disp, scope string, errs *[]error) []core.RCTask {
 	for _, item := range items {
 		table, ok := item.(map[string]any)
 		if !ok {
-			*errs = append(*errs, fmt.Errorf("rc file %s: %seach task must be a table", disp, scope))
+			*warnings = append(*warnings, core.NewRCWarning(origin, "task", "",
+				fmt.Sprintf("rc file %s: %seach task must be a table", disp, scope)))
 			continue
 		}
-		t, valid := decodeOneTask(table, disp, scope, errs)
+		t, valid := decodeOneTask(table, disp, scope, origin, warnings)
 		if !valid {
 			continue
 		}
 		switch {
 		case t.Name == "":
-			*errs = append(*errs, fmt.Errorf("rc file %s: %stask with an empty name", disp, scope))
+			*warnings = append(*warnings, core.NewRCWarning(origin, "task-empty-name", "",
+				fmt.Sprintf("rc file %s: %stask with an empty name", disp, scope)))
 			continue
 		case t.Command == "":
-			*errs = append(*errs, fmt.Errorf("rc file %s: %stask %q has an empty command", disp, scope, t.Name))
+			*warnings = append(*warnings, core.NewRCWarning(origin, "task-empty-command", t.Name,
+				fmt.Sprintf("rc file %s: %stask %q has an empty command", disp, scope, t.Name)))
 			continue
 		case seen[t.Name]:
-			*errs = append(*errs, fmt.Errorf("rc file %s: %sduplicate task %q", disp, scope, t.Name))
+			*warnings = append(*warnings, core.NewRCWarning(origin, "task-duplicate", t.Name,
+				fmt.Sprintf("rc file %s: %sduplicate task %q", disp, scope, t.Name)))
 			continue
 		case t.Cwd != "" && !filepath.IsLocal(t.Cwd):
-			*errs = append(*errs, fmt.Errorf("rc file %s: %stask %q: cwd %q must stay inside the project", disp, scope, t.Name, t.Cwd))
+			*warnings = append(*warnings, core.NewRCWarning(origin, "task-cwd", t.Name,
+				fmt.Sprintf("rc file %s: %stask %q: cwd %q must stay inside the project", disp, scope, t.Name, t.Cwd)))
 			continue
 		}
 		seen[t.Name] = true
@@ -313,7 +357,7 @@ func decodeTasks(val any, disp, scope string, errs *[]error) []core.RCTask {
 // decodeOneTask reads the fields of a single [[tasks]] table. An unknown key
 // warns without discarding the task. A wrong type on name, command or cwd drops
 // the task, while a wrong description drops only the description.
-func decodeOneTask(table map[string]any, disp, scope string, errs *[]error) (core.RCTask, bool) {
+func decodeOneTask(table map[string]any, disp, scope, origin string, warnings *[]core.Warning) (core.RCTask, bool) {
 	var t core.RCTask
 	valid := true
 	for _, key := range slices.Sorted(maps.Keys(table)) {
@@ -322,7 +366,8 @@ func decodeOneTask(table map[string]any, disp, scope string, errs *[]error) (cor
 		case "name":
 			s, ok := val.(string)
 			if !ok {
-				*errs = append(*errs, fmt.Errorf("rc file %s: %stask field \"name\" must be a string", disp, scope))
+				*warnings = append(*warnings, core.NewRCWarning(origin, "task-name", "",
+					fmt.Sprintf("rc file %s: %stask field \"name\" must be a string", disp, scope)))
 				valid = false
 				continue
 			}
@@ -330,7 +375,8 @@ func decodeOneTask(table map[string]any, disp, scope string, errs *[]error) (cor
 		case "command":
 			s, ok := val.(string)
 			if !ok {
-				*errs = append(*errs, fmt.Errorf("rc file %s: %stask field \"command\" must be a string", disp, scope))
+				*warnings = append(*warnings, core.NewRCWarning(origin, "task-command", "",
+					fmt.Sprintf("rc file %s: %stask field \"command\" must be a string", disp, scope)))
 				valid = false
 				continue
 			}
@@ -338,43 +384,50 @@ func decodeOneTask(table map[string]any, disp, scope string, errs *[]error) (cor
 		case "description":
 			s, ok := val.(string)
 			if !ok {
-				*errs = append(*errs, fmt.Errorf("rc file %s: %stask field \"description\" must be a string", disp, scope))
+				*warnings = append(*warnings, core.NewRCWarning(origin, "task-description", "",
+					fmt.Sprintf("rc file %s: %stask field \"description\" must be a string", disp, scope)))
 				continue
 			}
 			t.Description = s
 		case "cwd":
 			s, ok := val.(string)
 			if !ok {
-				*errs = append(*errs, fmt.Errorf("rc file %s: %stask field \"cwd\" must be a string", disp, scope))
+				*warnings = append(*warnings, core.NewRCWarning(origin, "task-cwd-type", "",
+					fmt.Sprintf("rc file %s: %stask field \"cwd\" must be a string", disp, scope)))
 				valid = false
 				continue
 			}
 			t.Cwd = s
 		default:
-			*errs = append(*errs, fmt.Errorf("rc file %s: %stask has unknown key %q", disp, scope, key))
+			*warnings = append(*warnings, core.NewRCWarning(origin, "task-unknown-key", key,
+				fmt.Sprintf("rc file %s: %stask has unknown key %q", disp, scope, key)))
 		}
 	}
 	return t, valid
 }
 
 // decodeProjects validates the [projects."<path>"] table of the user rc file.
-func decodeProjects(val any, disp, home string, errs *[]error) map[string]core.Settings {
+func decodeProjects(val any, disp, home string, warnings *[]core.Warning) map[string]core.Settings {
 	table, ok := val.(map[string]any)
 	if !ok {
-		*errs = append(*errs, fmt.Errorf("rc file %s: projects must be a table", disp))
+		*warnings = append(*warnings, core.NewRCWarning(originUser, "projects", "",
+			fmt.Sprintf("rc file %s: projects must be a table", disp)))
 		return nil
 	}
 	projects := make(map[string]core.Settings, len(table))
 	for _, rawPath := range slices.Sorted(maps.Keys(table)) {
 		scope := fmt.Sprintf("projects.%q: ", rawPath)
+		origin := blockOrigin(rawPath)
 		expanded := expandHome(strings.TrimSpace(rawPath), home)
 		if expanded == "" || !filepath.IsAbs(expanded) {
-			*errs = append(*errs, fmt.Errorf("rc file %s: %spath must be absolute or start with ~", disp, scope))
+			*warnings = append(*warnings, core.NewRCWarning(origin, "path", "",
+				fmt.Sprintf("rc file %s: %spath must be absolute or start with ~", disp, scope)))
 			continue
 		}
 		entry, ok := table[rawPath].(map[string]any)
 		if !ok {
-			*errs = append(*errs, fmt.Errorf("rc file %s: %smust be a table", disp, scope))
+			*warnings = append(*warnings, core.NewRCWarning(origin, "entry", "",
+				fmt.Sprintf("rc file %s: %smust be a table", disp, scope)))
 			continue
 		}
 		var settings core.Settings
@@ -382,17 +435,19 @@ func decodeProjects(val any, disp, home string, errs *[]error) map[string]core.S
 			v := entry[key]
 			switch key {
 			case "package_manager":
-				if pm, ok := decodePackageManager(v, disp, scope, errs); ok {
+				if pm, ok := decodePackageManager(v, disp, scope, origin, warnings); ok {
 					settings.PackageManager = pm
 				}
 			case "disable":
-				settings.Disable = decodeDisable(v, disp, scope, errs)
+				settings.Disable = decodeDisable(v, disp, scope, origin, warnings)
 			case "tasks":
-				settings.Tasks = decodeTasks(v, disp, scope, errs)
+				settings.Tasks = decodeTasks(v, disp, scope, origin, warnings)
 			case "theme":
-				*errs = append(*errs, fmt.Errorf("rc file %s: %stheme is a global setting, ignored here", disp, scope))
+				*warnings = append(*warnings, core.NewThemeWarning(origin, "",
+					fmt.Sprintf("rc file %s: %stheme is a global setting, ignored here", disp, scope)))
 			default:
-				*errs = append(*errs, fmt.Errorf("rc file %s: %sunknown key %q", disp, scope, key))
+				*warnings = append(*warnings, core.NewRCWarning(origin, "unknown-key", key,
+					fmt.Sprintf("rc file %s: %sunknown key %q", disp, scope, key)))
 			}
 		}
 		projects[rawPath] = settings

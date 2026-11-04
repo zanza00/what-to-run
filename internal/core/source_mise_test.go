@@ -121,18 +121,18 @@ list = ["echo one", "echo two"]
 				writeFile(t, dir, name, content)
 			}
 
-			got, err := discoverSource(osFiles{}, miseSource(), dir)
+			got, warn := discoverSource(osFiles{}, miseSource(), dir)
 			if tt.wantErr {
-				if err == nil {
+				if warn == nil {
 					t.Fatal("discoverSource() succeeded, want error")
 				}
-				if !strings.Contains(err.Error(), "mise.toml") {
-					t.Errorf("error = %q, want it to mention mise.toml", err)
+				if !strings.Contains(warn.Error(), "mise.toml") {
+					t.Errorf("error = %q, want it to mention mise.toml", warn)
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("discoverSource() error = %v", err)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
@@ -142,8 +142,8 @@ list = ["echo one", "echo two"]
 }
 
 func TestDiscoverMiseTasksMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, miseSource(), t.TempDir())
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, miseSource(), t.TempDir())
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, warn)
 	}
 }

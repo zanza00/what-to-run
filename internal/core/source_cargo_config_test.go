@@ -104,18 +104,18 @@ qt = "tq"
 				writeFile(t, dir, name, content)
 			}
 
-			got, err := discoverSource(osFiles{}, cargoAliasSource(), dir)
+			got, warn := discoverSource(osFiles{}, cargoAliasSource(), dir)
 			if tt.wantErr {
-				if err == nil {
+				if warn == nil {
 					t.Fatal("discoverSource() succeeded, want error")
 				}
-				if !strings.Contains(err.Error(), ".cargo/config.toml") {
-					t.Errorf("error = %q, want it to mention .cargo/config.toml", err)
+				if !strings.Contains(warn.Error(), ".cargo/config.toml") {
+					t.Errorf("error = %q, want it to mention .cargo/config.toml", warn)
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("discoverSource() error = %v", err)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
@@ -125,8 +125,8 @@ qt = "tq"
 }
 
 func TestDiscoverCargoAliasesMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, cargoAliasSource(), t.TempDir())
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, cargoAliasSource(), t.TempDir())
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, warn)
 	}
 }

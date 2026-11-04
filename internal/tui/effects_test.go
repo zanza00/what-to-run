@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zanza00/what-to-run/internal/config"
+	"github.com/zanza00/what-to-run/internal/core"
 )
 
 // TestThemeSaveEffectReportsTheSavedTheme pins the success message of the
@@ -110,9 +111,11 @@ func TestThemeSaveEffectReportsTheError(t *testing.T) {
 // warning that is no longer active from the cache and from the model.
 func TestThemeSaveClearsResolvedDismissals(t *testing.T) {
 	env, files := testEnv(t)
-	warn := errors.New(`rc file ~/.config/what-to-run/config.toml: unknown theme "nope"`)
+	warn := core.NewThemeWarning("user", "nope",
+		`rc file ~/.config/what-to-run/config.toml: unknown theme "nope"`)
 	files[env.UserFile] = "theme = \"nope\"\n"
-	files[env.CacheFile] = warningKey(warn) + "\n"
+	// The cache holds the legacy text form, the line an older version wrote.
+	files[env.CacheFile] = warningText(warn) + "\n"
 	env.Dismissed = loadDismissedWarnings(files, env.CacheFile)
 
 	_, cfg, warnings := env.discover()
@@ -157,7 +160,7 @@ func TestThemeSaveSeesADismissalFromAnotherProcess(t *testing.T) {
 	}
 
 	// Another process dismisses the warning after the model was built.
-	files[env.CacheFile] = warningKey(warnings[0]) + "\n"
+	files[env.CacheFile] = warnings[0].Key() + "\n"
 
 	m = update(m, escKey) // close the warning modal that opened at startup
 	m = update(m, ctrlTKey)
@@ -178,8 +181,8 @@ func TestThemeSaveSeesADismissalFromAnotherProcess(t *testing.T) {
 // the warning dismissal, and the state that it produces.
 func TestWarningDismissEffectReportsTheDismissedWarning(t *testing.T) {
 	env, files := testEnv(t)
-	warn := errors.New("first warning")
-	m := update(newModel(Options{Env: env}, sampleTasks(), []error{warn}),
+	warn := sampleWarning("first warning")
+	m := update(newModel(Options{Env: env}, sampleTasks(), []core.Warning{warn}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	next, cmd := m.Update(dKey)
@@ -194,10 +197,11 @@ func TestWarningDismissEffectReportsTheDismissedWarning(t *testing.T) {
 	if msg.idx != 0 {
 		t.Errorf("message idx = %d, want 0", msg.idx)
 	}
-	if !msg.dismissed[warningKey(warn)] {
+	if !msg.dismissed[warn.Key()] {
 		t.Errorf("message dismissed = %v, want the warning", msg.dismissed)
 	}
-	if got, want := files[env.CacheFile], warningKey(warn)+"\n"; got != want {
+	// The saved entry is the key alone, on its line.
+	if got, want := files[env.CacheFile], warn.Key()+"\n"; got != want {
 		t.Errorf("cache = %q, want %q", got, want)
 	}
 
@@ -205,7 +209,7 @@ func TestWarningDismissEffectReportsTheDismissedWarning(t *testing.T) {
 	if m.warningModal {
 		t.Error("the modal is still open after the dismissal")
 	}
-	if !m.env.Dismissed[warningKey(warn)] {
+	if !m.env.Dismissed[warn.Key()] {
 		t.Errorf("model dismissed set = %v, want the warning", m.env.Dismissed)
 	}
 }
@@ -215,8 +219,8 @@ func TestWarningDismissEffectReportsTheDismissedWarning(t *testing.T) {
 func TestWarningDismissEffectReportsTheError(t *testing.T) {
 	env, files := testEnv(t)
 	env.Store = errStore{Store: env.Store, err: errors.New("cache locked")}
-	warn := errors.New("first warning")
-	m := update(newModel(Options{Env: env}, sampleTasks(), []error{warn}),
+	warn := sampleWarning("first warning")
+	m := update(newModel(Options{Env: env}, sampleTasks(), []core.Warning{warn}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	next, cmd := m.Update(dKey)
@@ -238,5 +242,45 @@ func TestWarningDismissEffectReportsTheError(t *testing.T) {
 	}
 	if _, ok := files[env.CacheFile]; ok {
 		t.Error("a failed save wrote the cache file")
+	}
+}
+
+// TestWarningDismissTouchesTheCacheOnce pins the dismissal ride-along: saving a
+// dismissal reads the cache file once and writes it once, and the model uses
+// the set that the save returns instead of reading the file again. Dismissing
+// the same warning a second time reads once more and writes nothing, because
+// its entry is already there.
+func TestWarningDismissTouchesTheCacheOnce(t *testing.T) {
+	env, files := testEnv(t)
+	store := countStore{memFiles: files, reads: map[string]int{}, writes: map[string]int{}}
+	env.Store = store
+	warn := sampleWarning("first warning")
+	m := update(newModel(Options{Env: env}, sampleTasks(), []core.Warning{warn}),
+		tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	next, cmd := m.Update(dKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
+
+	if got := store.reads[env.CacheFile]; got != 1 {
+		t.Errorf("cache reads = %d, want one: %v", got, store.reads)
+	}
+	if got := store.writes[env.CacheFile]; got != 1 {
+		t.Errorf("cache writes = %d, want one: %v", got, store.writes)
+	}
+	if !m.env.Dismissed[warn.Key()] {
+		t.Errorf("model dismissed set = %v, want the key that the save returned", m.env.Dismissed)
+	}
+
+	// The same warning again: the save reads once and skips the write.
+	m = update(m, ctrlWKey)
+	next, cmd = m.Update(dKey)
+	m = next.(model)
+	m = update(m, execCmd(t, cmd))
+	if got := store.reads[env.CacheFile]; got != 2 {
+		t.Errorf("cache reads after the second dismissal = %d, want two: %v", got, store.reads)
+	}
+	if got := store.writes[env.CacheFile]; got != 1 {
+		t.Errorf("cache writes after the second dismissal = %d, want one: %v", got, store.writes)
 	}
 }

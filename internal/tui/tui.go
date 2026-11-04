@@ -209,9 +209,13 @@ func reportChoice(w io.Writer, t core.Task, insert bool, shell core.ShellDialect
 }
 
 // noTasksError returns the error for a directory with nothing to run.
-func noTasksError(warnings []error) error {
+func noTasksError(warnings []core.Warning) error {
 	if len(warnings) > 0 {
-		return fmt.Errorf("no tasks found: %w", errors.Join(warnings...))
+		errs := make([]error, len(warnings))
+		for i, w := range warnings {
+			errs[i] = w
+		}
+		return fmt.Errorf("no tasks found: %w", errors.Join(errs...))
 	}
 	return errors.New("no tasks found: no supported task file or rc file tasks")
 }
@@ -305,7 +309,7 @@ type model struct {
 	// unknown value warns and falls back to the platform default.
 	shell    core.ShellDialect
 	tasks    []core.Task
-	warnings []error
+	warnings []core.Warning
 
 	width  int
 	height int
@@ -373,22 +377,23 @@ type model struct {
 	warningIdx   int
 }
 
-func newModel(opts Options, tasks []core.Task, warnings []error) model {
+func newModel(opts Options, tasks []core.Task, warnings []core.Warning) model {
 	env := Env{}
 	if opts.Env != nil {
 		env = *opts.Env
 	}
 	idx, ok := themeIndex(opts.Theme)
 	if !ok {
-		warnings = append([]error{fmt.Errorf(
+		warnings = append([]core.Warning{core.NewThemeWarning("flag", opts.Theme, fmt.Sprintf(
 			"unknown theme %q, using %q (--list-themes shows the available ones)",
-			opts.Theme, defaultTheme)}, warnings...)
+			opts.Theme, defaultTheme))}, warnings...)
 	}
 	shell, err := core.ParseShellDialect(opts.Shell)
 	if err != nil {
-		warnings = append([]error{err}, warnings...)
+		warnings = append([]core.Warning{core.NewShellWarning(opts.Shell, err.Error())}, warnings...)
 		shell = core.DefaultShellDialect()
 	}
+	warnings = dedupeWarnings(warnings)
 	warnOpen, warnIdx := openWarningsAtStart(warnings, env.Dismissed)
 	m := model{
 		opts:         opts,
@@ -686,7 +691,7 @@ type themeSavedMsg struct {
 	name      string
 	path      string
 	tasks     []core.Task
-	warnings  []error
+	warnings  []core.Warning
 	dismissed map[string]bool
 	err       error
 }
@@ -734,7 +739,7 @@ func (m *model) applyThemeSaved(msg themeSavedMsg) tea.Cmd {
 		m.setTasks(msg.tasks)
 	}
 	m.env.Dismissed = msg.dismissed
-	m.warnings = msg.warnings
+	m.warnings = dedupeWarnings(msg.warnings)
 	if len(m.warnings) == 0 {
 		m.warningModal = false
 		m.warningIdx = 0
@@ -745,10 +750,12 @@ func (m *model) applyThemeSaved(msg themeSavedMsg) tea.Cmd {
 	return m.showNotice(fmt.Sprintf("theme %s saved to %s", msg.name, config.ShortPath(msg.path, m.env.Home)))
 }
 
-// hasThemeWarning reports whether any current warning is about a theme.
+// hasThemeWarning reports whether any current warning is about a theme. The
+// kind answers, not the wording: a task warning that merely mentions "theme"
+// does not count.
 func (m model) hasThemeWarning() bool {
 	for _, w := range m.warnings {
-		if strings.Contains(w.Error(), "theme") {
+		if w.Kind() == core.KindTheme {
 			return true
 		}
 	}

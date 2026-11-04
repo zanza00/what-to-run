@@ -101,18 +101,18 @@ func TestDiscoverComposerTasks(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, dir, "composer.json", tt.file)
 
-			got, err := discoverSource(osFiles{}, composerSource(), dir)
+			got, warn := discoverSource(osFiles{}, composerSource(), dir)
 			if tt.wantErr {
-				if err == nil {
+				if warn == nil {
 					t.Fatal("discoverSource() succeeded, want error")
 				}
-				if !strings.Contains(err.Error(), "composer.json") {
-					t.Errorf("error = %q, want it to mention composer.json", err)
+				if !strings.Contains(warn.Error(), "composer.json") {
+					t.Errorf("error = %q, want it to mention composer.json", warn)
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("discoverSource() error = %v", err)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
@@ -166,9 +166,9 @@ func TestDiscoverComposerLifecycleEvents(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "composer.json", string(data))
 
-	got, err := discoverSource(osFiles{}, composerSource(), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	got, warn := discoverSource(osFiles{}, composerSource(), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{
 		{Source: "composer.json", Name: "custom", Desc: "echo custom", Args: []string{"composer", "run-script", "custom"}},
@@ -179,8 +179,8 @@ func TestDiscoverComposerLifecycleEvents(t *testing.T) {
 }
 
 func TestDiscoverComposerTasksMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, composerSource(), t.TempDir())
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, composerSource(), t.TempDir())
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, warn)
 	}
 }

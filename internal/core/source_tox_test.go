@@ -441,20 +441,20 @@ skip_install = true
 				writeFile(t, dir, name, content)
 			}
 
-			got, err := discoverSource(osFiles{}, toxSource(), dir)
+			got, warn := discoverSource(osFiles{}, toxSource(), dir)
 			if tt.wantErr {
-				if err == nil {
+				if warn == nil {
 					t.Fatal("discoverSource() succeeded, want error")
 				}
 				for name := range tt.files {
-					if !strings.Contains(err.Error(), name) {
-						t.Errorf("error = %q, want it to mention %s", err, name)
+					if !strings.Contains(warn.Error(), name) {
+						t.Errorf("error = %q, want it to mention %s", warn, name)
 					}
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("discoverSource() error = %v", err)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
@@ -464,9 +464,9 @@ skip_install = true
 }
 
 func TestDiscoverToxMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, toxSource(), t.TempDir())
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, toxSource(), t.TempDir())
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, warn)
 	}
 }
 
@@ -503,9 +503,9 @@ commands = [["ruff", "check", { replace = "posargs", default = ["."], extend = t
 		dir := t.TempDir()
 		writeFile(t, dir, name, files[name])
 
-		tasks, err := discoverSource(osFiles{}, toxSource(), dir)
-		if err != nil {
-			t.Fatalf("discoverSource() on %s error = %v", name, err)
+		tasks, warn := discoverSource(osFiles{}, toxSource(), dir)
+		if warn != nil {
+			t.Fatalf("discoverSource() on %s error = %v", name, warn)
 		}
 		var got []string
 		for _, task := range tasks {
@@ -535,9 +535,9 @@ func TestDiscoverToxSearchesParents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tasks, err := discoverSource(osFiles{}, toxSource(), sub)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, toxSource(), sub)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: "../pyproject.toml", Name: "lint", Desc: "run linters", Args: []string{"tox", "run", "-e", "lint"}}}
 	if !reflect.DeepEqual(tasks, want) {

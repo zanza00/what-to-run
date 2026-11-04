@@ -120,6 +120,12 @@ func sampleWarning(text string) core.Warning {
 	return core.NewSourceWarning("make", "Makefile", text)
 }
 
+// filterTokensOf splits the filter text into the lowercase whitespace tokens
+// that the task list derives, so a test can compute its oracle ranking.
+func filterTokensOf(filter string) []string {
+	return strings.Fields(strings.ToLower(filter))
+}
+
 // diskEnv returns an explicit environment on the real filesystem. The project
 // directory and the user directory are temporary.
 func diskEnv(t *testing.T) *Env {

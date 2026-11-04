@@ -62,7 +62,7 @@ func TestWarningModalCloseAndReopenWithCtrlW(t *testing.T) {
 		m := update(newModel(Options{}, sampleTasks(), []core.Warning{
 			core.NewSourceWarning("cargo-make", "Makefile.toml", "Makefile.toml: boom")}),
 			tea.WindowSizeMsg{Width: 80, Height: 24})
-		m.filter = "build"
+		m.setFilter("build")
 
 		next, cmd := m.Update(closeKey)
 		m = next.(model)
@@ -72,8 +72,8 @@ func TestWarningModalCloseAndReopenWithCtrlW(t *testing.T) {
 		if cmd != nil {
 			t.Errorf("closing the warning modal with %v returned a command, want none", closeKey)
 		}
-		if m.filter != "build" {
-			t.Errorf("filter after closing warning modal = %q, want %q", m.filter, "build")
+		if m.list.filterText() != "build" {
+			t.Errorf("filter after closing warning modal = %q, want %q", m.list.filterText(), "build")
 		}
 		got := ansi.Strip(m.View().Content)
 		if strings.Contains(got, "╰") {
@@ -103,8 +103,8 @@ func TestWarningModalIgnoresTyping(t *testing.T) {
 		core.NewSourceWarning("cargo-make", "Makefile.toml", "Makefile.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = press(m, "npm")
-	if m.filter != "" {
-		t.Errorf("filter while warning modal is open = %q, want empty", m.filter)
+	if m.list.filterText() != "" {
+		t.Errorf("filter while warning modal is open = %q, want empty", m.list.filterText())
 	}
 	if !m.warningModal {
 		t.Error("typing closed the warning modal")

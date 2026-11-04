@@ -313,7 +313,6 @@ type model struct {
 	// shell is the command-line dialect, parsed once from opts.Shell. An
 	// unknown value warns and falls back to the platform default.
 	shell    core.ShellDialect
-	tasks    []core.Task
 	warnings []core.Warning
 
 	// empty reports that the project has nothing to run. The keys, the
@@ -351,8 +350,9 @@ type model struct {
 	// screen.
 	mainWidth int
 
-	filter   string         // current filter text; empty means no filtering
-	snapshot filterSnapshot // cached results for the current filter and tasks
+	// list is the task list: the tasks, the filter text and their derived
+	// facts (see list.go).
+	list taskList
 
 	// listWin is the window over the visible tasks: the cursor row that the
 	// keys move and the rows that the list body shows. The window owns their
@@ -420,15 +420,14 @@ func newModel(opts Options, tasks []core.Task, warnings []core.Warning) model {
 		opts:         opts,
 		env:          env,
 		shell:        shell,
-		tasks:        tasks,
 		warnings:     warnings,
 		empty:        len(tasks) == 0,
+		list:         newTaskList(tasks, shell),
 		themeWin:     window{cursor: idx},
 		styles:       newStyles(themes[idx]),
 		warningModal: warnOpen,
 		warnWin:      window{cursor: warnIdx, offset: warnIdx},
 	}
-	m.rebuildSnapshot()
 	return m
 }
 
@@ -460,7 +459,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// The box changed its height, so the window settles again (see
 		// window.go).
-		m.listWin.settle(len(m.visible()), m.listHeight())
+		m.listWin.settle(len(m.list.visible()), m.listHeight())
 
 	case tea.CursorPositionMsg:
 		m.startRow = msg.Y
@@ -468,7 +467,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// A late reply proves that the terminal does support the query, so
 		// ctrl+f can use the inline area again.
 		m.inlineUnavailable = false
-		m.listWin.settle(len(m.visible()), m.listHeight())
+		m.listWin.settle(len(m.list.visible()), m.listHeight())
 
 	case cursorPosTimeoutMsg:
 		if m.opts.Inline && !m.startRowKnown {
@@ -477,7 +476,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mainWidth = m.width
 				m.fullscreen = true
 			}
-			m.listWin.settle(len(m.visible()), m.listHeight())
+			m.listWin.settle(len(m.list.visible()), m.listHeight())
 		}
 
 	case tea.BackgroundColorMsg:
@@ -537,7 +536,7 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch key {
 	case "esc":
-		if m.filter != "" {
+		if m.list.filterText() != "" {
 			m.setFilter("")
 			return m, nil
 		}
@@ -555,22 +554,22 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "up", "ctrl+k", "ctrl+p":
-		m.listWin.up(len(m.visible()), m.listHeight())
+		m.listWin.up(len(m.list.visible()), m.listHeight())
 
 	case "down", "ctrl+j", "ctrl+n":
-		m.listWin.down(len(m.visible()), m.listHeight())
+		m.listWin.down(len(m.list.visible()), m.listHeight())
 
 	case "pgup":
-		m.listWin.pageUp(len(m.visible()), m.listHeight())
+		m.listWin.pageUp(len(m.list.visible()), m.listHeight())
 
 	case "pgdown":
-		m.listWin.pageDown(len(m.visible()), m.listHeight())
+		m.listWin.pageDown(len(m.list.visible()), m.listHeight())
 
 	case "home":
-		m.listWin.home(len(m.visible()), m.listHeight())
+		m.listWin.home(len(m.list.visible()), m.listHeight())
 
 	case "end":
-		m.listWin.end(len(m.visible()), m.listHeight())
+		m.listWin.end(len(m.list.visible()), m.listHeight())
 
 	case "ctrl+u":
 		m.setFilter("")
@@ -590,7 +589,7 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.fullscreen = !m.fullscreen
 			// The inline box and the fullscreen box disagree on the height,
 			// so the window settles again.
-			m.listWin.settle(len(m.visible()), m.listHeight())
+			m.listWin.settle(len(m.list.visible()), m.listHeight())
 		}
 		return m, nil
 
@@ -610,14 +609,14 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.themeWin.settle(len(themes), m.themeModalVisibleRows())
 
 	case "backspace":
-		m.setFilter(trimLastRune(m.filter))
+		m.setFilter(trimLastRune(m.list.filterText()))
 
 	default:
 		// Printable input goes into the filter, so q types and does not quit.
 		if msg.Text == "" || msg.Text == "\t" || msg.Mod&(tea.ModCtrl|tea.ModAlt) != 0 {
 			return m, nil
 		}
-		m.setFilter(m.filter + msg.Text)
+		m.setFilter(m.list.filterText() + msg.Text)
 	}
 
 	// The moves above land clamped and scrolled inside their window
@@ -790,7 +789,7 @@ func (m *model) applyThemeSaved(msg themeSavedMsg) tea.Cmd {
 	// window.go). An empty warning list settles at row zero, the state that
 	// the closed box needs.
 	m.warnWin.settle(len(m.warnings), 1)
-	m.listWin.settle(len(m.visible()), m.listHeight())
+	m.listWin.settle(len(m.list.visible()), m.listHeight())
 	return m.showNotice(fmt.Sprintf("theme %s saved to %s", msg.name, config.ShortPath(msg.path, m.env.Home)))
 }
 
@@ -808,7 +807,7 @@ func (m model) hasThemeWarning() bool {
 
 // run starts the task under the cursor.
 func (m model) run() (tea.Model, tea.Cmd) {
-	vis := m.visible()
+	vis := m.list.visible()
 	if len(vis) == 0 {
 		return m, nil
 	}
@@ -831,7 +830,7 @@ func (m model) run() (tea.Model, tea.Cmd) {
 // insert selects the behaviour of tab: the command goes to the prompt instead
 // of being executed.
 func (m model) pick(insert bool) (tea.Model, tea.Cmd) {
-	vis := m.visible()
+	vis := m.list.visible()
 	if len(vis) == 0 {
 		return m, nil
 	}
@@ -841,74 +840,16 @@ func (m model) pick(insert bool) (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-// filterSnapshot caches what the frame shows for the current filter and task
-// list. Without it, every row would filter and rank all tasks again.
-type filterSnapshot struct {
-	tasks        []core.Task
-	tokens       []string
-	filter       string
-	taskCount    int
-	commandWidth int
-	valid        bool
-}
-
-// snapshotValid reports whether the cache still matches the current filter and
-// the number of tasks. The count catches a task list that shrank or grew
-// outside setTasks. A replacement that keeps the same count must still go
-// through setTasks, or the cache stays stale.
-func (m model) snapshotValid() bool {
-	return m.snapshot.valid && m.snapshot.filter == m.filter && m.snapshot.taskCount == len(m.tasks)
-}
-
-// setFilter writes the filter text, resets the list to the top and refreshes
-// the snapshot. Every filter edit goes through here, so the cache cannot go
-// stale.
+// setFilter writes the filter text through the task list, then resets the
+// list window to the top.
 func (m *model) setFilter(filter string) {
-	m.filter = filter
+	m.list.setFilter(filter)
 	m.listWin.top()
-	m.rebuildSnapshot()
 }
 
-// setTasks replaces the task list and refreshes the snapshot. Every task
-// replacement goes through here, so the cache cannot go stale.
+// setTasks replaces the tasks through the task list (see list.go).
 func (m *model) setTasks(tasks []core.Task) {
-	m.tasks = tasks
-	m.rebuildSnapshot()
-}
-
-// rebuildSnapshot rebuilds the cached ranking, tokens and command width from
-// the current filter and task list.
-func (m *model) rebuildSnapshot() {
-	tokens := strings.Fields(strings.ToLower(m.filter))
-	tasks := rankTasks(m.tasks, tokens, m.shell)
-	m.snapshot = filterSnapshot{
-		tasks:        tasks,
-		tokens:       tokens,
-		filter:       m.filter,
-		taskCount:    len(m.tasks),
-		commandWidth: commandWidthFor(tasks, m.shell),
-		valid:        true,
-	}
-}
-
-// filterTokens returns the lowercase whitespace-separated tokens of the
-// current filter. It reuses the cached tokens, and it still parses the text
-// when the snapshot is not valid.
-func (m model) filterTokens() []string {
-	if m.snapshotValid() {
-		return m.snapshot.tokens
-	}
-	return strings.Fields(strings.ToLower(m.filter))
-}
-
-// visible returns the tasks that match the current filter, ranked from the best
-// match to the worst one. It reuses the snapshot, and a model that has none
-// still gets the same results.
-func (m model) visible() []core.Task {
-	if m.snapshotValid() {
-		return m.snapshot.tasks
-	}
-	return rankTasks(m.tasks, m.filterTokens(), m.shell)
+	m.list.setTasks(tasks)
 }
 
 // rankTasks filters and ranks the tasks for the tokens. Ties keep the
@@ -937,15 +878,6 @@ func rankTasks(tasks []core.Task, tokens []string, shell core.ShellDialect) []co
 		out[i] = m.task
 	}
 	return out
-}
-
-// taskMatches reports whether the task matches all tokens as case-insensitive
-// subsequences of its name, command line or description. The rows show the
-// command and the description (e.g. the body of a package.json script), so
-// typing "npm", "tsc" or "vite" must find the task.
-func taskMatches(t core.Task, tokens []string, shell core.ShellDialect) bool {
-	_, ok := taskMatchScore(t, tokens, shell)
-	return ok
 }
 
 // taskMatchScore scores how well t matches all tokens. A contiguous match
@@ -1267,7 +1199,7 @@ func (m model) listHeight() int {
 	case m.opts.Inline && !m.fullscreen:
 		return max(m.areaHeight()-chromeRows, 1)
 	case !m.ready:
-		return max(len(m.visible()), 1)
+		return max(len(m.list.visible()), 1)
 	default:
 		return max(m.height-chromeRows, 1)
 	}
@@ -1407,10 +1339,11 @@ func (m model) filterLine() string {
 	if m.empty {
 		return ""
 	}
-	if m.filter == "" {
+	filter := m.list.filterText()
+	if filter == "" {
 		return m.styles.filter.Render("» ") + m.styles.dim.Render("type to filter")
 	}
-	return m.styles.filter.Render("» ") + m.filter + m.styles.filter.Render("▏")
+	return m.styles.filter.Render("» ") + filter + m.styles.filter.Render("▏")
 }
 
 // sourceInfos is the registry metadata, read once, because the empty screen
@@ -1462,10 +1395,10 @@ func (m model) listLines(w int) []string {
 		return m.emptyStateLines(w)
 	}
 
-	vis := m.visible()
+	vis := m.list.visible()
 	if len(vis) == 0 {
-		if m.filter != "" {
-			return []string{m.styles.dim.Render("no task matches " + strconv.Quote(m.filter))}
+		if filter := m.list.filterText(); filter != "" {
+			return []string{m.styles.dim.Render("no task matches " + strconv.Quote(filter))}
 		}
 		return []string{m.styles.dim.Render("no tasks found")}
 	}
@@ -1522,9 +1455,9 @@ func (m model) taskRow(t core.Task, selected bool, w int) string {
 
 	room := max(w-badgeW-1, 0) // columns left of the badge separator
 	avail := max(room-2, 0)    // columns after the marker
-	tokens := m.filterTokens()
+	tokens := m.list.filterTokens()
 
-	cmdW := min(m.commandWidth(), avail)
+	cmdW := min(m.list.commandWidth(), avail)
 	cmdRaw := t.CommandLineFor(m.shell)
 	cmd, cmdMatch := truncateMatched(cmdRaw, matchPositions(cmdRaw, tokens), cmdW)
 	cmd += strings.Repeat(" ", max(cmdW-lipgloss.Width(cmd), 0))
@@ -1694,17 +1627,6 @@ func renderMatched(s string, matched []bool, base, highlight lipgloss.Style) str
 	return b.String()
 }
 
-// commandWidth returns the width of the command column: the widest visible
-// command line, so that the descriptions of all rows start together. taskRow
-// caps it to the room that the row has, and only a command longer than that is
-// truncated.
-func (m model) commandWidth() int {
-	if m.snapshotValid() {
-		return m.snapshot.commandWidth
-	}
-	return commandWidthFor(m.visible(), m.shell)
-}
-
 // commandWidthFor returns the widest command line in tasks.
 func commandWidthFor(tasks []core.Task, shell core.ShellDialect) int {
 	width := 0
@@ -1735,10 +1657,10 @@ func (m model) helpLine(w int) string {
 		return m.styles.dim.Render("enter/esc close")
 	}
 
-	count := fmt.Sprintf("%d tasks", len(m.tasks))
+	count := fmt.Sprintf("%d tasks", m.list.taskCount())
 	keys := "type to filter · ↑/↓ select · enter run · esc quit"
-	if m.filter != "" {
-		count = fmt.Sprintf("%d/%d tasks", len(m.visible()), len(m.tasks))
+	if m.list.filterText() != "" {
+		count = fmt.Sprintf("%d/%d tasks", len(m.list.visible()), m.list.taskCount())
 		keys = "↑/↓ select · enter run · esc clear filter"
 	}
 	if m.opts.Inline {

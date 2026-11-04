@@ -166,8 +166,8 @@ func TestFilteringByCommandLine(t *testing.T) {
 	// The name is not a column any more, so filtering has to find what the rows
 	// show, e.g. the runner.
 	m := press(sized(Options{}), "npm")
-	if vis := m.visible(); len(vis) != 1 || vis[0].Name != "build" {
-		t.Errorf("visible tasks with filter %q = %+v, want just the build task", m.filter, vis)
+	if vis := m.list.visible(); len(vis) != 1 || vis[0].Name != "build" {
+		t.Errorf("visible tasks with filter %q = %+v, want just the build task", m.list.filterText(), vis)
 	}
 }
 
@@ -181,7 +181,7 @@ func TestFilteringByDescription(t *testing.T) {
 	for _, query := range []string{"tsc", "vite", "npm vite", "run tests"} {
 		t.Run(query, func(t *testing.T) {
 			m := press(base, query)
-			vis := m.visible()
+			vis := m.list.visible()
 			if len(vis) != 1 {
 				t.Fatalf("visible tasks with filter %q = %+v, want 1 match", query, vis)
 			}
@@ -259,7 +259,7 @@ func TestFilteringRanksAndRejectsScatteredCrossWordNoise(t *testing.T) {
 	// ("dev:edge"), then the description match ("preview"). The "build" task
 	// ("src/edge && vite") is rejected as cross-word mid-word noise.
 	m := press(base, "dev")
-	vis := m.visible()
+	vis := m.list.visible()
 	var names []string
 	for _, task := range vis {
 		names = append(names, task.Name)
@@ -273,7 +273,7 @@ func TestFilteringRanksAndRejectsScatteredCrossWordNoise(t *testing.T) {
 	// the scattered cross-word noise ("test:watch", "codes", "icons", "check")
 	// is rejected.
 	m = press(base, "tsc")
-	vis = m.visible()
+	vis = m.list.visible()
 	names = nil
 	for _, task := range vis {
 		names = append(names, task.Name)
@@ -753,25 +753,25 @@ func TestQTypesInsteadOfQuitting(t *testing.T) {
 	if cmd != nil {
 		t.Error("q returned a command, want none (it types into the filter)")
 	}
-	if got := next.(model).filter; got != "q" {
+	if got := next.(model).list.filterText(); got != "q" {
 		t.Errorf("filter after q = %q, want %q", got, "q")
 	}
 }
 
 func TestFiltering(t *testing.T) {
 	m := press(sized(Options{}), "ts")
-	if vis := m.visible(); len(vis) != 1 || vis[0].Name != "test" {
-		t.Errorf("visible tasks with filter %q = %+v, want just the test task", m.filter, vis)
+	if vis := m.list.visible(); len(vis) != 1 || vis[0].Name != "test" {
+		t.Errorf("visible tasks with filter %q = %+v, want just the test task", m.list.filterText(), vis)
 	}
 	if got := m.View().Content; !strings.Contains(got, "1/4 tasks") {
 		t.Errorf("View() does not show the filtered count:\n%s", got)
 	}
 
 	m = update(m, escKey)
-	if m.filter != "" {
-		t.Errorf("filter after esc = %q, want empty", m.filter)
+	if m.list.filterText() != "" {
+		t.Errorf("filter after esc = %q, want empty", m.list.filterText())
 	}
-	if vis := m.visible(); len(vis) != 4 {
+	if vis := m.list.visible(); len(vis) != 4 {
 		t.Errorf("visible tasks after esc = %d, want 4", len(vis))
 	}
 
@@ -782,16 +782,16 @@ func TestFiltering(t *testing.T) {
 
 	m = press(m, "cl")
 	m = update(m, ctrlUKey)
-	if m.filter != "" || len(m.visible()) != 4 {
-		t.Errorf("ctrl+u did not clear the filter: filter=%q, visible=%d", m.filter, len(m.visible()))
+	if m.list.filterText() != "" || len(m.list.visible()) != 4 {
+		t.Errorf("ctrl+u did not clear the filter: filter=%q, visible=%d", m.list.filterText(), len(m.list.visible()))
 	}
 }
 
 func TestFilterBackspace(t *testing.T) {
 	m := press(sized(Options{}), "cl")
 	m = update(m, tea.KeyPressMsg{Code: tea.KeyBackspace})
-	if m.filter != "c" {
-		t.Errorf("filter after backspace = %q, want %q", m.filter, "c")
+	if m.list.filterText() != "c" {
+		t.Errorf("filter after backspace = %q, want %q", m.list.filterText(), "c")
 	}
 }
 
@@ -805,30 +805,11 @@ func taskNames(tasks []core.Task) []string {
 	return names
 }
 
-// TestModelWithoutSnapshotRenders pins that a model built without newModel
-// still renders and measures its commands. The snapshot is an optimisation,
-// not a requirement.
-func TestModelWithoutSnapshotRenders(t *testing.T) {
-	m := model{tasks: sampleTasks()}
-	m.width, m.height, m.ready = 80, 10, true
-
-	if got := m.View().Content; !strings.Contains(got, "npm run build") {
-		t.Errorf("View() without a snapshot does not render the tasks:\n%s", got)
-	}
-	if got, want := m.commandWidth(), len("cargo make clean"); got != want {
-		t.Errorf("commandWidth() without a snapshot = %d, want %d", got, want)
-	}
-
-	// A direct edit without the helper falls back to a full computation.
-	m.filter = "clean"
-	if got := taskNames(m.visible()); !slices.Equal(got, []string{"clean"}) {
-		t.Errorf("visible tasks after a direct filter edit = %v, want [clean]", got)
-	}
-}
-
-// TestTaskSnapshotFollowsRefresh pins that a reload of the task sources
-// replaces the cached ranking and keeps the cursor inside the shorter list.
-func TestTaskSnapshotFollowsRefresh(t *testing.T) {
+// TestTaskListFollowsRefresh pins that a reload of the task sources replaces
+// the ranked tasks and keeps the cursor inside the shorter list. The ranking
+// and the command width come back through the reads of the task list, against
+// the tasks that the save message carried.
+func TestTaskListFollowsRefresh(t *testing.T) {
 	env, files := testEnv(t)
 	files[filepath.Join(env.Dir, "Makefile")] = "build:\n\t@echo build\n"
 
@@ -840,13 +821,15 @@ func TestTaskSnapshotFollowsRefresh(t *testing.T) {
 	m = update(m, downKey)
 	next, cmd := m.Update(enterKey)
 	m = next.(model)
-	m = update(m, execCmd(t, cmd))
+	msg := execCmd(t, cmd)
+	m = update(m, msg)
 
-	if !m.snapshot.valid {
-		t.Fatal("snapshot after the task refresh is invalid")
+	saved, ok := msg.(themeSavedMsg)
+	if !ok {
+		t.Fatal("the theme save command did not return a themeSavedMsg")
 	}
-	want := rankTasks(m.tasks, strings.Fields(strings.ToLower(m.filter)), m.shell)
-	got := taskNames(m.visible())
+	want := rankTasks(saved.tasks, filterTokensOf("build"), m.shell)
+	got := taskNames(m.list.visible())
 	if !slices.Equal(got, taskNames(want)) {
 		t.Errorf("visible tasks after the refresh = %v, want %v", got, taskNames(want))
 	}
@@ -856,46 +839,48 @@ func TestTaskSnapshotFollowsRefresh(t *testing.T) {
 	if m.listWin != (window{cursor: 0, offset: 0}) {
 		t.Errorf("cursor and offset after the refresh = %d and %d, want 0 and 0", m.listWin.cursor, m.listWin.offset)
 	}
-	if got, want := m.snapshot.commandWidth, commandWidthFor(want, m.shell); got != want {
+	if got, want := m.list.commandWidth(), commandWidthFor(want, m.shell); got != want {
 		t.Errorf("command width after the refresh = %d, want %d", got, want)
 	}
 }
 
-// TestFilterSnapshotFollowsFilterChanges pins that every filter edit refreshes
-// the cached ranking and command width. A stale cache would show old rows after
+// TestTaskListFollowsFilterEdits pins that every filter edit refreshes the
+// ranked tasks and the command width. A stale list would show old rows after
 // a key press.
-func TestFilterSnapshotFollowsFilterChanges(t *testing.T) {
-	m := sized(Options{})
+func TestTaskListFollowsFilterEdits(t *testing.T) {
+	tasks := sampleTasks()
+	m := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 30})
 
 	steps := []struct {
-		name string
-		msg  tea.Msg
+		name   string
+		msg    tea.Msg
+		filter string // the filter text after the step
 	}{
-		{"type m", tea.KeyPressMsg{Code: 'm', Text: "m"}},
-		{"type a", tea.KeyPressMsg{Code: 'a', Text: "a"}},
-		{"type k", tea.KeyPressMsg{Code: 'k', Text: "k"}},
-		{"type e", tea.KeyPressMsg{Code: 'e', Text: "e"}},
-		{"type t", tea.KeyPressMsg{Code: 't', Text: "t"}},
-		{"backspace", tea.KeyPressMsg{Code: tea.KeyBackspace}},
-		{"ctrl+u", ctrlUKey},
-		{"type z", tea.KeyPressMsg{Code: 'z', Text: "z"}},
-		{"type z", tea.KeyPressMsg{Code: 'z', Text: "z"}},
-		{"type z", tea.KeyPressMsg{Code: 'z', Text: "z"}},
-		{"esc", escKey},
+		{"type m", tea.KeyPressMsg{Code: 'm', Text: "m"}, "m"},
+		{"type a", tea.KeyPressMsg{Code: 'a', Text: "a"}, "ma"},
+		{"type k", tea.KeyPressMsg{Code: 'k', Text: "k"}, "mak"},
+		{"type e", tea.KeyPressMsg{Code: 'e', Text: "e"}, "make"},
+		{"type t", tea.KeyPressMsg{Code: 't', Text: "t"}, "maket"},
+		{"backspace", tea.KeyPressMsg{Code: tea.KeyBackspace}, "make"},
+		{"ctrl+u", ctrlUKey, ""},
+		{"type z", tea.KeyPressMsg{Code: 'z', Text: "z"}, "z"},
+		{"type z", tea.KeyPressMsg{Code: 'z', Text: "z"}, "zz"},
+		{"type z", tea.KeyPressMsg{Code: 'z', Text: "z"}, "zzz"},
+		{"esc", escKey, ""},
 	}
 
 	for _, step := range steps {
 		m = update(m, step.msg)
 
-		if !m.snapshot.valid {
-			t.Fatalf("after %s the snapshot is invalid, want the new results", step.name)
+		if got, want := m.list.filterText(), step.filter; got != want {
+			t.Fatalf("after %s filter text = %q, want %q", step.name, got, want)
 		}
-		want := rankTasks(m.tasks, strings.Fields(strings.ToLower(m.filter)), m.shell)
-		if got := taskNames(m.snapshot.tasks); !slices.Equal(got, taskNames(want)) {
+		want := rankTasks(tasks, filterTokensOf(step.filter), m.shell)
+		if got := taskNames(m.list.visible()); !slices.Equal(got, taskNames(want)) {
 			t.Fatalf("after %s ranked tasks = %v, want %v", step.name, got, taskNames(want))
 		}
-		if got, want := m.snapshot.commandWidth, commandWidthFor(want, m.shell); got != want {
-			t.Fatalf("after %s command width = %d, want %d", step.name, got, want)
+		if got, wantW := m.list.commandWidth(), commandWidthFor(want, m.shell); got != wantW {
+			t.Fatalf("after %s command width = %d, want %d", step.name, got, wantW)
 		}
 	}
 }
@@ -1041,8 +1026,8 @@ func TestNoTasksEmptyStateOnlyDismisses(t *testing.T) {
 	m = update(m, tea.CursorPositionMsg{Y: 5})
 
 	m = press(m, "abc")
-	if m.filter != "" {
-		t.Errorf("filter in the empty state = %q, want empty", m.filter)
+	if m.list.filterText() != "" {
+		t.Errorf("filter in the empty state = %q, want empty", m.list.filterText())
 	}
 
 	for _, key := range []tea.KeyPressMsg{enterKey, escKey} {
@@ -1091,9 +1076,9 @@ func TestEmptyStateKeys(t *testing.T) {
 				t.Fatalf("%s in the empty state returned %v, want no command", key.name, cmd)
 			}
 			after := next.(model)
-			if after.filter != "" || after.listWin != (window{}) {
+			if after.list.filterText() != "" || after.listWin != (window{}) {
 				t.Errorf("state after %s = filter %q, window %+v, want zeroed",
-					key.name, after.filter, after.listWin)
+					key.name, after.list.filterText(), after.listWin)
 			}
 			if after.themeModal || after.warningModal || after.fullscreen {
 				t.Errorf("state after %s opened a modal or took the full screen", key.name)
@@ -1218,7 +1203,7 @@ func TestEnterRunsInPlaceFullscreen(t *testing.T) {
 func TestTaskDoneStatus(t *testing.T) {
 	m := update(sized(Options{}), enterKey)
 
-	done := update(m, taskDoneMsg{task: m.tasks[0]})
+	done := update(m, taskDoneMsg{task: m.list.visible()[0]})
 	if done.status.kind != statusOk {
 		t.Errorf("status kind after a successful run = %d, want statusOk", done.status.kind)
 	}
@@ -1232,7 +1217,7 @@ func TestTaskDoneStatus(t *testing.T) {
 		t.Errorf("the help line does not carry the status:\n%s", got)
 	}
 
-	failed := update(m, taskDoneMsg{task: m.tasks[0], err: errors.New("exit status 1")})
+	failed := update(m, taskDoneMsg{task: m.list.visible()[0], err: errors.New("exit status 1")})
 	if failed.status.kind != statusErr {
 		t.Errorf("status kind after a failed run = %d, want statusErr", failed.status.kind)
 	}

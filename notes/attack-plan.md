@@ -8,7 +8,7 @@ below carries the date it became true.
 
 | # | Piece | Strength | Status | Notes |
 | --- | --- | --- | --- | --- |
-| 1 | Warning identity (core ↔ tui) | Strong | not started (2026-11-04) | carries the triple cache read; open: the dismissal-key migration, the kind taxonomy |
+| 1 | Warning identity (core ↔ tui) | Strong | spec ready (2026-11-04) | carries the triple cache read; the open decisions settled (2026-11-04) in [warning-identity](warning-identity.md): five kinds, key grammar, lookup-duale migration |
 | 2 | FP7 status as data | Strong | not started (2026-11-04) | user-visible fix (ctrl+t preview): CHANGELOG entry; closes the notice.go:15 drift |
 | 3 | FP2 frame as structure (+ empty state) | Strong | not started (2026-11-04) | byte-identical via differential testing; patch A says −10…−27% of the modal frame |
 | 4 | FP6 windowing module | Strong | not started (2026-11-04) | carries the modal-open re-checks |
@@ -37,3 +37,8 @@ To resume work: read this table, then the candidate details in
   [arch-review-2026-11](arch-review-2026-11.md); the benchmark source and
   the baselines in [arch-bench-2026-11](arch-bench-2026-11.md). Piece 1
   (warning identity) is next.
+- 2026-11-04: piece 1 grilled — the eight decisions (typed warning, five
+  kinds, key grammar, granularity, dedup, typed theme guard, lookup-duale
+  migration, scope riders) recorded in
+  [warning-identity](warning-identity.md); the spec is published to the local
+  tracker (`ready-for-agent`); implementation is next.

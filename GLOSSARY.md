@@ -11,6 +11,12 @@ border, body rows, and a footer, all fitted to one column width. The warning
 box and the theme picker are boxes.
 *Avoid*: modal (that is the keyboard state), dialog, panel
 
+**Dismissal key**:
+The stable single-line identity of a warning in the dismissed-warnings
+file: its kind, its subject and its offending value. The wording of the
+message never enters it.
+*Avoid*: warning key (the message text), checksum, badge
+
 **Modal**:
 The keyboard state in which a box is open and captures the keys, with its own
 result behavior. The warning modal owns `d`, the theme modal owns the live
@@ -21,3 +27,14 @@ preview.
 A rendered box plus the cell where its first line starts on the frame. The
 caller owns the placement rule; the box owns the drawing.
 *Avoid*: overlay (that is the compositor that draws placed boxes)
+
+**Warning**:
+A problem the picker reports without failing: a project file that cannot be
+read or parsed, a bad rc entry, or an unusable flag value. A warning is
+dismissable; the dismissed set lives in the cache file.
+*Avoid*: error (the general carrier), notice (the status toast)
+
+**Warning kind**:
+The subject family a warning belongs to. A closed set of five: theme,
+shell, rc, source, registry.
+*Avoid*: type, category, origin

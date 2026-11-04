@@ -38,3 +38,7 @@ it was true at.
 - [attack-plan](attack-plan.md) — the execution tracker of the twelve
   candidates: a status table with dates, a progress log, and the resume
   pointer.
+- [warning-identity](warning-identity.md) — the settled piece-1 design
+  (2026-11-04): a warning carries a kind and a dismissal key instead of
+  being its message text, and the dismissed-warnings file accepts both the
+  key form and the legacy text form.

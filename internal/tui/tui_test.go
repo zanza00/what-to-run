@@ -655,6 +655,53 @@ func TestViewFullscreenFillsHeightAndScrolls(t *testing.T) {
 	}
 }
 
+// TestBuildFrameFacts pins the facts that the frame carries at 24 rows and 80
+// columns: listRows is the clamped visible window, and an open box keeps its
+// placement. The warning box sits on a 50-task list: the twenty list rows put
+// the help row at 3+20=23, and its five rows center above it at (23-5)/2=9.
+// The theme box centers in the view at (24-8)/2=8.
+func TestBuildFrameFacts(t *testing.T) {
+	tasks := make([]core.Task, 50)
+	for i := range tasks {
+		tasks[i] = core.Task{Source: "Makefile", Name: fmt.Sprintf("task-%02d", i), Args: []string{"make", fmt.Sprintf("task-%02d", i)}}
+	}
+
+	m := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 24})
+	if got := m.buildFrame(24, 80).listRows; got != 20 {
+		t.Errorf("listRows of 50 tasks at 24 rows = %d, want 20 (the clamped visible window)", got)
+	}
+
+	m = update(newModel(Options{}, tasks[:3], nil), tea.WindowSizeMsg{Width: 80, Height: 24})
+	if got := m.buildFrame(24, 80).listRows; got != 3 {
+		t.Errorf("listRows of 3 tasks at 24 rows = %d, want 3 (the window holds the whole list)", got)
+	}
+
+	warned := update(newModel(Options{}, tasks, []core.Warning{sampleWarning("Makefile.toml: cannot parse the recipe")}),
+		tea.WindowSizeMsg{Width: 80, Height: 24})
+	f := warned.buildFrame(24, 80)
+	if len(f.boxes) != 1 {
+		t.Fatalf("the frame holds %d boxes, want the warning box alone", len(f.boxes))
+	}
+	if got := len(f.boxes[0].lines); got != 5 {
+		t.Fatalf("the warning box is %d rows tall, want 5", got)
+	}
+	if got := f.boxes[0]; got.x != 19 || got.y != 9 {
+		t.Errorf("warning box starts at (%d, %d), want (19, 9)", got.x, got.y)
+	}
+
+	themed := update(m, ctrlTKey)
+	f = themed.buildFrame(24, 80)
+	if len(f.boxes) != 1 {
+		t.Fatalf("the frame holds %d boxes, want the theme box alone", len(f.boxes))
+	}
+	if got := len(f.boxes[0].lines); got != 8 {
+		t.Fatalf("the theme box is %d rows tall, want 8", got)
+	}
+	if got := f.boxes[0]; got.x != 29 || got.y != 8 {
+		t.Errorf("theme box starts at (%d, %d), want (29, 8)", got.x, got.y)
+	}
+}
+
 func TestViewShowsWarnings(t *testing.T) {
 	m := update(newModel(Options{}, sampleTasks(), []core.Warning{core.NewSourceWarning("cargo-make", "Makefile.toml", "Makefile.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 30})
@@ -1009,6 +1056,76 @@ func TestNoTasksEmptyStateOnlyDismisses(t *testing.T) {
 		if chosen := next.(model).chosen; chosen != nil {
 			t.Errorf("%s in the empty state chose %+v, want nothing", key.String(), chosen)
 		}
+	}
+}
+
+// TestEmptyStateKeys covers the whole keyboard that the empty screen gives the
+// picker: enter and esc quit, and every other key does nothing. The no-op
+// contract includes the keys that would act on a task list, because the empty
+// branch sits before the switch that owns them.
+func TestEmptyStateKeys(t *testing.T) {
+	m := update(newModel(Options{Inline: true}, nil, nil), tea.WindowSizeMsg{Width: 80, Height: 30})
+	m = update(m, tea.CursorPositionMsg{Y: 5})
+
+	for _, key := range []struct {
+		name string
+		msg  tea.KeyPressMsg
+	}{
+		{"tab", tabKey},
+		{"up", upKey},
+		{"down", downKey},
+		{"home", homeKey},
+		{"end", endKey},
+		{"pgup", pgUpKey},
+		{"pgdown", pgDownKey},
+		{"ctrl+u", ctrlUKey},
+		{"ctrl+f", ctrlFKey},
+		{"ctrl+w", ctrlWKey},
+		{"ctrl+t", ctrlTKey},
+		{"backspace", tea.KeyPressMsg{Code: tea.KeyBackspace}},
+		{"printable input", tea.KeyPressMsg{Code: 'x', Text: "x"}},
+	} {
+		t.Run(key.name, func(t *testing.T) {
+			next, cmd := m.Update(key.msg)
+			if cmd != nil {
+				t.Fatalf("%s in the empty state returned %v, want no command", key.name, cmd)
+			}
+			after := next.(model)
+			if after.filter != "" || after.cursor != 0 || after.offset != 0 {
+				t.Errorf("state after %s = filter %q, cursor %d, offset %d, want zeroed",
+					key.name, after.filter, after.cursor, after.offset)
+			}
+			if after.themeModal || after.warningModal || after.fullscreen {
+				t.Errorf("state after %s opened a modal or took the full screen", key.name)
+			}
+			if after.chosen != nil {
+				t.Errorf("%s in the empty state chose %+v, want nothing", key.name, after.chosen)
+			}
+			if got, want := after.View().Content, m.View().Content; got != want {
+				t.Errorf("the empty screen changed after %s:\n%s", key.name, got)
+			}
+		})
+	}
+
+	for _, key := range []struct {
+		name string
+		msg  tea.KeyPressMsg
+	}{
+		{"enter", enterKey},
+		{"esc", escKey},
+	} {
+		t.Run(key.name, func(t *testing.T) {
+			next, cmd := m.Update(key.msg)
+			if cmd == nil {
+				t.Fatalf("%s in the empty state returned no command, want tea.Quit", key.name)
+			}
+			if _, ok := cmd().(tea.QuitMsg); !ok {
+				t.Errorf("%s in the empty state returned %T, want tea.QuitMsg", key.name, cmd())
+			}
+			if after := next.(model); after.chosen != nil {
+				t.Errorf("%s in the empty state chose %+v, want nothing", key.name, after.chosen)
+			}
+		})
 	}
 }
 

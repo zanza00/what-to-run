@@ -34,6 +34,11 @@ var areaStyle = lipgloss.NewStyle().
 // list: the title, the filter line, the blank separator and the help line.
 const chromeRows = 4
 
+// chromeTop is the number of frame rows above the list: the title, the filter
+// line and the blank separator. These three rows plus the help line below are
+// what chromeRows counts.
+const chromeTop = 3
+
 // minInlineHeight is the smallest area that the inline UI reserves. Television
 // uses the same value. When fewer rows are free below the cursor, the terminal
 // scrolls up instead of squeezing the UI.
@@ -311,6 +316,14 @@ type model struct {
 	tasks    []core.Task
 	warnings []core.Warning
 
+	// empty reports that the project has nothing to run. The keys, the
+	// filter line, the list body and the help line read the fact, so the
+	// empty screen is one fact instead of four derivations. The model
+	// computes the fact once, at construction. The empty model never
+	// gains tasks later. The only replacement of the task list goes
+	// through a theme save. The theme modal cannot open without tasks.
+	empty bool
+
 	width  int
 	height int
 	ready  bool // true once the first tea.WindowSizeMsg has arrived
@@ -404,6 +417,7 @@ func newModel(opts Options, tasks []core.Task, warnings []core.Warning) model {
 		shell:        shell,
 		tasks:        tasks,
 		warnings:     warnings,
+		empty:        len(tasks) == 0,
 		themeIdx:     idx,
 		styles:       newStyles(themes[idx]),
 		warningModal: warnOpen,
@@ -505,7 +519,9 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.themeModal {
 		return m.handleThemeKey(msg)
 	}
-	if len(m.tasks) == 0 {
+	if m.empty {
+		// With no tasks there is nothing to filter, choose or preview, so every
+		// other key is a no-op.
 		if key == "enter" || key == "esc" {
 			return m, tea.Quit
 		}
@@ -1210,12 +1226,12 @@ func (m model) View() tea.View {
 		}
 		if m.opts.DebugArea {
 			// The border takes 2 columns and 2 rows of the area for itself.
-			return tea.NewView(areaStyle.Render(m.render(max(h-2, 0), max(m.inlineWidth()-2, 0))))
+			return tea.NewView(areaStyle.Render(m.buildFrame(max(h-2, 0), max(m.inlineWidth()-2, 0)).paint()))
 		}
-		return tea.NewView(m.render(h, m.inlineWidth()))
+		return tea.NewView(m.buildFrame(h, m.inlineWidth()).paint())
 	}
 
-	v := tea.NewView(m.render(m.viewHeight(), m.width))
+	v := tea.NewView(m.buildFrame(m.viewHeight(), m.width).paint())
 	v.AltScreen = true
 	return v
 }
@@ -1253,34 +1269,61 @@ func (m model) listHeight() int {
 	}
 }
 
-// render lays the picker out in exactly h rows and w columns: the title, the
-// filter line, the task list and the help line, padded or trimmed to fit.
-func (m model) render(h, w int) string {
-	lines := make([]string, 0, h)
-	lines = append(lines,
+// frame is one full render of the picker as data: the styled rows and the
+// boxes placed over them (the term lives in GLOSSARY.md). buildFrame renders
+// the list rows once and counts them. The placement of the boxes reads that
+// count, so one frame never draws the list twice. listRows stores the count,
+// so the tests and the later pieces can pin the facts of a frame without
+// rendering one.
+type frame struct {
+	rows     []string
+	boxes    []placedBox
+	listRows int
+}
+
+// buildFrame assembles the frame in exactly h rows and w columns: the title,
+// the filter line, the task list and the help line, padded or trimmed to fit.
+// It is the frame's only writer; the view builds the frame and paints it at
+// its edge. The boxes are placed after the rows, so their placement reads the
+// count of the list rows instead of rendering the list again.
+func (m model) buildFrame(h, w int) frame {
+	list := m.listLines(w)
+	rows := make([]string, 0, h)
+	rows = append(rows,
 		m.titleLine(),
 		m.filterLine(),
 		"",
 	)
-	lines = append(lines, m.listLines(w)...)
-	lines = append(lines, m.helpLine(w))
+	rows = append(rows, list...)
+	rows = append(rows, m.helpLine(w))
 
-	if len(lines) > h {
-		lines = lines[:h]
+	if len(rows) > h {
+		rows = rows[:h]
 	}
-	for len(lines) < h {
-		lines = append(lines, "")
+	for len(rows) < h {
+		rows = append(rows, "")
 	}
-	for i, line := range lines {
+	for i, line := range rows {
 		if w > 0 {
 			// Each line stays on one row and does not wrap, whatever the content.
-			lines[i] = ansi.Truncate(line, w, "…")
+			rows[i] = ansi.Truncate(line, w, "…")
 		}
 	}
-	if boxes := m.boxes(h, w); len(boxes) > 0 {
-		return overlay(lines, boxes...)
+	return frame{
+		rows:     rows,
+		boxes:    m.boxes(h, w, len(list)),
+		listRows: len(list),
 	}
-	return strings.Join(lines, "\n")
+}
+
+// paint produces the string of the frame: the joined rows when no box is
+// open, and the composited rows when the placed boxes draw over them. Only
+// the view calls paint, so the frame stays data everywhere else.
+func (f frame) paint() string {
+	if len(f.boxes) > 0 {
+		return overlay(f.rows, f.boxes...)
+	}
+	return strings.Join(f.rows, "\n")
 }
 
 // placedBox is a rendered box and the cell that its first line starts on.
@@ -1289,8 +1332,8 @@ type placedBox struct {
 	x, y  int
 }
 
-// overlay draws the boxes over the rendered lines with the canvas compositor.
-// The compositor replaces cell by cell, so a background that crosses a box edge
+// overlay draws the boxes over the rendered rows through the compositor. The
+// compositor replaces cell by cell, so a background that crosses a box edge
 // is not broken. Splicing styled lines by hand would break it. A later box
 // draws on top of an earlier one.
 func overlay(lines []string, boxes ...placedBox) string {
@@ -1304,7 +1347,9 @@ func overlay(lines []string, boxes ...placedBox) string {
 
 // boxes returns the placed boxes to draw over the picker: the transient notice
 // in the top-right corner, the warning box, and the centered theme picker.
-func (m model) boxes(h, w int) []placedBox {
+// listRows is the count of the list rows of this frame, so the placement
+// measures the list without drawing it again.
+func (m model) boxes(h, w, listRows int) []placedBox {
 	var boxes []placedBox
 	if box := m.noticeBox(w); box != nil {
 		boxes = append(boxes, *box)
@@ -1314,7 +1359,7 @@ func (m model) boxes(h, w int) []placedBox {
 			boxes = append(boxes, placedBox{
 				lines: lines,
 				x:     max((w-lipgloss.Width(lines[0]))/2, 0),
-				y:     m.warningModalY(h, w, len(lines)),
+				y:     warningModalY(h, listRows, len(lines)),
 			})
 		}
 	}
@@ -1333,9 +1378,11 @@ func (m model) boxes(h, w int) []placedBox {
 // warningModalY places the warning box so that the bottom help line stays
 // visible. The box is centered above the help line when the task list is tall
 // enough, it sits right below the help line when only a couple of tasks are
-// present, and it is centered in the view on tiny terminals.
-func (m model) warningModalY(h, w, boxH int) int {
-	helpRow := min(3+len(m.listLines(w)), max(h-1, 0))
+// present, and it is centered in the view on tiny terminals. The help row is
+// the count of list rows plus the chrome above the list, so the placement
+// stays arithmetic over the frame facts.
+func warningModalY(h, listRows, boxH int) int {
+	helpRow := min(chromeTop+listRows, max(h-1, 0))
 	switch {
 	case helpRow >= boxH:
 		return max((helpRow-boxH)/2, min(1, helpRow-boxH))
@@ -1353,7 +1400,7 @@ func (m model) titleLine() string {
 
 // filterLine renders the filter input.
 func (m model) filterLine() string {
-	if len(m.tasks) == 0 {
+	if m.empty {
 		return ""
 	}
 	if m.filter == "" {
@@ -1407,7 +1454,7 @@ func joinAnd(items []string) string {
 
 // listLines renders the visible window of the filtered task list.
 func (m model) listLines(w int) []string {
-	if len(m.tasks) == 0 {
+	if m.empty {
 		return m.emptyStateLines(w)
 	}
 
@@ -1681,7 +1728,7 @@ func (m model) helpLine(w int) string {
 	case statusErr:
 		return m.styles.err.Render(m.status.text)
 	}
-	if len(m.tasks) == 0 {
+	if m.empty {
 		return m.styles.dim.Render("enter/esc close")
 	}
 

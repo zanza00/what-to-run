@@ -228,6 +228,41 @@ func TestWarningModalFitsInlineAndNarrowTerminals(t *testing.T) {
 	}
 }
 
+// TestWarningModalPlacement pins the three branches of the warning box
+// placement, and the crossings where the branches exchange. Each case is
+// arithmetic over the frame facts alone: h is the frame height, listRows is
+// the count of list rows, and boxH is the height of the placed box. The
+// heights stay inside the range that the box module draws.
+func TestWarningModalPlacement(t *testing.T) {
+	tests := []struct {
+		name     string
+		h        int
+		listRows int
+		boxH     int
+		want     int
+	}{
+		{"centered above a tall list", 24, 20, 5, 9},
+		{"one row of room lands on row 1", 24, 3, 5, 1},
+		{"flush at the top when the box reaches the help line", 24, 2, 5, 0},
+		{"right below the help line when the box is taller than the list", 24, 2, 8, 6},
+		{"below the help line while the list holds three rows", 24, 3, 7, 7},
+		{"the crossing: one more list row centers above the help line", 24, 4, 7, 0},
+		{"the last row of room keeps the box below the help line", 14, 2, 8, 6},
+		{"the crossing: no row below the box centers it in the view", 13, 2, 8, 2},
+		{"the help row stops one row above the view height", 10, 50, 4, 2},
+		{"centered in the view on a tiny terminal", 10, 1, 8, 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := warningModalY(tt.h, tt.listRows, tt.boxH); got != tt.want {
+				t.Errorf("warningModalY(h=%d, listRows=%d, boxH=%d) = %d, want %d",
+					tt.h, tt.listRows, tt.boxH, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSavingThemeReParsesConfigAndClearsResolvedWarning(t *testing.T) {
 	env, files := testEnv(t)
 	files[env.UserFile] = "theme = \"nope\"\n"

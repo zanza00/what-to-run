@@ -17,6 +17,12 @@ file: its kind, its subject and its offending value. The wording of the
 message never enters it.
 *Avoid*: warning key (the message text), checksum, badge
 
+**Frame**:
+The painted rows at one width and height, with the boxes placed over them.
+The frame owns its own geometry facts, and painting turns it into the
+string the view shows.
+*Avoid*: canvas, the compositor (that draws placed boxes)
+
 **Modal**:
 The keyboard state in which a box is open and captures the keys, with its own
 result behavior. The warning modal owns `d`, the theme modal owns the live

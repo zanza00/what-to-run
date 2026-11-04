@@ -12,9 +12,8 @@ import (
 // the picker, for ephemeral confirmations such as saving a theme. It never
 // touches the chrome (the help line), it expires on its own, and a new notice
 // replaces the previous one together with its timer. It shares the rule of
-// the status: the model holds no styled bytes, and the chrome paints at
-// render time. A problem is not a notice: it stays in the status line until
-// another status replaces it.
+// the status (see status.go). A problem is not a notice: it stays in the help
+// line until another status replaces it.
 
 // noticeTTL is how long a notice stays on screen.
 const noticeTTL = 2 * time.Second

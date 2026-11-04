@@ -345,8 +345,7 @@ type model struct {
 
 	// status is the message that the help line paints when the model holds
 	// one: the outcome of the last run in place, the failure of a theme
-	// save, or the failure of a dismissal save. It stays until another
-	// status replaces it.
+	// save, or the failure of a dismissal save (see status.go).
 	status  status
 	started time.Time  // when the current in-place run started
 	chosen  *core.Task // task chosen in inline mode, to run or insert after quitting
@@ -1673,8 +1672,7 @@ func commandWidthFor(tasks []core.Task, shell core.ShellDialect) int {
 func (m model) helpLine(w int) string {
 	// The status is plain text, so it follows the theme that is active at
 	// this render, and the ctrl+t preview restyles it like every other
-	// surface. The kinds map one to one onto the painters: running onto the
-	// dim style, ok onto the ok style, err onto the error style.
+	// surface.
 	switch m.status.kind {
 	case statusRunning:
 		return m.styles.dim.Render(m.status.text)

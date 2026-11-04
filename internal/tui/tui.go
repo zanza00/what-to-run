@@ -343,7 +343,11 @@ type model struct {
 	cursor   int            // index into visible()
 	offset   int            // index of the first visible row of the list
 
-	status  string     // outcome of the last in-place run, shown in the help line
+	// status is the message that the help line paints when the model holds
+	// one: the outcome of the last run in place, the failure of a theme
+	// save, or the failure of a dismissal save. It stays until another
+	// status replaces it.
+	status  status
 	started time.Time  // when the current in-place run started
 	chosen  *core.Task // task chosen in inline mode, to run or insert after quitting
 
@@ -470,9 +474,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case taskDoneMsg:
 		elapsed := time.Since(m.started).Round(100 * time.Millisecond)
 		if msg.err != nil {
-			m.status = m.styles.err.Render(fmt.Sprintf("✗ %s (%s): %v", msg.task.Name, elapsed, msg.err))
+			m.status = status{kind: statusErr, text: fmt.Sprintf("✗ %s (%s): %v", msg.task.Name, elapsed, msg.err)}
 		} else {
-			m.status = m.styles.ok.Render(fmt.Sprintf("✓ %s (%s)", msg.task.Name, elapsed))
+			m.status = status{kind: statusOk, text: fmt.Sprintf("✓ %s (%s)", msg.task.Name, elapsed)}
 		}
 
 	case noticeExpiredMsg:
@@ -731,7 +735,7 @@ func (m model) persistTheme() tea.Cmd {
 // never fatal.
 func (m *model) applyThemeSaved(msg themeSavedMsg) tea.Cmd {
 	if msg.err != nil {
-		m.status = m.styles.err.Render(fmt.Sprintf("cannot save theme %s: %v", msg.name, msg.err))
+		m.status = status{kind: statusErr, text: fmt.Sprintf("cannot save theme %s: %v", msg.name, msg.err)}
 		return nil
 	}
 	m.opts.Theme = msg.name
@@ -776,7 +780,7 @@ func (m model) run() (tea.Model, tea.Cmd) {
 		return m.pick(false)
 	}
 
-	m.status = m.styles.dim.Render("running " + t.Name + "…")
+	m.status = status{kind: statusRunning, text: "running " + t.Name + "…"}
 	m.started = time.Now()
 	return m, tea.ExecProcess(t.Command(), func(err error) tea.Msg {
 		return taskDoneMsg{task: t, err: err}
@@ -1661,14 +1665,23 @@ func commandWidthFor(tasks []core.Task, shell core.ShellDialect) int {
 	return width
 }
 
-// helpLine renders the bottom line in w columns. It shows the outcome of the
-// last in-place run when there is one, and otherwise the task count (and the
-// warning count, when present) followed by the key hints. Optional hints are
-// dropped when the line does not fit (inline mode or narrow terminals), so that
-// the keys before them stay readable.
+// helpLine renders the bottom line in w columns. It shows the status when the
+// model holds one, and otherwise the task count (and the warning count, when
+// present) followed by the key hints. Optional hints are dropped when the line
+// does not fit (inline mode or narrow terminals), so that the keys before them
+// stay readable.
 func (m model) helpLine(w int) string {
-	if m.status != "" {
-		return m.status
+	// The status is plain text, so it follows the theme that is active at
+	// this render, and the ctrl+t preview restyles it like every other
+	// surface. The kinds map one to one onto the painters: running onto the
+	// dim style, ok onto the ok style, err onto the error style.
+	switch m.status.kind {
+	case statusRunning:
+		return m.styles.dim.Render(m.status.text)
+	case statusOk:
+		return m.styles.ok.Render(m.status.text)
+	case statusErr:
+		return m.styles.err.Render(m.status.text)
 	}
 	if len(m.tasks) == 0 {
 		return m.styles.dim.Render("enter/esc close")

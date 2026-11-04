@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/zanza00/what-to-run/internal/config"
 	"github.com/zanza00/what-to-run/internal/core"
 )
@@ -60,8 +59,8 @@ func TestThemeSaveEffectReportsTheSavedTheme(t *testing.T) {
 	if m.notice != wantNotice {
 		t.Errorf("notice after the save = %q, want %q", m.notice, wantNotice)
 	}
-	if m.status != "" {
-		t.Errorf("status after the save = %q, want it untouched", ansi.Strip(m.status))
+	if m.status.kind != statusNone {
+		t.Errorf("status kind after the save = %d, want none", m.status.kind)
 	}
 	if got, want := taskNames(m.tasks), []string{"from-rc"}; !slices.Equal(got, want) {
 		t.Errorf("tasks after the save = %v, want %v", got, want)
@@ -96,8 +95,8 @@ func TestThemeSaveEffectReportsTheError(t *testing.T) {
 	if m.notice != "" {
 		t.Errorf("notice after a failed save = %q, want none", m.notice)
 	}
-	if got, want := ansi.Strip(m.status), "cannot save theme nord: disk full"; got != want {
-		t.Errorf("status after a failed save = %q, want %q", got, want)
+	if want := (status{kind: statusErr, text: "cannot save theme nord: disk full"}); m.status != want {
+		t.Errorf("status after a failed save = %+v, want %+v", m.status, want)
 	}
 	if m.opts.Theme != "" {
 		t.Errorf("opts.Theme after a failed save = %q, want it unchanged", m.opts.Theme)
@@ -237,8 +236,8 @@ func TestWarningDismissEffectReportsTheError(t *testing.T) {
 	if m.warningModal {
 		t.Error("the modal is still open after a failed save")
 	}
-	if got, want := ansi.Strip(m.status), "cannot save dismissed warning: cache locked"; got != want {
-		t.Errorf("status after a failed save = %q, want %q", got, want)
+	if want := (status{kind: statusErr, text: "cannot save dismissed warning: cache locked"}); m.status != want {
+		t.Errorf("status after a failed save = %+v, want %+v", m.status, want)
 	}
 	if _, ok := files[env.CacheFile]; ok {
 		t.Error("a failed save wrote the cache file")

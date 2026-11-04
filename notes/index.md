@@ -42,3 +42,7 @@ it was true at.
   (2026-11-04): a warning carries a kind and a dismissal key instead of
   being its message text, and the dismissed-warnings file accepts both the
   key form and the legacy text form.
+- [status-as-data](status-as-data.md) — the settled piece-2 design
+  (2026-11-04): the model holds the status as a paint kind and a plain
+  text, and the help line paints them at render time, so the ctrl+t live
+  preview restyles the status line.

@@ -83,9 +83,9 @@ func NewThemeWarning(origin, name, message string) Warning {
 
 // NewRCWarning names one problem of an rc file. The origin is "project",
 // "user" or a "projects/<path>" block, never the display label of the file.
-// The problem is a stable short code, and the value is the offending entry
-// when the problem has one. The three stay in the key, so one dismissed
-// problem does not silence a new one.
+// The problem is a stable short code, and the offending value completes the
+// detail when the problem has one. The three stay in the key, so one
+// dismissed problem does not silence a new one.
 func NewRCWarning(origin, problem, value, message string) Warning {
 	detail := problem
 	if value != "" {
@@ -107,7 +107,7 @@ func newWarning(kind WarningKind, subject, detail, message string) Warning {
 }
 
 // sanitizeKeyPart replaces every run of whitespace with one underscore, so an
-// offender value keeps the key on one line and without spaces.
+// offending value keeps the key on one line and without spaces.
 func sanitizeKeyPart(s string) string {
 	return strings.Join(strings.Fields(s), "_")
 }

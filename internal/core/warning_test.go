@@ -5,9 +5,9 @@ import (
 )
 
 // TestWarningKeyGrammar pins the dismissal key of every constructor: the kind
-// opens the key, the subject names the offender, and the optional detail tells
-// the two apart. The key is the line the dismissed-warnings file stores, so
-// the table also documents what a user reads there.
+// opens the key, the subject names the offending value, and the optional detail
+// tells two warnings apart. The key is the line the dismissed-warnings file
+// stores, so the table also documents what a user reads there.
 func TestWarningKeyGrammar(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -136,7 +136,7 @@ func TestWarningKeySurvivesAReword(t *testing.T) {
 	}
 }
 
-// TestWarningKeyHoldsOneLineWithoutSpaces pins the sanitizer: an offender
+// TestWarningKeyHoldsOneLineWithoutSpaces pins the sanitizer: an offending
 // value with whitespace still yields a key the dismissed-warnings file can
 // store as one entry per line.
 func TestWarningKeyHoldsOneLineWithoutSpaces(t *testing.T) {

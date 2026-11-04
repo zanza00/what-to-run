@@ -69,6 +69,27 @@ dismissal key).
   based on `main` (first piece, nothing stacked); no tickets, the piece is
   small.
 
+## Ratified after the code review (2026-11-04)
+
+The two-axis code review of PR #116 surfaced two edge cases the grilling had
+not covered. The maintainer ratified both on 2026-11-04; no code change
+followed from them.
+
+- 2026-11-04: a wrong-typed `disable` entry carries no offending value, so
+  its key ends at the problem (`rc:<origin>:disable-entry`,
+  `NewRCWarning` in config.go). Two such entries in one file collapse into
+  one warning, and a wrong-typed entry added later to the same file does not
+  warn again after a dismissal. The alternative — keying on a rendering of
+  the non-string value — would name something the user cannot recognize in
+  the dismissed-warnings file.
+- 2026-11-04: when the parent search cannot resolve its starting directory,
+  the warning keys on that directory in place of the leaf name
+  (discover.go, `NewSourceWarning`), as its comment says. This is the one
+  source warning whose identity varies with the starting subdirectory.
+  Ratified because every alternative is worse: a source-only key would let
+  two different unresolvable directories share one dismissal, and keying on
+  the error text would put the message into the key.
+
 ## Verification plan
 
 `task all` before every commit; the glyph-count tests of the box and the

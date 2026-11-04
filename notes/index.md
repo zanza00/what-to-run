@@ -46,3 +46,7 @@ it was true at.
   (2026-11-04): the model holds the status as a paint kind and a plain
   text, and the help line paints them at render time, so the ctrl+t live
   preview restyles the status line.
+- [frame-as-data](frame-as-data.md) — the settled piece-3 design
+  (2026-11-04): the frame is data — the styled rows, the placed boxes, the
+  list row count — with `buildFrame` as its only writer and `paint` at the
+  View edge.

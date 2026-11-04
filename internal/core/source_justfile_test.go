@@ -1219,9 +1219,9 @@ func TestDiscoverJustfileFirstFileWins(t *testing.T) {
 	writeFile(t, dir, ".justfile", "dot-only:\n    echo dot\n")
 	writeFile(t, dir, "justfile", "local-only:\n    echo local\n")
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: "justfile", Name: "local-only", Desc: "", Args: []string{"just", "local-only"}}}
 	if !reflect.DeepEqual(tasks, want) {
@@ -1235,9 +1235,9 @@ func TestDiscoverJustfileDotFallback(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".justfile", "# Build the app\nbuild:\n    echo build\n")
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: ".justfile", Name: "build", Desc: "Build the app", Args: []string{"just", "build"}}}
 	if !reflect.DeepEqual(tasks, want) {
@@ -1251,9 +1251,9 @@ func TestDiscoverJustfileDotFallback(t *testing.T) {
 func TestDiscoverJustfileImports(t *testing.T) {
 	dir := "testdata/justfile-imports"
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{
 		{Source: "justfile", Name: "root", Desc: "Root recipe", Args: []string{"just", "root"}},
@@ -1270,9 +1270,9 @@ func TestDiscoverJustfileImports(t *testing.T) {
 func TestDiscoverJustfileModules(t *testing.T) {
 	dir := "testdata/justfile-modules"
 
-	tasks, err := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, justfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{
 		{Source: "justfile", Name: "root", Desc: "Root recipe", Args: []string{"just", "root"}},
@@ -1284,9 +1284,9 @@ func TestDiscoverJustfileModules(t *testing.T) {
 }
 
 func TestDiscoverJustfileMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, justfileSource(osFiles{}), t.TempDir())
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, justfileSource(osFiles{}), t.TempDir())
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, warn)
 	}
 }
 

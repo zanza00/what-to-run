@@ -656,7 +656,7 @@ func TestViewFullscreenFillsHeightAndScrolls(t *testing.T) {
 }
 
 func TestViewShowsWarnings(t *testing.T) {
-	m := update(newModel(Options{}, sampleTasks(), []error{errors.New("Makefile.toml: boom")}),
+	m := update(newModel(Options{}, sampleTasks(), []core.Warning{core.NewSourceWarning("cargo-make", "Makefile.toml", "Makefile.toml: boom")}),
 		tea.WindowSizeMsg{Width: 80, Height: 30})
 	if got := m.View().Content; !strings.Contains(got, "Makefile.toml: boom") {
 		t.Errorf("View() does not show the discovery warning:\n%s", got)
@@ -1009,6 +1009,37 @@ func TestNoTasksEmptyStateOnlyDismisses(t *testing.T) {
 		if chosen := next.(model).chosen; chosen != nil {
 			t.Errorf("%s in the empty state chose %+v, want nothing", key.String(), chosen)
 		}
+	}
+}
+
+// TestNoTasksErrorNamesADuplicateDisableEntryOnce pins the collapse where the
+// two producer lists join. A directory with nothing to run and the same wrong
+// disable entry in both rc files reports the problem exactly once in the
+// no-tasks error, not once per file. The surviving warning keeps the rc
+// loader's message, which names the file, unchanged.
+func TestNoTasksErrorNamesADuplicateDisableEntryOnce(t *testing.T) {
+	env, files := testEnv(t)
+	files[env.UserFile] = "disable = [\"nmake\"]\n"
+	files[env.ProjectFile] = "disable = [\"nmake\"]\n"
+
+	tasks, _, warnings := env.discover()
+	if len(tasks) != 0 {
+		t.Fatalf("discover() tasks = %v, want none", tasks)
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("discover() warnings = %v, want the twin collapsed into one", warnings)
+	}
+
+	err := noTasksError(warnings)
+	const problem = `disable: unknown source "nmake"`
+	if got := strings.Count(err.Error(), problem); got != 1 {
+		t.Errorf("the no-tasks error names the disable entry %d times, want once:\n%s", got, err)
+	}
+	if !strings.HasPrefix(err.Error(), "no tasks found: ") {
+		t.Errorf("the no-tasks error = %q, want the \"no tasks found\" prefix", err)
+	}
+	if want := "rc file ~/.config/what-to-run/config.toml: " + problem; !strings.Contains(err.Error(), want) {
+		t.Errorf("the no-tasks error names %q from the rc loader, want it:\n%s", want, err)
 	}
 }
 

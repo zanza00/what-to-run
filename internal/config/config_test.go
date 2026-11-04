@@ -53,9 +53,9 @@ func TestShortPath(t *testing.T) {
 func TestLoadInMemoryFiles(t *testing.T) {
 	files := memFiles{"project.toml": "package_manager = \"bun\"\n"}
 
-	cfg, errs := Load(files, Paths{Project: "project.toml"}, testThemes)
-	if len(errs) != 0 {
-		t.Fatalf("Load() warnings = %v, want none", errs)
+	cfg, warnings := Load(files, Paths{Project: "project.toml"}, testThemes)
+	if len(warnings) != 0 {
+		t.Fatalf("Load() warnings = %v, want none", warnings)
 	}
 	if cfg.PackageManager != "bun" {
 		t.Errorf("Load() package_manager = %q, want %q", cfg.PackageManager, "bun")
@@ -63,9 +63,9 @@ func TestLoadInMemoryFiles(t *testing.T) {
 }
 
 func TestLoadMissingFiles(t *testing.T) {
-	cfg, errs := Load(diskFiles{}, Paths{Project: filepath.Join(t.TempDir(), ".what-to-run.toml")}, testThemes)
-	if len(errs) != 0 {
-		t.Errorf("Load() warnings = %v, want none", errs)
+	cfg, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(t.TempDir(), ".what-to-run.toml")}, testThemes)
+	if len(warnings) != 0 {
+		t.Errorf("Load() warnings = %v, want none", warnings)
 	}
 	if !reflect.DeepEqual(cfg, Config{}) {
 		t.Errorf("Load() = %+v, want the zero config", cfg)
@@ -98,9 +98,9 @@ name = "build"
 command = "project build"
 `)
 
-	cfg, errs := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml"), Global: filepath.Join(dir, "global.toml")}, testThemes)
-	if len(errs) != 0 {
-		t.Fatalf("Load() warnings = %v, want none", errs)
+	cfg, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml"), Global: filepath.Join(dir, "global.toml")}, testThemes)
+	if len(warnings) != 0 {
+		t.Fatalf("Load() warnings = %v, want none", warnings)
 	}
 	want := Config{
 		Settings: core.Settings{
@@ -134,9 +134,9 @@ name = 123
 command = "bad"
 `)
 
-	cfg, errs := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml")}, testThemes)
-	if len(errs) != 4 {
-		t.Fatalf("Load() warnings = %v, want 4", errs)
+	cfg, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml")}, testThemes)
+	if len(warnings) != 4 {
+		t.Fatalf("Load() warnings = %v, want 4", warnings)
 	}
 	for _, wantErr := range []string{
 		"disable entries must be strings",
@@ -144,8 +144,8 @@ command = "bad"
 		`task has unknown key "extra_key"`,
 		`task field "name" must be a string`,
 	} {
-		if !slices.ContainsFunc(errs, func(err error) bool { return strings.Contains(err.Error(), wantErr) }) {
-			t.Errorf("Load() warnings = %v, missing %q", errs, wantErr)
+		if !slices.ContainsFunc(warnings, func(w core.Warning) bool { return strings.Contains(w.Error(), wantErr) }) {
+			t.Errorf("Load() warnings = %v, missing %q", warnings, wantErr)
 		}
 	}
 	want := Config{
@@ -223,9 +223,9 @@ command = "echo local"
 	// The Load call reaches ~/work/api/sub through the real /var/home path,
 	// while the config uses ~/ through the /home symlink. The precedence is
 	// global < local < ~/work < ~/work/api.
-	cfg, errs := Load(diskFiles{}, Paths{Project: filepath.Join(apiSub, ".what-to-run.toml"), Global: globalFile, Home: linkHome}, testThemes)
-	if len(errs) != 0 {
-		t.Fatalf("Load() warnings = %v, want none", errs)
+	cfg, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(apiSub, ".what-to-run.toml"), Global: globalFile, Home: linkHome}, testThemes)
+	if len(warnings) != 0 {
+		t.Fatalf("Load() warnings = %v, want none", warnings)
 	}
 	want := Config{
 		Settings: core.Settings{
@@ -246,9 +246,9 @@ command = "echo local"
 	// Inside ~/work/api-2 the block ~/work matches, but ~/work/api must not
 	// match, because the prefix is not a directory boundary.
 	api2 := filepath.Join(realHome, "work", "api-2")
-	cfg2, errs := Load(diskFiles{}, Paths{Project: filepath.Join(api2, ".what-to-run.toml"), Global: globalFile, Home: linkHome}, testThemes)
-	if len(errs) != 0 {
-		t.Fatalf("Load(api-2) warnings = %v, want none", errs)
+	cfg2, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(api2, ".what-to-run.toml"), Global: globalFile, Home: linkHome}, testThemes)
+	if len(warnings) != 0 {
+		t.Fatalf("Load(api-2) warnings = %v, want none", warnings)
 	}
 	if cfg2.PackageManager != "pnpm" {
 		t.Errorf("api-2 PackageManager = %q, want %q (from ~/work, not ~/work/api)", cfg2.PackageManager, "pnpm")
@@ -271,9 +271,9 @@ unknown = 1
 package_manager = "yarn"
 `)
 
-	cfg, errs := Load(diskFiles{}, Paths{Project: filepath.Join(dir, ".what-to-run.toml"), Global: filepath.Join(dir, "global.toml"), Home: dir}, testThemes)
-	if len(errs) != 4 {
-		t.Fatalf("Load() warnings = %v, want 4", errs)
+	cfg, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(dir, ".what-to-run.toml"), Global: filepath.Join(dir, "global.toml"), Home: dir}, testThemes)
+	if len(warnings) != 4 {
+		t.Fatalf("Load() warnings = %v, want 4", warnings)
 	}
 	if cfg.PackageManager != "pnpm" {
 		t.Errorf("PackageManager = %q, want %q from valid [projects.\"~\"]", cfg.PackageManager, "pnpm")
@@ -287,9 +287,9 @@ func TestLoadBrokenGlobalKeepsProject(t *testing.T) {
 	writeFile(t, dir, "global.toml", "package_manager = [\n")
 	writeFile(t, dir, "project.toml", "package_manager = \"bun\"\n")
 
-	cfg, errs := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml"), Global: filepath.Join(dir, "global.toml")}, testThemes)
-	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "global.toml") {
-		t.Errorf("Load() warnings = %v, want one about global.toml", errs)
+	cfg, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml"), Global: filepath.Join(dir, "global.toml")}, testThemes)
+	if len(warnings) != 1 || !strings.Contains(warnings[0].Error(), "global.toml") {
+		t.Errorf("Load() warnings = %v, want one about global.toml", warnings)
 	}
 	if cfg.PackageManager != "bun" {
 		t.Errorf("PackageManager = %q, want %q", cfg.PackageManager, "bun")
@@ -329,9 +329,9 @@ name = "ok"
 command = "echo ok"
 `)
 
-	cfg, errs := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml")}, testThemes)
-	if len(errs) != 5 {
-		t.Errorf("Load() warnings = %v, want 5", errs)
+	cfg, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml")}, testThemes)
+	if len(warnings) != 5 {
+		t.Errorf("Load() warnings = %v, want 5", warnings)
 	}
 	want := Config{
 		Settings: core.Settings{
@@ -361,17 +361,17 @@ disable = ["Makefile.toml", "cargo-make"]
 disable = ["Makefile", "make"]
 `)
 
-	cfg, errs := Load(diskFiles{}, Paths{Project: filepath.Join(dir, ".what-to-run.toml"), Global: globalFile, Home: dir}, testThemes)
+	cfg, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(dir, ".what-to-run.toml"), Global: globalFile, Home: dir}, testThemes)
 	wantErrs := []string{
 		`rc file ~/global.toml: disable: "Makefile.toml" is a file name; use "cargo-make"`,
 		`rc file ~/global.toml: projects."~": disable: "Makefile" is a file name; use "make"`,
 	}
-	if len(errs) != len(wantErrs) {
-		t.Fatalf("Load() warnings = %v, want %d", errs, len(wantErrs))
+	if len(warnings) != len(wantErrs) {
+		t.Fatalf("Load() warnings = %v, want %d", warnings, len(wantErrs))
 	}
 	for i, want := range wantErrs {
-		if errs[i].Error() != want {
-			t.Errorf("Load() warning %d = %q, want %q", i, errs[i], want)
+		if warnings[i].Error() != want {
+			t.Errorf("Load() warning %d = %q, want %q", i, warnings[i], want)
 		}
 	}
 	want := Config{Settings: core.Settings{Disable: []string{"cargo-make", "make"}}}
@@ -386,18 +386,18 @@ func TestLoadThemeIsAUserSetting(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "global.toml", "theme = \"nord\"\n")
 
-	cfg, errs := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml"), Global: filepath.Join(dir, "global.toml")}, testThemes)
-	if len(errs) != 0 {
-		t.Fatalf("Load() warnings = %v, want none", errs)
+	cfg, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml"), Global: filepath.Join(dir, "global.toml")}, testThemes)
+	if len(warnings) != 0 {
+		t.Fatalf("Load() warnings = %v, want none", warnings)
 	}
 	if cfg.Theme != "nord" {
 		t.Errorf("Theme = %q, want %q", cfg.Theme, "nord")
 	}
 
 	writeFile(t, dir, "project.toml", "theme = \"tokyo\"\n")
-	cfg, errs = Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml"), Global: filepath.Join(dir, "global.toml")}, testThemes)
-	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "user setting") {
-		t.Errorf("Load() warnings = %v, want one about the user setting", errs)
+	cfg, warnings = Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml"), Global: filepath.Join(dir, "global.toml")}, testThemes)
+	if len(warnings) != 1 || !strings.Contains(warnings[0].Error(), "user setting") {
+		t.Errorf("Load() warnings = %v, want one about the user setting", warnings)
 	}
 	if cfg.Theme != "nord" {
 		t.Errorf("Theme = %q, want the global one %q", cfg.Theme, "nord")
@@ -408,9 +408,9 @@ func TestLoadUnknownTheme(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "global.toml", "theme = \"nope\"\n")
 
-	cfg, errs := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml"), Global: filepath.Join(dir, "global.toml")}, testThemes)
-	if len(errs) != 1 || !strings.Contains(errs[0].Error(), `"nope"`) {
-		t.Errorf("Load() warnings = %v, want one about %q", errs, "nope")
+	cfg, warnings := Load(diskFiles{}, Paths{Project: filepath.Join(dir, "project.toml"), Global: filepath.Join(dir, "global.toml")}, testThemes)
+	if len(warnings) != 1 || !strings.Contains(warnings[0].Error(), `"nope"`) {
+		t.Errorf("Load() warnings = %v, want one about %q", warnings, "nope")
 	}
 	if cfg.Theme != "" {
 		t.Errorf("Theme = %q, want it dropped", cfg.Theme)

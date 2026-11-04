@@ -626,12 +626,12 @@ func TestDiscoverTaskfileBadYAML(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.yml", "tasks:\n  build: [\n")
 
-	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
-	if err == nil {
+	tasks, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
+	if warn == nil {
 		t.Fatalf("discoverSource() = %+v, nil; want a parse error", tasks)
 	}
-	if !strings.Contains(err.Error(), "Taskfile.yml") {
-		t.Errorf("error = %q, want it to mention Taskfile.yml", err)
+	if !strings.Contains(warn.Error(), "Taskfile.yml") {
+		t.Errorf("error = %q, want it to mention Taskfile.yml", warn)
 	}
 }
 
@@ -644,9 +644,9 @@ func TestDiscoverTaskfileFirstFileWins(t *testing.T) {
 	writeFile(t, dir, "Taskfile.dist.yml", "tasks:\n  dist-only:\n    desc: From the dist file\n")
 	writeFile(t, dir, "Taskfile.yml", "tasks:\n  local-only:\n    desc: From the local file\n")
 
-	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: "Taskfile.yml", Name: "local-only", Desc: "From the local file", Args: []string{"task", "local-only"}}}
 	if !reflect.DeepEqual(tasks, want) {
@@ -661,9 +661,9 @@ func TestDiscoverTaskfileDistFallback(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.dist.yml", "tasks:\n  build:\n    desc: Build from the dist file\n")
 
-	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{{Source: "Taskfile.dist.yml", Name: "build", Desc: "Build from the dist file", Args: []string{"task", "build"}}}
 	if !reflect.DeepEqual(tasks, want) {
@@ -672,9 +672,9 @@ func TestDiscoverTaskfileDistFallback(t *testing.T) {
 }
 
 func TestDiscoverTaskfileMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), t.TempDir())
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), t.TempDir())
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, warn)
 	}
 }
 

@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -80,18 +81,18 @@ func TestDiscoverPackageScripts(t *testing.T) {
 				writeFile(t, dir, lock, "")
 			}
 
-			got, err := discoverSource(osFiles{}, packageJSONSource(tt.runner, osFiles{}), dir)
+			got, warn := discoverSource(osFiles{}, packageJSONSource(tt.runner, osFiles{}), dir)
 			if tt.wantErr {
-				if err == nil {
+				if warn == nil {
 					t.Fatal("discoverSource() succeeded, want error")
 				}
-				if !strings.Contains(err.Error(), "package.json") {
-					t.Errorf("error = %q, want it to mention package.json", err)
+				if !strings.Contains(warn.Error(), "package.json") {
+					t.Errorf("error = %q, want it to mention package.json", warn)
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("discoverSource() error = %v", err)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
@@ -101,9 +102,9 @@ func TestDiscoverPackageScripts(t *testing.T) {
 }
 
 func TestDiscoverPackageScriptsMissingFile(t *testing.T) {
-	got, err := discoverSource(osFiles{}, packageJSONSource("", osFiles{}), t.TempDir())
-	if err != nil || got != nil {
-		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, err)
+	got, warn := discoverSource(osFiles{}, packageJSONSource("", osFiles{}), t.TempDir())
+	if warn != nil || got != nil {
+		t.Errorf("discoverSource() on an empty dir = %v, %v; want nil, nil", got, warn)
 	}
 }
 
@@ -155,9 +156,9 @@ func TestParseMakeTargetsDeduplicates(t *testing.T) {
 // project, which is the build entry point of the repository. Every task that a
 // contributor types must reach the picker with its description.
 func TestDiscoverTaskfileOfThisRepo(t *testing.T) {
-	tasks, err := discoverSource(osFiles{}, taskfileSource(osFiles{}), "../..")
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), "../..")
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 
 	byName := map[string]Task{}
@@ -193,9 +194,9 @@ func TestDiscoverSourceFirstFileWins(t *testing.T) {
 	writeFile(t, dir, "GNUmakefile", "from-gnu:\n\ttrue\n")
 	writeFile(t, dir, "Makefile", "from-upper:\n\ttrue\n")
 
-	tasks, err := discoverSource(osFiles{}, makeSource(), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	tasks, warn := discoverSource(osFiles{}, makeSource(), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	if len(tasks) != 1 || tasks[0].Name != "from-gnu" || tasks[0].Source != "GNUmakefile" {
 		t.Errorf("discoverSource() = %+v, want the GNUmakefile task with the GNUmakefile badge", tasks)
@@ -279,9 +280,9 @@ disabled = true
 command = "echo disabled"
 `)
 
-	got, err := discoverSource(osFiles{}, cargoMakeSource(), dir)
-	if err != nil {
-		t.Fatalf("discoverSource() error = %v", err)
+	got, warn := discoverSource(osFiles{}, cargoMakeSource(), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{
 		{Source: "Makefile.toml", Name: "build", Desc: "cargo build --release", Args: []string{"cargo", "make", "build"}},
@@ -296,9 +297,9 @@ func TestDiscoverCargoMakeTasksBrokenToml(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile.toml", "[tasks\n")
 
-	_, err := discoverSource(osFiles{}, cargoMakeSource(), dir)
-	if err == nil || !strings.Contains(err.Error(), "Makefile.toml") {
-		t.Errorf("discoverSource() error = %v, want a Makefile.toml parse error", err)
+	_, warn := discoverSource(osFiles{}, cargoMakeSource(), dir)
+	if warn == nil || !strings.Contains(warn.Error(), "Makefile.toml") {
+		t.Errorf("discoverSource() error = %v, want a Makefile.toml parse error", warn)
 	}
 }
 
@@ -312,9 +313,9 @@ func TestDiscoverTasksMergesSources(t *testing.T) {
 	writeFile(t, dir, "Makefile.toml", "[tasks.fmt]\ndescription = \"Format\"\n")
 	writeFile(t, dir, ".cargo/config.toml", "[alias]\nlint = \"clippy\"\n")
 
-	tasks, errs := Discover(osFiles{}, dir, Settings{})
-	if len(errs) != 0 {
-		t.Fatalf("Discover() errors = %v, want none", errs)
+	tasks, warns := Discover(osFiles{}, dir, Settings{})
+	if len(warns) != 0 {
+		t.Fatalf("Discover() warnings = %v, want none", warns)
 	}
 
 	var sources []string
@@ -335,9 +336,9 @@ func TestDiscoverTasksTaskfileOrder(t *testing.T) {
 	writeFile(t, dir, "Taskfile.yml", "version: '3'\ntasks:\n  build:\n    desc: Build the app\n")
 
 	settings := Settings{Tasks: []RCTask{{Name: "deploy", Command: "./deploy.sh"}}}
-	tasks, errs := Discover(osFiles{}, dir, settings)
-	if len(errs) != 0 {
-		t.Fatalf("Discover() errors = %v, want none", errs)
+	tasks, warns := Discover(osFiles{}, dir, settings)
+	if len(warns) != 0 {
+		t.Fatalf("Discover() warnings = %v, want none", warns)
 	}
 
 	var got []string
@@ -355,9 +356,9 @@ func TestDiscoverTasksSkipsBrokenSource(t *testing.T) {
 	writeFile(t, dir, "package.json", `not json`)
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := Discover(osFiles{}, dir, Settings{})
-	if len(errs) != 1 {
-		t.Fatalf("Discover() errors = %v, want exactly one", errs)
+	tasks, warns := Discover(osFiles{}, dir, Settings{})
+	if len(warns) != 1 {
+		t.Fatalf("Discover() warnings = %v, want exactly one", warns)
 	}
 	if len(tasks) != 1 || tasks[0].Name != "build" {
 		t.Errorf("Discover() tasks = %+v, want the Makefile build task", tasks)
@@ -376,9 +377,9 @@ func TestDiscoverTasksRCTasksFirst(t *testing.T) {
 		{Name: "status", Command: "git status"},
 	}}
 
-	tasks, errs := Discover(osFiles{}, dir, settings)
-	if len(errs) != 0 {
-		t.Fatalf("Discover() errors = %v, want none", errs)
+	tasks, warns := Discover(osFiles{}, dir, settings)
+	if len(warns) != 0 {
+		t.Fatalf("Discover() warnings = %v, want none", warns)
 	}
 	want := []Task{
 		{Source: "rc", Name: "deploy", Desc: "Deploy to production", Args: shellCommand("scripts/deploy.sh --prod"), Dir: filepath.Join(dir, "ops")},
@@ -397,9 +398,9 @@ func TestDiscoverTasksRCShadowsBuiltin(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"scripts": {"build": "go build ./..."}}`)
 
 	settings := Settings{Tasks: []RCTask{{Name: "build", Command: "make -C tools build"}}}
-	tasks, errs := Discover(osFiles{}, dir, settings)
-	if len(errs) != 0 {
-		t.Fatalf("Discover() errors = %v, want none", errs)
+	tasks, warns := Discover(osFiles{}, dir, settings)
+	if len(warns) != 0 {
+		t.Fatalf("Discover() warnings = %v, want none", warns)
 	}
 	if len(tasks) != 1 || tasks[0].Source != "rc" || tasks[0].Name != "build" {
 		t.Errorf("Discover() = %+v, want just the rc build task", tasks)
@@ -413,9 +414,9 @@ func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 	writeFile(t, dir, "Makefile.toml", "[tasks\n") // The file is broken, but its source is disabled.
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo-make"}})
-	if len(errs) != 0 {
-		t.Fatalf("Discover() errors = %v, want none from the disabled source", errs)
+	tasks, warns := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo-make"}})
+	if len(warns) != 0 {
+		t.Fatalf("Discover() warnings = %v, want none from the disabled source", warns)
 	}
 	if len(tasks) != 1 || tasks[0].Name != "build" {
 		t.Errorf("Discover() = %+v, want the Makefile build task", tasks)
@@ -423,16 +424,21 @@ func TestDiscoverTasksDisabledSourceIsNotRead(t *testing.T) {
 }
 
 // TestDiscoverTasksUnknownDisableEntry: discovery reports a disable entry that
-// names no source with the known IDs, and it disables no source.
+// names no source with the known IDs, and it disables no source. The warning
+// is a registry warning keyed on the raw entry, so it matches the rc loader's
+// validation of the same entry.
 func TestDiscoverTasksUnknownDisableEntry(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo"}})
+	tasks, warns := Discover(osFiles{}, dir, Settings{Disable: []string{"cargo"}})
 	want := `disable: unknown source "cargo"; known sources: ` +
 		"npm, make, task, just, cargo-make, cargo-alias, devbox, composer, deno, mise, poe, pdm, taskipy, hatch, tox, pipenv"
-	if len(errs) != 1 || errs[0].Error() != want {
-		t.Errorf("Discover() errors = %v, want exactly %q", errs, want)
+	if len(warns) != 1 || warns[0].Error() != want {
+		t.Errorf("Discover() warnings = %v, want exactly %q", warns, want)
+	}
+	if warns[0].Kind() != KindRegistry || warns[0].Key() != "registry:cargo" {
+		t.Errorf("warning identity = %s %q, want registry:cargo", warns[0].Kind(), warns[0].Key())
 	}
 	if len(tasks) != 1 || tasks[0].Name != "build" {
 		t.Errorf("Discover() = %+v, want the Makefile build task", tasks)
@@ -445,13 +451,82 @@ func TestDiscoverTasksFileNameDoesNotDisable(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile", "build:\n\techo hi\n")
 
-	tasks, errs := Discover(osFiles{}, dir, Settings{Disable: []string{"Makefile"}})
+	tasks, warns := Discover(osFiles{}, dir, Settings{Disable: []string{"Makefile"}})
 	want := `disable: "Makefile" is a file name; use "make"`
-	if len(errs) != 1 || errs[0].Error() != want {
-		t.Errorf("Discover() errors = %v, want exactly %q", errs, want)
+	if len(warns) != 1 || warns[0].Error() != want {
+		t.Errorf("Discover() warnings = %v, want exactly %q", warns, want)
+	}
+	if warns[0].Kind() != KindRegistry || warns[0].Key() != "registry:Makefile" {
+		t.Errorf("warning identity = %s %q, want registry:Makefile", warns[0].Kind(), warns[0].Key())
 	}
 	if len(tasks) != 1 || tasks[0].Name != "build" {
 		t.Errorf("Discover() = %+v, want the Makefile build task", tasks)
+	}
+}
+
+// TestDiscoverWarningKeyStableFromSubdirectory: the same broken file warns
+// with the same identity from the project directory and from its
+// subdirectory. Only the message names the directory the picker started from,
+// so a dismissal made from one directory holds from the other. The badge in
+// the message changes; the key does not.
+func TestDiscoverWarningKeyStableFromSubdirectory(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	// Broken YAML, so the Taskfile source fails to parse. The source also
+	// searches the parent directories, which is what walks it into sub.
+	writeFile(t, root, "Taskfile.yml", "version: ['\n")
+
+	_, rootWarns := Discover(osFiles{}, root, Settings{})
+	if len(rootWarns) != 1 {
+		t.Fatalf("Discover(root) warnings = %v, want one", rootWarns)
+	}
+	_, subWarns := Discover(osFiles{}, sub, Settings{})
+	if len(subWarns) != 1 {
+		t.Fatalf("Discover(sub) warnings = %v, want one", subWarns)
+	}
+
+	if rootWarns[0].Key() != subWarns[0].Key() {
+		t.Errorf("key from root = %q, key from sub = %q, want equal", rootWarns[0].Key(), subWarns[0].Key())
+	}
+	if !strings.Contains(rootWarns[0].Error(), "Taskfile.yml") {
+		t.Errorf("message from root = %q, want it to name the file", rootWarns[0].Error())
+	}
+	if !strings.Contains(subWarns[0].Error(), "../Taskfile.yml") {
+		t.Errorf("message from sub = %q, want the parent-walk badge", subWarns[0].Error())
+	}
+}
+
+// TestDiscoverWarningReadAndParseShareKey: a read failure and a parse failure
+// of one file produce the same warning. One broken file holds one identity,
+// whatever the parser complains about first, so `d` means what it says even
+// when an upgrade deepens the complaint.
+func TestDiscoverWarningReadAndParseShareKey(t *testing.T) {
+	broken := t.TempDir()
+	writeFile(t, broken, "package.json", `not json`)
+
+	// A directory named like the file makes the read fail where a parse
+	// would have.
+	unreadable := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(unreadable, "package.json"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	_, brokenWarns := Discover(osFiles{}, broken, Settings{})
+	_, unreadableWarns := Discover(osFiles{}, unreadable, Settings{})
+	if len(brokenWarns) != 1 || len(unreadableWarns) != 1 {
+		t.Fatalf("warnings = %v and %v, want one each", brokenWarns, unreadableWarns)
+	}
+	if brokenWarns[0].Key() != unreadableWarns[0].Key() {
+		t.Errorf("parse key = %q, read key = %q, want equal", brokenWarns[0].Key(), unreadableWarns[0].Key())
+	}
+	if want := "source:npm:package.json"; brokenWarns[0].Key() != want {
+		t.Errorf("key = %q, want %q", brokenWarns[0].Key(), want)
+	}
+	if !strings.Contains(unreadableWarns[0].Error(), "package.json") {
+		t.Errorf("read message = %q, want it to name the file", unreadableWarns[0].Error())
 	}
 }
 

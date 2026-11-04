@@ -113,6 +113,13 @@ func testEnv(t *testing.T) (*Env, memFiles) {
 	return env, files
 }
 
+// sampleWarning makes one warning of the Makefile source for a test. The
+// caller owns the message; the constructor owns the identity, as in the
+// production code.
+func sampleWarning(text string) core.Warning {
+	return core.NewSourceWarning("make", "Makefile", text)
+}
+
 // diskEnv returns an explicit environment on the real filesystem. The project
 // directory and the user directory are temporary.
 func diskEnv(t *testing.T) *Env {
@@ -138,3 +145,23 @@ type errStore struct {
 }
 
 func (s errStore) WriteFile(string, []byte, fs.FileMode) error { return s.err }
+
+// countStore counts the reads and the writes of each path on top of the
+// in-memory files, so a test can pin how often a command touches a file.
+type countStore struct {
+	memFiles
+	reads  map[string]int
+	writes map[string]int
+}
+
+var _ config.Store = countStore{}
+
+func (s countStore) ReadFile(name string) ([]byte, error) {
+	s.reads[name]++
+	return s.memFiles.ReadFile(name)
+}
+
+func (s countStore) WriteFile(name string, data []byte, perm fs.FileMode) error {
+	s.writes[name]++
+	return s.memFiles.WriteFile(name, data, perm)
+}

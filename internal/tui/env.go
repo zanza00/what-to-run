@@ -45,8 +45,11 @@ type Env struct {
 // discover gathers the tasks of the environment directory and the rc settings.
 // It reads the rc file first, and its problems become warnings, then it reads
 // every source. The warnings are returned even when tasks were found, because
-// the picker shows them in the status line.
-func (e Env) discover() ([]core.Task, config.Config, []error) {
+// the picker shows them in the status line. The two producer lists collapse
+// here, where they join: every consumer (the model's list, the no-tasks
+// error) names one warning per underlying problem, in the order the producers
+// report it.
+func (e Env) discover() ([]core.Task, config.Config, []core.Warning) {
 	cfg, warnings := config.Load(e.Files, config.Paths{
 		Project:      e.ProjectFile,
 		Global:       e.UserFile,
@@ -54,7 +57,7 @@ func (e Env) discover() ([]core.Task, config.Config, []error) {
 		Home:         e.Home,
 	}, themeNames())
 	tasks, sourceWarnings := core.Discover(e.Files, e.Dir, cfg.Settings)
-	return tasks, cfg, append(warnings, sourceWarnings...)
+	return tasks, cfg, dedupeWarnings(append(warnings, sourceWarnings...))
 }
 
 // resolveEnv builds the production environment when the caller did not set

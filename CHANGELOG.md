@@ -83,6 +83,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Pressing `d` on a warning now dismisses it for good. The persisted dismissal
+  no longer holds the warning text but a stable identity, so it survives a
+  release that rewords the message, it follows the same broken source file
+  from any subdirectory of the project, and a dismissed entry written by an
+  older release keeps working. A wrong entry in the `disable` list of the rc
+  file now shows one warning instead of two, so dismissing it silences it.
 - Pressing `enter` in the widget now runs the chosen task with the text typed
   before the key still in front of it, like `tab` does: `ABC=1`, then `ctrl-o`
   and `enter` runs `ABC=1 <task>` instead of dropping `ABC=1` and running the

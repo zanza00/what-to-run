@@ -18,7 +18,7 @@
 // The rc file (decoded by the caller) sits on top. Its tasks come first and
 // shadow same-named tasks of the sources, and the disable list removes a source
 // by its ID ("make", "cargo-make"). A source that is missing contributes
-// nothing. A source that exists but fails to parse is reported in errs and
+// nothing. A source that exists but fails to parse is reported as a warning and
 // skipped.
 
 package core
@@ -207,30 +207,35 @@ func checkSourceID(sources []source, name string) error {
 }
 
 // discoverSource runs one source over dir and, when the source searches
-// parents, over its ancestors. In each directory it parses the first candidate
-// file that exists, and the nearest directory wins. The path of that file
-// relative to dir becomes the badge: a bare file name in dir itself, or
-// ../justfile above it.
-func discoverSource(files Files, src source, dir string) ([]Task, error) {
+// parents, over its ancestors, and returns a warning for the first candidate
+// file that fails it. In each directory it parses the first candidate file that
+// exists, and the nearest directory wins. The path of that file relative to
+// dir becomes the badge: a bare file name in dir itself, or ../justfile above
+// it. The warning keys on the leaf name alone, so the same file keeps one
+// identity from any subdirectory of the project.
+func discoverSource(files Files, src source, dir string) ([]Task, *Warning) {
 	// Read the project directory through the path of the caller, so an
 	// in-memory Files keyed by relative names still matches. The parent search
 	// needs absolute paths, because filepath.Dir(".") is ".".
-	tasks, found, err := readSourceFile(files, src, dir, "")
-	if found || err != nil || !src.SearchParents {
-		return tasks, err
+	tasks, found, warn := readSourceFile(files, src, dir, "")
+	if found || warn != nil || !src.SearchParents {
+		return tasks, warn
 	}
 	base, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", dir, err)
+		// The parent search cannot even resolve the directory. The warning
+		// names that directory, because no candidate file was reached yet.
+		w := NewSourceWarning(src.ID, dir, fmt.Sprintf("%s: %v", dir, err))
+		return nil, &w
 	}
 	for current := filepath.Dir(base); ; current = filepath.Dir(current) {
 		prefix, relErr := filepath.Rel(base, current)
 		if relErr != nil {
 			prefix = current
 		}
-		tasks, found, err := readSourceFile(files, src, current, filepath.ToSlash(prefix))
-		if found || err != nil {
-			return tasks, err
+		tasks, found, warn := readSourceFile(files, src, current, filepath.ToSlash(prefix))
+		if found || warn != nil {
+			return tasks, warn
 		}
 		if filepath.Dir(current) == current {
 			return nil, nil
@@ -242,8 +247,10 @@ func discoverSource(files Files, src source, dir string) ([]Task, error) {
 // runs the parser on it. prefix is the path of the directory relative to the
 // project directory, and it is empty for the project directory itself: the
 // badge is the file name there and prefix/name above it. found reports whether
-// the function read a file, whether it parsed or not.
-func readSourceFile(files Files, src source, dir, prefix string) (tasks []Task, found bool, err error) {
+// the function read a file, whether it parsed or not. The warning keys on the
+// leaf name, never on the badge, and a read failure and a parse failure of one
+// file produce the same warning.
+func readSourceFile(files Files, src source, dir, prefix string) (tasks []Task, found bool, warn *Warning) {
 	for _, name := range src.Files {
 		path := filepath.Join(dir, name)
 		data, err := files.ReadFile(path)
@@ -255,11 +262,13 @@ func readSourceFile(files Files, src source, dir, prefix string) (tasks []Task, 
 			badge = filepath.ToSlash(filepath.Join(prefix, name))
 		}
 		if err != nil {
-			return nil, true, fmt.Errorf("%s: %w", badge, err)
+			w := NewSourceWarning(src.ID, name, fmt.Sprintf("%s: %v", badge, err))
+			return nil, true, &w
 		}
 		tasks, err := src.Parse(filepath.Dir(path), name, data)
 		if err != nil {
-			return nil, true, fmt.Errorf("%s: %w", badge, err)
+			w := NewSourceWarning(src.ID, name, fmt.Sprintf("%s: %v", badge, err))
+			return nil, true, &w
 		}
 		for i := range tasks {
 			tasks[i].Source = badge
@@ -273,12 +282,15 @@ func readSourceFile(files Files, src source, dir, prefix string) (tasks []Task, 
 // entries that are not IDs (a typo in the rc file). The rc decoder validates
 // entries before they get here, so this warning is a safety net for callers
 // that build Settings by hand. sources must be the full registry. Otherwise a
-// valid ID that is missing from it warns as unknown.
-func enabledSources(sources []source, disable []string) ([]source, []error) {
-	var errs []error
+// valid ID that is missing from it warns as unknown. The warning keys on the
+// raw stored entry, so it holds the same identity as the rc loader's warning
+// for the same entry, and the picker shows one warning instead of two.
+func enabledSources(sources []source, disable []string) ([]source, []Warning) {
+	var warnings []Warning
 	for _, name := range disable {
 		if err := checkSourceID(sources, name); err != nil {
-			errs = append(errs, fmt.Errorf("disable: %w", err))
+			warnings = append(warnings,
+				NewRegistryWarning(name, fmt.Sprintf("disable: %v", err)))
 		}
 	}
 
@@ -288,7 +300,7 @@ func enabledSources(sources []source, disable []string) ([]source, []error) {
 			kept = append(kept, src)
 		}
 	}
-	return kept, errs
+	return kept, warnings
 }
 
 // rcTasks converts the custom tasks of the rc file into picker tasks. They show
@@ -318,10 +330,11 @@ func rcTasks(settings Settings, dir string) []Task {
 // Discover scans dir for the tasks of the rc file and of the built-in sources,
 // in display order: rc tasks first, then each enabled source in registry order.
 // Each parser decides the order of its own tasks. A source that fails to parse
-// is reported in errs and skipped, and the function does not read a disabled
-// source at all. rc tasks shadow same-named tasks of the built-in sources.
-func Discover(files Files, dir string, settings Settings) ([]Task, []error) {
-	sources, errs := enabledSources(defaultSources(settings, files), settings.Disable)
+// is reported in warnings and skipped, and the function does not read a
+// disabled source at all. rc tasks shadow same-named tasks of the built-in
+// sources.
+func Discover(files Files, dir string, settings Settings) ([]Task, []Warning) {
+	sources, warns := enabledSources(defaultSources(settings, files), settings.Disable)
 
 	rc := rcTasks(settings, dir)
 	shadowed := make(map[string]bool, len(rc))
@@ -332,9 +345,9 @@ func Discover(files Files, dir string, settings Settings) ([]Task, []error) {
 	var tasks []Task
 	tasks = append(tasks, rc...)
 	for _, src := range sources {
-		ts, err := discoverSource(files, src, dir)
-		if err != nil {
-			errs = append(errs, err)
+		ts, warn := discoverSource(files, src, dir)
+		if warn != nil {
+			warns = append(warns, *warn)
 			continue
 		}
 		for _, t := range ts {
@@ -343,5 +356,5 @@ func Discover(files Files, dir string, settings Settings) ([]Task, []error) {
 			}
 		}
 	}
-	return tasks, errs
+	return tasks, warns
 }

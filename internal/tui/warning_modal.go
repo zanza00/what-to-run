@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path/filepath"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zanza00/what-to-run/internal/config"
+	"github.com/zanza00/what-to-run/internal/core"
 )
 
 // The warning modal (ctrl+w, or opened automatically at startup when an
@@ -20,7 +22,10 @@ import (
 //
 // Pressing d marks the warning as dismissed in the cache directory of the
 // user, so a later run (such as a repeated inline widget invocation) does not
-// pop the modal open again for the same warning. The warning count and ctrl+w
+// pop the modal open again for the same warning. The dismissal of a warning
+// keys on the warning's identity, not on its message, so a reword of the
+// message in a release does not bring the warning back. Old entries, which
+// hold the message text, keep matching too. The warning count and ctrl+w
 // stay available in the bottom chrome.
 
 // warningModalMaxInnerWidth caps the text column of the warning box on a wide
@@ -34,15 +39,60 @@ const (
 	warningModalShortHints  = "enter · esc · d"
 )
 
+// dedupeWarnings keeps the first warning of each key, so the list holds one
+// warning per underlying problem. The first occurrence's message wins the
+// display, because it names the file that the later one only refers to. Two
+// rc files that carry the same wrong disable entry produce equal keys, and so
+// do the rc loader's validation and discovery's safety net.
+func dedupeWarnings(warnings []core.Warning) []core.Warning {
+	seen := make(map[string]bool, len(warnings))
+	out := make([]core.Warning, 0, len(warnings))
+	for _, w := range warnings {
+		key := w.Key()
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, w)
+	}
+	return out
+}
+
+// warningText normalizes the warning message into a single line. The modal
+// displays this text. It is also the legacy entry of the dismissed-warnings
+// file: before the keyed format, the picker stored this form of the message.
+func warningText(w core.Warning) string {
+	return strings.Join(strings.Fields(w.Error()), " ")
+}
+
+// warningForms returns the two entries that can dismiss a warning: the key
+// that the picker writes today, and the legacy text that an older version
+// wrote.
+func warningForms(w core.Warning) [2]string {
+	return [2]string{w.Key(), warningText(w)}
+}
+
+// warnDismissed reports whether the dismissed set holds the warning, by its
+// key or by its legacy text. The lookup takes both forms, so a dismissal made
+// before the keyed format still matches.
+func warnDismissed(dismissed map[string]bool, w core.Warning) bool {
+	for _, form := range warningForms(w) {
+		if dismissed[form] {
+			return true
+		}
+	}
+	return false
+}
+
 // openWarningsAtStart reports whether the warning modal should open at startup,
 // and which warning index to show first. The index is the first warning that
 // the user has not dismissed with d. The dismissed set comes from the edge.
-func openWarningsAtStart(warnings []error, dismissed map[string]bool) (bool, int) {
+func openWarningsAtStart(warnings []core.Warning, dismissed map[string]bool) (bool, int) {
 	if len(warnings) == 0 {
 		return false, 0
 	}
 	for i, w := range warnings {
-		if !dismissed[warningKey(w)] {
+		if !warnDismissed(dismissed, w) {
 			return true, i
 		}
 	}
@@ -58,8 +108,9 @@ func warningCount(n int) string {
 }
 
 // dismissCurrentWarning returns a command that records the displayed warning
-// as dismissed, so a later run does not pop the modal open for it. The result
-// message carries the warning index and the reloaded dismissed set.
+// as dismissed, so a later run does not pop the modal open for it. The save
+// returns the resulting dismissed set, which the model then uses, so the
+// dismiss path does not read the file again.
 func (m model) dismissCurrentWarning() tea.Cmd {
 	if len(m.warnings) == 0 {
 		return nil
@@ -68,14 +119,16 @@ func (m model) dismissCurrentWarning() tea.Cmd {
 	env := m.env
 	warning := m.warnings[idx]
 	return func() tea.Msg {
-		if err := saveDismissedWarning(env.Store, env.CacheFile, warning); err != nil {
+		dismissed, err := saveDismissedWarning(env.Store, env.CacheFile, warning)
+		if err != nil {
 			return warningDismissedMsg{idx: idx, err: err}
 		}
-		return warningDismissedMsg{idx: idx, dismissed: loadDismissedWarnings(env.Store, env.CacheFile)}
+		return warningDismissedMsg{idx: idx, dismissed: dismissed}
 	}
 }
 
-// warningDismissedMsg reports the result of saving a dismissed warning.
+// warningDismissedMsg reports the result of saving a dismissed warning. The
+// dismissed set is the one that the save produced.
 type warningDismissedMsg struct {
 	idx       int
 	dismissed map[string]bool
@@ -99,7 +152,7 @@ func (m *model) applyWarningDismissed(msg warningDismissedMsg) {
 	from := min(max(msg.idx, 0), len(m.warnings)-1)
 	for i := range len(m.warnings) {
 		idx := (from + 1 + i) % len(m.warnings)
-		if !m.env.Dismissed[warningKey(m.warnings[idx])] {
+		if !warnDismissed(m.env.Dismissed, m.warnings[idx]) {
 			m.warningIdx = idx
 			return
 		}
@@ -121,7 +174,7 @@ func (m model) warningModalLines(h, w int) []string {
 	rawTitle := m.warningModalTitle(idx)
 	hints := m.warningModalHintText(maxInnerW)
 
-	body := wrapWarning(warningKey(m.warnings[idx]), maxInnerW, max(h-boxChrome, 1))
+	body := wrapWarning(warningText(m.warnings[idx]), maxInnerW, max(h-boxChrome, 1))
 	innerW := max(lipgloss.Width(rawTitle)-1, lipgloss.Width(hints))
 	for _, line := range body {
 		innerW = max(innerW, lipgloss.Width(line))
@@ -192,25 +245,9 @@ func (m model) warningModalHintText(innerW int) string {
 	}
 }
 
-// warningKey normalizes a warning error into a single line, for display and for
-// the dismissed-warnings file.
-func warningKey(err error) string {
-	if err == nil {
-		return ""
-	}
-	return strings.Join(strings.Fields(err.Error()), " ")
-}
-
-// loadDismissedWarnings reads the set of dismissed warning messages from path
-// through the store. A missing or unreadable file yields an empty set.
-func loadDismissedWarnings(store config.Store, path string) map[string]bool {
-	if path == "" {
-		return nil
-	}
-	data, err := store.ReadFile(path)
-	if err != nil {
-		return nil
-	}
+// parseDismissedLines returns the entries of the dismissed-warnings file, one
+// per line. A blank line holds nothing.
+func parseDismissedLines(data []byte) map[string]bool {
 	lines := strings.Split(string(data), "\n")
 	dismissed := make(map[string]bool, len(lines))
 	for _, line := range lines {
@@ -221,25 +258,40 @@ func loadDismissedWarnings(store config.Store, path string) map[string]bool {
 	return dismissed
 }
 
-// saveDismissedWarning adds err to the dismissed-warnings file at path, and it
-// creates the file and its directory when they are missing.
-func saveDismissedWarning(store config.Store, path string, w error) error {
-	key := warningKey(w)
-	if key == "" {
-		return nil
-	}
+// loadDismissedWarnings reads the set of dismissed warnings from path through
+// the store. A missing or unreadable file yields an empty set.
+func loadDismissedWarnings(store config.Store, path string) map[string]bool {
 	if path == "" {
-		return errors.New("cannot resolve the user cache directory")
-	}
-	if loadDismissedWarnings(store, path)[key] {
 		return nil
 	}
 	data, err := store.ReadFile(path)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
+	if err != nil {
+		return nil
 	}
+	return parseDismissedLines(data)
+}
+
+// saveDismissedWarning adds the warning's key to the dismissed-warnings file
+// at path, and it creates the file and its directory when they are missing.
+// It reads the file once and writes at most once, and it returns the set that
+// now holds the warning: the dismiss path uses that set instead of reading
+// the file again. A warning that either form already dismisses stays as it
+// is, so a legacy line does not grow a twin key line.
+func saveDismissedWarning(store config.Store, path string, w core.Warning) (map[string]bool, error) {
+	if path == "" {
+		return nil, errors.New("cannot resolve the user cache directory")
+	}
+	data, err := store.ReadFile(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	dismissed := parseDismissedLines(data)
+	if warnDismissed(dismissed, w) {
+		return dismissed, nil
+	}
+	key := w.Key()
 	if err := store.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return nil, err
 	}
 	var out string
 	if trimmed := strings.TrimRight(string(data), "\n"); trimmed != "" {
@@ -247,14 +299,20 @@ func saveDismissedWarning(store config.Store, path string, w error) error {
 	} else {
 		out = key + "\n"
 	}
-	return store.WriteFile(path, []byte(out), 0o600)
+	if err := store.WriteFile(path, []byte(out), 0o600); err != nil {
+		return nil, err
+	}
+	next := maps.Clone(dismissed)
+	next[key] = true
+	return next, nil
 }
 
 // clearResolvedDismissals removes from the cache file the warnings that were
 // present in old and are no longer present in current. It loads the file again,
-// so a dismissal written by another process is not missed. It returns the set
-// that is now in use.
-func clearResolvedDismissals(store config.Store, path string, old, current []error) map[string]bool {
+// so a dismissal written by another process is not missed. Both forms of an
+// entry age out, the key and the legacy text, so old-format lines die under
+// the same rule as the new keys. It returns the set that is now in use.
+func clearResolvedDismissals(store config.Store, path string, old, current []core.Warning) map[string]bool {
 	if path == "" {
 		return nil
 	}
@@ -264,18 +322,20 @@ func clearResolvedDismissals(store config.Store, path string, old, current []err
 	}
 	stillActive := make(map[string]bool, len(current))
 	for _, w := range current {
-		stillActive[warningKey(w)] = true
+		stillActive[w.Key()] = true
 	}
-	next := make(map[string]bool, len(dismissed))
+	next := maps.Clone(dismissed)
 	changed := false
-	for k := range dismissed {
-		next[k] = true
-	}
 	for _, w := range old {
-		k := warningKey(w)
-		if !stillActive[k] && next[k] {
-			delete(next, k)
-			changed = true
+		if stillActive[w.Key()] {
+			continue
+		}
+		// The warning healed, so both of its entries can go.
+		for _, form := range warningForms(w) {
+			if next[form] {
+				delete(next, form)
+				changed = true
+			}
 		}
 	}
 	if !changed {

@@ -115,22 +115,23 @@ func (m model) dismissCurrentWarning() tea.Cmd {
 	if len(m.warnings) == 0 {
 		return nil
 	}
-	idx := min(max(m.warningIdx, 0), len(m.warnings)-1)
+	idx := m.warnWin.row(len(m.warnings))
 	env := m.env
 	warning := m.warnings[idx]
 	return func() tea.Msg {
 		dismissed, err := saveDismissedWarning(env.Store, env.CacheFile, warning)
 		if err != nil {
-			return warningDismissedMsg{idx: idx, err: err}
+			return warningDismissedMsg{win: m.warnWin, err: err}
 		}
-		return warningDismissedMsg{idx: idx, dismissed: dismissed}
+		return warningDismissedMsg{win: m.warnWin, dismissed: dismissed}
 	}
 }
 
-// warningDismissedMsg reports the result of saving a dismissed warning. The
-// dismissed set is the one that the save produced.
+// warningDismissedMsg reports the result of saving a dismissed warning. win is
+// the window that held the warning at the time of the dismissal. The dismissed
+// set is the one that the save produced.
 type warningDismissedMsg struct {
-	idx       int
+	win       window
 	dismissed map[string]bool
 	err       error
 }
@@ -149,11 +150,18 @@ func (m *model) applyWarningDismissed(msg warningDismissedMsg) {
 		m.warningModal = false
 		return
 	}
-	from := min(max(msg.idx, 0), len(m.warnings)-1)
+	// The round trip starts at the dismissed position. The read clamps that
+	// position against the current list, because a theme save can replace the
+	// warnings while the dismissal save is in flight.
+	from := msg.win.row(len(m.warnings))
 	for i := range len(m.warnings) {
 		idx := (from + 1 + i) % len(m.warnings)
 		if !warnDismissed(m.env.Dismissed, m.warnings[idx]) {
-			m.warningIdx = idx
+			// The next undismissed warning is selection policy, not window
+			// arithmetic, so the advance writes its chosen index into the
+			// cursor and the settle of the window follows (see window.go).
+			m.warnWin.cursor = idx
+			m.warnWin.settle(len(m.warnings), 1)
 			return
 		}
 	}
@@ -169,7 +177,7 @@ func (m model) warningModalLines(h, w int) []string {
 		return nil
 	}
 
-	idx := min(max(m.warningIdx, 0), len(m.warnings)-1)
+	idx := m.warnWin.row(len(m.warnings))
 	maxInnerW := min(max(w-4, 1), warningModalMaxInnerWidth)
 	rawTitle := m.warningModalTitle(idx)
 	hints := m.warningModalHintText(maxInnerW)
@@ -190,7 +198,7 @@ func (m model) warningModalLines(h, w int) []string {
 		title:  rawTitle,
 		body:   body,
 		footer: m.styles.dim.Render(hints),
-		border: m.themeAt(m.themeIdx).err,
+		border: m.themeAt(m.themeWin.cursor).err,
 		innerW: innerW,
 	}
 	return b.render(h, w)

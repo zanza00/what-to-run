@@ -44,3 +44,9 @@ dismissable; the dismissed set lives in the cache file.
 The subject family a warning belongs to. A closed set of five: theme,
 shell, rc, source, registry.
 *Avoid*: type, category, origin
+
+**Window**:
+The pair of facts that decides which rows of a list one frame shows: the
+cursor, one selected row, and the offset, the first row shown. A window is
+clamped to its list and to the rows that the box or the frame gives it.
+*Avoid*: viewport (that is a scrollable canvas), pane, scroll

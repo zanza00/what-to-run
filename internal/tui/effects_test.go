@@ -49,7 +49,7 @@ func TestThemeSaveEffectReportsTheSavedTheme(t *testing.T) {
 	}
 
 	m = update(m, msg)
-	if got := themes[m.themeIdx].name; got != "nord" {
+	if got := themes[m.themeWin.cursor].name; got != "nord" {
 		t.Errorf("theme after the save = %q, want nord", got)
 	}
 	if m.opts.Theme != "nord" {
@@ -193,8 +193,8 @@ func TestWarningDismissEffectReportsTheDismissedWarning(t *testing.T) {
 	if msg.err != nil {
 		t.Fatalf("dismiss error = %v, want none", msg.err)
 	}
-	if msg.idx != 0 {
-		t.Errorf("message idx = %d, want 0", msg.idx)
+	if msg.win.cursor != 0 {
+		t.Errorf("message window = %+v, want the first warning", msg.win)
 	}
 	if !msg.dismissed[warn.Key()] {
 		t.Errorf("message dismissed = %v, want the warning", msg.dismissed)

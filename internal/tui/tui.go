@@ -249,7 +249,7 @@ func Preview(w io.Writer, opts Options, width, height int) error {
 	if f, ok := w.(term.File); ok && term.IsTerminal(os.Stdin.Fd()) && term.IsTerminal(f.Fd()) {
 		if bg, err := lipgloss.BackgroundColor(os.Stdin, f); err == nil {
 			m.termBg = bg
-			m.styles = newStyles(m.themeAt(m.themeIdx))
+			m.styles = newStyles(m.themeAt(m.themeWin.cursor))
 		}
 	}
 	m.width, m.height, m.ready = width, height, true
@@ -353,8 +353,12 @@ type model struct {
 
 	filter   string         // current filter text; empty means no filtering
 	snapshot filterSnapshot // cached results for the current filter and tasks
-	cursor   int            // index into visible()
-	offset   int            // index of the first visible row of the list
+
+	// listWin is the window over the visible tasks: the cursor row that the
+	// keys move and the rows that the list body shows. The window owns their
+	// arithmetic (see window.go): every move lands clamped, and the model
+	// owns no clamp of its own.
+	listWin window
 
 	// status is the message that the help line paints when the model holds
 	// one: the outcome of the last run in place, the failure of a theme
@@ -372,25 +376,26 @@ type model struct {
 	// goes to the shell prompt instead of being executed.
 	chosenInsert bool
 
-	// themeIdx is the active theme (an index into themes), and styles holds
-	// its concrete styles. ctrl+t opens the theme picker: themeModal reports
-	// that it is open, themeBefore is the theme to restore when esc cancels
-	// the choice, and themeOffset is the first row shown while the list is
-	// windowed.
-	themeIdx    int
+	// themeWin holds the active theme in its cursor. The window over the
+	// themes and the theme that the picker previews are the same fact, so
+	// every read of the active theme is themeWin.cursor, and styles holds the
+	// concrete styles of that theme. ctrl+t opens the theme picker:
+	// themeModal reports that it is open, and themeBefore is the theme to
+	// restore when esc cancels the choice.
+	themeWin    window
 	styles      styles
 	termBg      color.Color
 	termFg      color.Color
 	themeModal  bool
 	themeBefore int
-	themeOffset int
 
 	// warningModal reports that the warning box is shown over the list. The
 	// box opens with ctrl+w, or at startup when a warning has not been
-	// dismissed. warningIdx is the warning that the box displays when there is
-	// more than one.
+	// dismissed. warnWin holds the warning that the box displays: it is a
+	// window of one row, so its cursor and its one visible row are the same
+	// warning.
 	warningModal bool
-	warningIdx   int
+	warnWin      window
 }
 
 func newModel(opts Options, tasks []core.Task, warnings []core.Warning) model {
@@ -418,10 +423,10 @@ func newModel(opts Options, tasks []core.Task, warnings []core.Warning) model {
 		tasks:        tasks,
 		warnings:     warnings,
 		empty:        len(tasks) == 0,
-		themeIdx:     idx,
+		themeWin:     window{cursor: idx},
 		styles:       newStyles(themes[idx]),
 		warningModal: warnOpen,
-		warningIdx:   warnIdx,
+		warnWin:      window{cursor: warnIdx, offset: warnIdx},
 	}
 	m.rebuildSnapshot()
 	return m
@@ -453,7 +458,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// inline frame returns to.
 			m.mainWidth = msg.Width
 		}
-		m.keepCursorVisible()
+		// The box changed its height, so the window settles again (see
+		// window.go).
+		m.listWin.settle(len(m.visible()), m.listHeight())
 
 	case tea.CursorPositionMsg:
 		m.startRow = msg.Y
@@ -461,7 +468,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// A late reply proves that the terminal does support the query, so
 		// ctrl+f can use the inline area again.
 		m.inlineUnavailable = false
-		m.keepCursorVisible()
+		m.listWin.settle(len(m.visible()), m.listHeight())
 
 	case cursorPosTimeoutMsg:
 		if m.opts.Inline && !m.startRowKnown {
@@ -470,16 +477,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mainWidth = m.width
 				m.fullscreen = true
 			}
-			m.keepCursorVisible()
+			m.listWin.settle(len(m.visible()), m.listHeight())
 		}
 
 	case tea.BackgroundColorMsg:
 		m.termBg = msg.Color
-		m.styles = newStyles(m.themeAt(m.themeIdx))
+		m.styles = newStyles(m.themeAt(m.themeWin.cursor))
 
 	case tea.ForegroundColorMsg:
 		m.termFg = msg.Color
-		m.styles = newStyles(m.themeAt(m.themeIdx))
+		m.styles = newStyles(m.themeAt(m.themeWin.cursor))
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -548,22 +555,22 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "up", "ctrl+k", "ctrl+p":
-		m.cursor--
+		m.listWin.up(len(m.visible()), m.listHeight())
 
 	case "down", "ctrl+j", "ctrl+n":
-		m.cursor++
+		m.listWin.down(len(m.visible()), m.listHeight())
 
 	case "pgup":
-		m.cursor -= m.listHeight()
+		m.listWin.pageUp(len(m.visible()), m.listHeight())
 
 	case "pgdown":
-		m.cursor += m.listHeight()
+		m.listWin.pageDown(len(m.visible()), m.listHeight())
 
 	case "home":
-		m.cursor = 0
+		m.listWin.home(len(m.visible()), m.listHeight())
 
 	case "end":
-		m.cursor = len(m.visible()) - 1
+		m.listWin.end(len(m.visible()), m.listHeight())
 
 	case "ctrl+u":
 		m.setFilter("")
@@ -581,7 +588,9 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.mainWidth = m.width
 			}
 			m.fullscreen = !m.fullscreen
-			m.keepCursorVisible()
+			// The inline box and the fullscreen box disagree on the height,
+			// so the window settles again.
+			m.listWin.settle(len(m.visible()), m.listHeight())
 		}
 		return m, nil
 
@@ -595,8 +604,10 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// cancels the choice.
 	case "ctrl+t":
 		m.themeModal = true
-		m.themeBefore = m.themeIdx
-		m.keepThemeVisible()
+		m.themeBefore = m.themeWin.cursor
+		// The theme box settles its window when it opens: the previewed theme
+		// may sit below the fold of the box.
+		m.themeWin.settle(len(themes), m.themeModalVisibleRows())
 
 	case "backspace":
 		m.setFilter(trimLastRune(m.filter))
@@ -609,7 +620,8 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.setFilter(m.filter + msg.Text)
 	}
 
-	m.keepCursorVisible()
+	// The moves above land clamped and scrolled inside their window
+	// operations (see window.go), so nothing needs to settle the list here.
 	return m, nil
 }
 
@@ -618,6 +630,7 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // future runs do not pop the box open for it. The ↑/↓ keys step through
 // multiple warnings.
 func (m model) handleWarningKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// The box shows one warning at a time, so the window is height one.
 	switch msg.String() {
 	case "esc", "enter", "ctrl+w":
 		m.warningModal = false
@@ -630,16 +643,16 @@ func (m model) handleWarningKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.dismissCurrentWarning()
 
 	case "up", "ctrl+k", "ctrl+p", "left", "ctrl+h":
-		m.warningIdx = max(m.warningIdx-1, 0)
+		m.warnWin.up(len(m.warnings), 1)
 
 	case "down", "ctrl+j", "ctrl+n", "right", "ctrl+l":
-		m.warningIdx = min(m.warningIdx+1, len(m.warnings)-1)
+		m.warnWin.down(len(m.warnings), 1)
 
 	case "home":
-		m.warningIdx = 0
+		m.warnWin.home(len(m.warnings), 1)
 
 	case "end":
-		m.warningIdx = max(len(m.warnings)-1, 0)
+		m.warnWin.end(len(m.warnings), 1)
 	}
 	return m, nil
 }
@@ -661,35 +674,46 @@ func (m model) handleThemeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case "up", "ctrl+k", "ctrl+p":
-		m.setTheme(max(m.themeIdx-1, 0))
+		m.themeWin.up(len(themes), m.themeModalVisibleRows())
+		m.setTheme(m.themeWin.cursor)
 
 	case "down", "ctrl+j", "ctrl+n":
-		m.setTheme(min(m.themeIdx+1, len(themes)-1))
+		m.themeWin.down(len(themes), m.themeModalVisibleRows())
+		m.setTheme(m.themeWin.cursor)
 
 	case "pgup":
-		m.setTheme(max(m.themeIdx-m.themeModalWindow(), 0))
+		m.themeWin.pageUp(len(themes), m.themeModalVisibleRows())
+		m.setTheme(m.themeWin.cursor)
 
 	case "pgdown":
-		m.setTheme(min(m.themeIdx+m.themeModalWindow(), len(themes)-1))
+		m.themeWin.pageDown(len(themes), m.themeModalVisibleRows())
+		m.setTheme(m.themeWin.cursor)
 
 	case "home":
-		m.setTheme(0)
+		m.themeWin.home(len(themes), m.themeModalVisibleRows())
+		m.setTheme(m.themeWin.cursor)
 
 	case "end":
-		m.setTheme(len(themes) - 1)
+		m.themeWin.end(len(themes), m.themeModalVisibleRows())
+		m.setTheme(m.themeWin.cursor)
 
 	default:
 		// The picker owns the keyboard, so typing does not reach the filter.
 		return m, nil
 	}
 
-	m.keepThemeVisible()
+	// The moves above land clamped and scrolled inside their window
+	// operations (see window.go), so nothing needs to settle the theme list
+	// here.
 	return m, nil
 }
 
-// setTheme activates the theme at index i and rebuilds its styles.
+// setTheme activates the theme at index i and rebuilds its styles. The theme
+// window holds the active theme in its cursor, so activating a theme is also
+// moving that cursor: the esc key restores a saved theme through this write,
+// and the key cases above consume the cursor that their operation produced.
 func (m *model) setTheme(i int) {
-	m.themeIdx = i
+	m.themeWin.cursor = i
 	m.styles = newStyles(m.themeAt(i))
 }
 
@@ -721,11 +745,11 @@ type themeSavedMsg struct {
 // warnings that the save resolved. A nil command means that there is nothing to
 // save.
 func (m model) persistTheme() tea.Cmd {
-	if m.themeIdx == m.themeBefore && !m.hasThemeWarning() {
+	if m.themeWin.cursor == m.themeBefore && !m.hasThemeWarning() {
 		return nil
 	}
 	env := m.env
-	name := themes[m.themeIdx].name
+	name := themes[m.themeWin.cursor].name
 	oldWarnings := m.warnings
 	return func() tea.Msg {
 		path, err := config.SaveTheme(env.Store, env.UserFile, name)
@@ -761,11 +785,12 @@ func (m *model) applyThemeSaved(msg themeSavedMsg) tea.Cmd {
 	m.warnings = dedupeWarnings(msg.warnings)
 	if len(m.warnings) == 0 {
 		m.warningModal = false
-		m.warningIdx = 0
-	} else {
-		m.warningIdx = min(m.warningIdx, len(m.warnings)-1)
 	}
-	m.keepCursorVisible()
+	// The relisting replaced both lists, so both windows settle again (see
+	// window.go). An empty warning list settles at row zero, the state that
+	// the closed box needs.
+	m.warnWin.settle(len(m.warnings), 1)
+	m.listWin.settle(len(m.visible()), m.listHeight())
 	return m.showNotice(fmt.Sprintf("theme %s saved to %s", msg.name, config.ShortPath(msg.path, m.env.Home)))
 }
 
@@ -787,7 +812,7 @@ func (m model) run() (tea.Model, tea.Cmd) {
 	if len(vis) == 0 {
 		return m, nil
 	}
-	t := vis[m.cursor]
+	t := vis[m.listWin.cursor]
 
 	if m.opts.Inline {
 		// Here the picker is only a launcher: it quits, and the shell (or Run,
@@ -810,7 +835,7 @@ func (m model) pick(insert bool) (tea.Model, tea.Cmd) {
 	if len(vis) == 0 {
 		return m, nil
 	}
-	t := vis[m.cursor]
+	t := vis[m.listWin.cursor]
 	m.chosen = &t
 	m.chosenInsert = insert
 	return m, tea.Quit
@@ -840,7 +865,7 @@ func (m model) snapshotValid() bool {
 // stale.
 func (m *model) setFilter(filter string) {
 	m.filter = filter
-	m.cursor, m.offset = 0, 0
+	m.listWin.top()
 	m.rebuildSnapshot()
 }
 
@@ -1185,27 +1210,6 @@ func sameWord(runes []rune, start, end int) bool {
 	return true
 }
 
-// keepCursorVisible clamps the cursor and scrolls the list, so that the cursor
-// row is inside the window.
-func (m *model) keepCursorVisible() {
-	vis := m.visible()
-	if len(vis) == 0 {
-		m.cursor, m.offset = 0, 0
-		return
-	}
-
-	m.cursor = min(max(m.cursor, 0), len(vis)-1)
-
-	h := m.listHeight()
-	m.offset = min(max(m.offset, 0), max(len(vis)-h, 0))
-	if m.cursor < m.offset {
-		m.offset = m.cursor
-	}
-	if m.cursor >= m.offset+h {
-		m.offset = m.cursor - h + 1
-	}
-}
-
 // trimLastRune removes the last rune of s.
 func trimLastRune(s string) string {
 	if s == "" {
@@ -1467,12 +1471,11 @@ func (m model) listLines(w int) []string {
 	}
 
 	h := m.listHeight()
-	off := min(m.offset, max(len(vis)-h, 0))
-	end := min(off+h, len(vis))
+	off, end := m.listWin.visibleRange(len(vis), h)
 
 	rows := make([]string, 0, end-off)
 	for i, t := range vis[off:end] {
-		rows = append(rows, m.taskRow(t, off+i == m.cursor, w))
+		rows = append(rows, m.taskRow(t, off+i == m.listWin.cursor, w))
 	}
 	return rows
 }

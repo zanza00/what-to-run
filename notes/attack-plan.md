@@ -10,7 +10,7 @@ below carries the date it became true.
 | --- | --- | --- | --- | --- |
 | 1 | Warning identity (core ↔ tui) | Strong | done (2026-11-04, PR #116, cc3d6de) | the decisions, the two post-review ratifications and the spec pointer in [warning-identity](warning-identity.md) |
 | 2 | FP7 status as data | Strong | done (2026-11-04, PR #118, 7e09ed2) | user-visible fix (ctrl+t preview): CHANGELOG entry; closes the notice.go:15 drift; the decisions live in [status-as-data](status-as-data.md) |
-| 3 | FP2 frame as structure (+ empty state) | Strong | not started (2026-11-04) | byte-identical via differential testing; patch A says −10…−27% of the modal frame |
+| 3 | FP2 frame as structure (+ empty state) | Strong | done (2026-11-04, PR #120, 32f6564) | byte-identical: the 165,060-comparison sweep found zero differences; patch A landed with it; the decisions live in [frame-as-data](frame-as-data.md) |
 | 4 | FP6 windowing module | Strong | not started (2026-11-04) | carries the modal-open re-checks |
 | 5 | FP5 list module (absorbs the snapshot) | Worth exploring | not started (2026-11-04) | open: the measured row cache in-piece or as a follow-up |
 | 6 | FP3 row painter | Worth exploring | not started (2026-11-04) | SGR pin for both rows; first direct tests for truncateMatched/renderMatched |
@@ -54,3 +54,11 @@ To resume work: read this table, then the candidate details in
   notice.go:15 comment drift closed with it). The decisions live in
   [status-as-data](status-as-data.md); the spec survives at
   `.scratch/fp7-status-as-data/spec.md`.
+- 2026-11-04: piece 3 shipped — PR #120 landed on `main` with merge commit
+  `32f6564` (the frame held as data: the styled rows, the placed boxes and
+  the list row count; `buildFrame` the only writer, `paint` at the View
+  edge; patch A in-piece, `warningModalY` pure arithmetic over the frame
+  facts; the empty screen one fact read by name by its four sites; the
+  sweep proved the bytes identical at 165,060 comparisons). The decisions
+  live in [frame-as-data](frame-as-data.md); the spec survives at
+  `.scratch/fp2-frame-as-structure/spec.md`.

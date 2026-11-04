@@ -12,6 +12,9 @@ Long-form research, one file per topic:
 - [nixos-install-comparable-clis](nixos-install-comparable-clis.md) — how comparable CLIs install on NixOS.
 - [python-task-sources](python-task-sources.md) — which files a Python project
   declares runnable tasks in, and which are static-parseable.
+- [arch-bench-2026-11](arch-bench-2026-11.md) — the throwaway TUI benchmark
+  suite of the 2026-11-04 review: source, baselines and profile highlights,
+  so a future piece can rebuild the same measurements.
 
 ## Agent wiki
 
@@ -29,3 +32,9 @@ it was true at.
   a rendering refactor byte-identical (unit sweep + binary check).
 - [arch-install-channel](arch-install-channel.md) — the Arch install
   channels and the AUR removal decision (2026-11-03).
+- [arch-review-2026-11](arch-review-2026-11.md) — the 2026-11-04 review:
+  the re-validated roadmap, twelve candidates, the TUI measurements, the
+  rejected list and the attack plan.
+- [attack-plan](attack-plan.md) — the execution tracker of the twelve
+  candidates: a status table with dates, a progress log, and the resume
+  pointer.

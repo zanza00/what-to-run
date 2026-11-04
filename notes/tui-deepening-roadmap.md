@@ -5,6 +5,14 @@ The architecture review of 2026-11-01 (scope: the graphical part of
 are true as of `main@80c4175`; the box module (FP4) landed in PR1
 (`8674bdb`) and shifts some of them.
 
+**2026-11-04 re-validation.** The architecture review of 2026-11-04
+([arch-review-2026-11](arch-review-2026-11.md)) re-validated all six
+pending candidates at `cd1e933`: still true, none accidentally fixed by the
+box-module stack. Fresh line references, the TUI measurements and the
+extended attack plan (warning identity first, the core candidates after
+the TUI stack) live in that page; the line numbers below remain the
+`80c4175` ones.
+
 Attack order = silent-breakage risk removed ÷ invasiveness. The box module
 is done (PR #84); the rest are pending:
 

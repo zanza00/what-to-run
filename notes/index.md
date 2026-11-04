@@ -29,3 +29,6 @@ it was true at.
   a rendering refactor byte-identical (unit sweep + binary check).
 - [arch-install-channel](arch-install-channel.md) — the Arch install
   channels and the AUR removal decision (2026-11-03).
+- [arch-review-2026-11](arch-review-2026-11.md) — the 2026-11-04 review:
+  the re-validated roadmap, twelve candidates, the TUI measurements, the
+  rejected list and the attack plan.

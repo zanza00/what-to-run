@@ -82,6 +82,26 @@ type mapDirEntry struct {
 func (e mapDirEntry) Name() string { return e.name }
 func (e mapDirEntry) IsDir() bool  { return e.dir }
 
+// countFiles counts the reads that reach an in-memory Files port, per path.
+// The counting tests of the read cache wrap it around mapFiles and assert the
+// ReadFile calls that pass through.
+type countFiles struct {
+	mapFiles
+	reads map[string]int
+}
+
+var _ Files = (*countFiles)(nil)
+
+// newCountFiles wraps files with a read counter.
+func newCountFiles(files mapFiles) *countFiles {
+	return &countFiles{mapFiles: files, reads: map[string]int{}}
+}
+
+func (c *countFiles) ReadFile(name string) ([]byte, error) {
+	c.reads[name]++
+	return c.mapFiles.ReadFile(name)
+}
+
 // TestDiscoverInMemoryFiles proves that discovery needs no disk. The
 // package.json and its lock file live only in the map, and the lock file still
 // picks the runner.

@@ -1,7 +1,8 @@
 # Attack plan (2026-11-04)
 
 The execution tracker for the twelve deepening candidates of the 2026-11-04
-review ([arch-review-2026-11](arch-review-2026-11.md)). The order, the
+review ([arch-review-2026-11](arch-review-2026-11.md)) plus the follow-up
+piece the 2026-11-05 grillings added (row 13). The order, the
 cadence per piece and the cross-piece rules live in that page's "The attack
 plan" section; this page tracks where the work has arrived. Every status
 below carries the date it became true.
@@ -14,12 +15,13 @@ below carries the date it became true.
 | 4 | FP6 windowing module | Strong | done (2026-11-05, PR #122, df6870b) | the modal-open re-checks moved inside the module read; the decisions live in [windowing](windowing.md) |
 | 5 | FP5 list module (absorbs the snapshot) | Worth exploring | done (2026-11-05, PR #124, 1662dc6) | the measured row cache rides its own follow-up; the decisions live in [list-module](list-module.md) |
 | 6 | FP3 row painter | Worth exploring | done (2026-11-05, PR #126, d2256f8) | the three selection laws own one home in `row.go`; the decisions live in [row-painter](row-painter.md) |
-| 7 | FP1 display-mode module (+ Preview) | Strong | not started (2026-11-04) | the widest cut, after FP2; carries the write-only `m.opts.Theme` |
+| 7 | FP1 display-mode module (+ Preview) | Strong | done (2026-11-05, PR #128, cbdde4f) | Preview crosses the same door as the messages; the decisions and the themeModalHeight finding live in [display-mode](display-mode.md) |
 | 8 | Parser frame shared (core) | Strong | not started (2026-11-04) | stops the eleventh copy; tickets likely |
 | 9 | justfile: one quote scanner + split | Strong | not started (2026-11-04) | the 81-case table must pass unchanged |
 | 10 | Discovery: one read, one walk | Worth exploring | not started (2026-11-04) | inside Discover; no new interfaces |
 | 11 | Core test friction | Worth exploring | not started (2026-11-04) | the name→argv rule asserted once; label-keyed registry mutations |
 | 12 | Files `~/` exception | Speculative | not started (2026-11-04) | may close as an accepted exception, no code |
+| 13 | Measured row cache (arch-bench patch B) | follow-up (grilled) | not started (2026-11-05) | rides after FP1 by the 2026-11-05 grillings (FP5's Q2, FP3's Q4); the baselines live in [arch-bench-2026-11](arch-bench-2026-11.md) |
 
 Update discipline: when a piece moves, update its status with the date and
 the PR number, and add one dated line to the progress log naming the commit
@@ -86,3 +88,14 @@ To resume work: read this table, then the candidate details in
   tables; the SGR pin extends to the selected theme row). The decisions
   live in [row-painter](row-painter.md); the spec survives at
   `.scratch/fp3-row-painter/spec.md`.
+- 2026-11-05: piece 7 shipped — PR #128 landed on `main` with merge commit
+  `cbdde4f` (the display modes owned by one module: `display.go` holds the
+  three mode facts, the six geometry facts and the derivations; five
+  operations — resize, learnPosition, fallBack, expand, collapse — settle
+  every mutation; two named facts, startedInline with anchored and
+  expanded, replace the fifteen recombinations of the raw booleans;
+  Preview crosses the same door as the messages; restoreCursor un-nests
+  from the model, and the write-only `m.opts.Theme` dies). The decisions
+  and the themeModalHeight finding live in [display-mode](display-mode.md);
+  the spec survives at `.scratch/fp1-display-mode/spec.md`. The measured
+  row cache (row 13) is next.

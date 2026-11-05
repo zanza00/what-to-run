@@ -77,3 +77,8 @@ it was true at.
   the sorted delivery, the help-else-body chain in one helper, the nil
   convention — with the npm, make and hatch exemptions ratified as
   facts of their sources.
+- [justfile-scanner](justfile-scanner.md) — the settled piece-9 design
+  (2026-11-05): one quote-aware scanner serves the five call sites, the
+  fused parse flow splits into its three homes, the dead error dies with
+  the signature, and the 78-line prose comment distributes to the owners
+  — nothing stated twice.

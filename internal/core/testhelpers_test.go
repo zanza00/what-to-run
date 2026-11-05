@@ -18,3 +18,13 @@ func writeFile(t *testing.T, dir, name, content string) {
 		t.Fatal(err)
 	}
 }
+
+// taskNames returns the names of the tasks, in order. A test that cares only
+// about which tasks are visible compares the names against its wanted names.
+func taskNames(tasks []Task) []string {
+	names := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		names = append(names, task.Name)
+	}
+	return names
+}

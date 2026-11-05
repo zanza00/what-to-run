@@ -769,7 +769,7 @@ split:
 	for _, tt := range tests {
 		t.Run(tt.goos, func(t *testing.T) {
 			tasks := parseJustfileFor(tt.goos, nil, "", []byte(in))
-			if got := justTaskNames(tasks); !reflect.DeepEqual(got, tt.want) {
+			if got := taskNames(tasks); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parseJustfileFor(%q) names = %v, want %v", tt.goos, got, tt.want)
 			}
 		})
@@ -1167,16 +1167,6 @@ func TestParseJustfileImportHome(t *testing.T) {
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("parseJustfileFor() = %+v, want %+v", tasks, want)
 	}
-}
-
-// justTaskNames returns the names of the parsed tasks in order. Tests that
-// only care about which recipes are visible use it.
-func justTaskNames(tasks []Task) []string {
-	names := make([]string, 0, len(tasks))
-	for _, task := range tasks {
-		names = append(names, task.Name)
-	}
-	return names
 }
 
 // TestJustfileSourceFiles pins the three names just looks for, in preference

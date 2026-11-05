@@ -207,41 +207,168 @@ func checkSourceID(sources []source, name string) error {
 	return fmt.Errorf("unknown source %q; known sources: %s", name, strings.Join(ids, ", "))
 }
 
-// discoverSource runs one source over dir and, when the source searches
-// parents, over its ancestors, and returns a warning for the first candidate
-// file that fails it. In each directory it parses the first candidate file that
-// exists, and the nearest directory wins. The path of that file relative to
-// dir becomes the badge: a bare file name in dir itself, or ../justfile above
-// it. The warning keys on the leaf name alone, so the same file keeps one
-// identity from any subdirectory of the project.
-func discoverSource(files Files, src source, dir string) ([]Task, *Warning) {
+// readResult is one remembered result of a read through the Files port. A
+// miss is a result like any other: the parent search asks the port for the
+// same missing candidate at every level for every source, so the remembered
+// misses save most of the calls.
+type readResult struct {
+	data []byte
+	err  error
+}
+
+// readCache wraps the Files port of one Discover and owns the read law: one
+// Discover reads one file at most once. Every result is remembered under the
+// exact path string that the port received. Several sources can list the
+// same file, such as the pyproject.toml of the five Python sources. The
+// parsers keep their sibling and include reads on the wrapped port too, so
+// the read law covers them without a carve-out. No parser writes into the
+// bytes it receives, so the readers of one file can share the slice of its
+// first read. Exists and ReadDir pass through untouched. The memo lives
+// inside one Discover call and dies with it: nothing is cached across runs.
+type readCache struct {
+	files Files
+	memo  map[string]readResult
+}
+
+var _ Files = (*readCache)(nil)
+
+// newReadCache wraps files for one Discover.
+func newReadCache(files Files) *readCache {
+	return &readCache{files: files, memo: make(map[string]readResult)}
+}
+
+// ReadFile remembers the result of the first read of name and returns it for
+// every later read of the same path string.
+func (c *readCache) ReadFile(name string) ([]byte, error) {
+	if result, ok := c.memo[name]; ok {
+		return result.data, result.err
+	}
+	data, err := c.files.ReadFile(name)
+	c.memo[name] = readResult{data: data, err: err}
+	return data, err
+}
+
+func (c *readCache) Exists(name string) bool                 { return c.files.Exists(name) }
+func (c *readCache) ReadDir(name string) ([]DirEntry, error) { return c.files.ReadDir(name) }
+
+// parentLevel is one ancestor directory of the project directory. The parent
+// search reads the directory through dir, and prefix holds the path of that
+// directory relative to the project directory, with a slash separator. A
+// file found in the level gets prefix plus its name as the badge, such as
+// ../justfile.
+type parentLevel struct {
+	dir    string
+	prefix string
+}
+
+// parentLevels enumerates the ancestors of the project directory once per
+// Discover. The first parent-searching source that misses in the project
+// directory triggers the enumeration, and every later source consumes the
+// same list and stops at its own find, so the nearest directory still wins.
+// The enumeration fails when the project directory has no absolute path.
+// The failure is remembered like the list. Every source that needs the
+// parent search then replays the failure as its own warning, keyed by its
+// ID. One broken directory therefore still reports one warning per source,
+// exactly as the per-source walk did.
+type parentLevels struct {
+	dir    string
+	built  bool
+	levels []parentLevel
+	err    error
+}
+
+// newParentLevels prepares the enumeration of the ancestors of dir. Nothing
+// is enumerated until a source needs the parent search: a source that finds
+// its file in the project directory never touches the ancestors.
+func newParentLevels(dir string) *parentLevels {
+	return &parentLevels{dir: dir}
+}
+
+// build returns the ancestor levels, and enumerates them on the first call.
+// The levels must be absolute, because filepath.Dir(".") is ".": a relative
+// project directory would never ascend. The list starts at the parent of the
+// project directory and ends at the root.
+func (p *parentLevels) build() ([]parentLevel, error) {
+	if p.built {
+		return p.levels, p.err
+	}
+	p.built = true
+	base, err := filepath.Abs(p.dir)
+	if err != nil {
+		p.err = err
+		return nil, err
+	}
+	for current := filepath.Dir(base); ; current = filepath.Dir(current) {
+		prefix := current
+		if rel, relErr := filepath.Rel(base, current); relErr == nil {
+			prefix = rel
+		}
+		p.levels = append(p.levels, parentLevel{dir: current, prefix: filepath.ToSlash(prefix)})
+		if filepath.Dir(current) == current {
+			break
+		}
+	}
+	return p.levels, nil
+}
+
+// discovery holds the state that one Discover shares across its sources: the
+// read cache over the Files port and the parent levels of the project
+// directory. The registry loop is the outermost loop, and every enabled
+// source runs through the same state.
+type discovery struct {
+	cache   *readCache
+	parents *parentLevels
+	dir     string
+}
+
+// newDiscovery builds the state that one Discover shares across its sources.
+func newDiscovery(files Files, dir string) *discovery {
+	return &discovery{
+		cache:   newReadCache(files),
+		parents: newParentLevels(dir),
+		dir:     dir,
+	}
+}
+
+// discoverSource runs one source over the project directory and, when the
+// source searches parents, over the parent levels, and returns a warning for
+// the first candidate file that fails it. In each directory it parses the
+// first candidate file that exists, and the nearest directory wins. The path
+// of that file relative to the project directory becomes the badge: a bare
+// file name in the directory itself, or ../justfile above it. The warning
+// keys on the leaf name alone, so the same file keeps one identity from any
+// subdirectory of the project.
+func (d *discovery) discoverSource(src source) ([]Task, *Warning) {
 	// Read the project directory through the path of the caller, so an
-	// in-memory Files keyed by relative names still matches. The parent search
-	// needs absolute paths, because filepath.Dir(".") is ".".
-	tasks, found, warn := readSourceFile(files, src, dir, "")
+	// in-memory Files keyed by relative names still matches.
+	tasks, found, warn := readSourceFile(d.cache, src, d.dir, "")
 	if found || warn != nil || !src.SearchParents {
 		return tasks, warn
 	}
-	base, err := filepath.Abs(dir)
+	levels, err := d.parents.build()
 	if err != nil {
-		// The parent search cannot even resolve the directory. The warning
-		// names that directory, because no candidate file was reached yet.
-		w := NewSourceWarning(src.ID, dir, fmt.Sprintf("%s: %v", dir, err))
+		// The parent search cannot even resolve the project directory. The
+		// warning names that directory, because no candidate file was
+		// reached yet.
+		w := NewSourceWarning(src.ID, d.dir, fmt.Sprintf("%s: %v", d.dir, err))
 		return nil, &w
 	}
-	for current := filepath.Dir(base); ; current = filepath.Dir(current) {
-		prefix, relErr := filepath.Rel(base, current)
-		if relErr != nil {
-			prefix = current
-		}
-		tasks, found, warn := readSourceFile(files, src, current, filepath.ToSlash(prefix))
+	for _, level := range levels {
+		tasks, found, warn := readSourceFile(d.cache, src, level.dir, level.prefix)
 		if found || warn != nil {
 			return tasks, warn
 		}
-		if filepath.Dir(current) == current {
-			return nil, nil
-		}
 	}
+	return nil, nil
+}
+
+// discoverSource runs one source over dir and its ancestors. It builds the
+// state of one Discover for this source alone, so the read law and the
+// parent levels hold for the single source as they hold for the sources of
+// the registry. The package tests run one source at a time through this
+// seam.
+func discoverSource(files Files, src source, dir string) ([]Task, *Warning) {
+	return newDiscovery(files, dir).discoverSource(src)
 }
 
 // readSourceFile reads the first candidate file of src that exists in dir and
@@ -363,9 +490,12 @@ func rcTasks(settings Settings, dir string) []Task {
 // Each source's tasks arrive in the order that sortSourceTasks gives them. A
 // source that fails to parse is reported in warnings and skipped, and the
 // function does not read a disabled source at all. rc tasks shadow
-// same-named tasks of the built-in sources.
+// same-named tasks of the built-in sources. The sources of one scan share
+// the read cache and the parent levels, so the work does not multiply with
+// the number of sources.
 func Discover(files Files, dir string, settings Settings) ([]Task, []Warning) {
-	sources, warns := enabledSources(defaultSources(settings, files), settings.Disable)
+	d := newDiscovery(files, dir)
+	sources, warns := enabledSources(defaultSources(settings, d.cache), settings.Disable)
 
 	rc := rcTasks(settings, dir)
 	shadowed := make(map[string]bool, len(rc))
@@ -376,7 +506,7 @@ func Discover(files Files, dir string, settings Settings) ([]Task, []Warning) {
 	var tasks []Task
 	tasks = append(tasks, rc...)
 	for _, src := range sources {
-		ts, warn := discoverSource(files, src, dir)
+		ts, warn := d.discoverSource(src)
 		if warn != nil {
 			warns = append(warns, *warn)
 			continue

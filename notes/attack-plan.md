@@ -13,7 +13,7 @@ below carries the date it became true.
 | 3 | FP2 frame as structure (+ empty state) | Strong | done (2026-11-04, PR #120, 32f6564) | byte-identical: the 165,060-comparison sweep found zero differences; patch A landed with it; the decisions live in [frame-as-data](frame-as-data.md) |
 | 4 | FP6 windowing module | Strong | done (2026-11-05, PR #122, df6870b) | the modal-open re-checks moved inside the module read; the decisions live in [windowing](windowing.md) |
 | 5 | FP5 list module (absorbs the snapshot) | Worth exploring | done (2026-11-05, PR #124, 1662dc6) | the measured row cache rides its own follow-up; the decisions live in [list-module](list-module.md) |
-| 6 | FP3 row painter | Worth exploring | not started (2026-11-04) | SGR pin for both rows; first direct tests for truncateMatched/renderMatched |
+| 6 | FP3 row painter | Worth exploring | done (2026-11-05, PR #126, d2256f8) | the three selection laws own one home in `row.go`; the decisions live in [row-painter](row-painter.md) |
 | 7 | FP1 display-mode module (+ Preview) | Strong | not started (2026-11-04) | the widest cut, after FP2; carries the write-only `m.opts.Theme` |
 | 8 | Parser frame shared (core) | Strong | not started (2026-11-04) | stops the eleventh copy; tickets likely |
 | 9 | justfile: one quote scanner + split | Strong | not started (2026-11-04) | the 81-case table must pass unchanged |
@@ -78,3 +78,11 @@ To resume work: read this table, then the candidate details in
   benchmark died with the stale world they served; the tests assert at the
   module's seam). The decisions live in [list-module](list-module.md);
   the spec survives at `.scratch/fp5-list-module/spec.md`.
+- 2026-11-05: piece 6 shipped — PR #126 landed on `main` with merge commit
+  `d2256f8` (the row assembly owned by one painter: `row.go` assembles both
+  branches of the task and theme rows, so the per-segment law, the
+  never-dim law and the pad law have one home; `truncateMatched` and
+  `renderMatched` moved beside the painter and gained their first direct
+  tables; the SGR pin extends to the selected theme row). The decisions
+  live in [row-painter](row-painter.md); the spec survives at
+  `.scratch/fp3-row-painter/spec.md`.

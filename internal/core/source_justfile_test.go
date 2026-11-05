@@ -698,10 +698,7 @@ export FOO := "bar"
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseJustfileFor("linux", nil, "", []byte(tt.in))
-			if err != nil {
-				t.Fatalf("parseJustfileFor() error = %v", err)
-			}
+			got := parseJustfileFor("linux", nil, "", []byte(tt.in))
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parseJustfileFor() = %+v, want %+v", got, tt.want)
 			}
@@ -709,20 +706,18 @@ export FOO := "bar"
 	}
 }
 
-// TestParseJustfileNeverErrors pins the forgiving contract. An odd or broken
+// TestParseJustfileNeverFails pins the forgiving contract. An odd or broken
 // justfile produces no tasks, instead of a warning that would hide the sibling
-// files.
-func TestParseJustfileNeverErrors(t *testing.T) {
+// files. The signature carries no error, so the parser can only answer with
+// its task list, and the pin holds the parser to the empty one.
+func TestParseJustfileNeverFails(t *testing.T) {
 	for _, in := range []string{
 		"this is not a justfile %%%\n    indented?\n",
 		"build\n",
 		"{{{{ unbalanced\n",
 		"set shell := [\n",
 	} {
-		tasks, err := parseJustfileFor("linux", nil, "", []byte(in))
-		if err != nil {
-			t.Errorf("parseJustfileFor(%q) error = %v, want nil", in, err)
-		}
+		tasks := parseJustfileFor("linux", nil, "", []byte(in))
 		if tasks != nil {
 			t.Errorf("parseJustfileFor(%q) = %+v, want no tasks", in, tasks)
 		}
@@ -773,10 +768,7 @@ split:
 
 	for _, tt := range tests {
 		t.Run(tt.goos, func(t *testing.T) {
-			tasks, err := parseJustfileFor(tt.goos, nil, "", []byte(in))
-			if err != nil {
-				t.Fatalf("parseJustfileFor(%q) error = %v", tt.goos, err)
-			}
+			tasks := parseJustfileFor(tt.goos, nil, "", []byte(in))
 			if got := justTaskNames(tasks); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parseJustfileFor(%q) names = %v, want %v", tt.goos, got, tt.want)
 			}
@@ -826,10 +818,7 @@ func TestParseJustfilePlatformVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.goos, func(t *testing.T) {
-			tasks, err := parseJustfileFor(tt.goos, nil, "", data)
-			if err != nil {
-				t.Fatalf("parseJustfileFor(%q) error = %v", tt.goos, err)
-			}
+			tasks := parseJustfileFor(tt.goos, nil, "", data)
 			if !reflect.DeepEqual(tasks, tt.want) {
 				t.Errorf("parseJustfileFor(%q) = %+v, want %+v", tt.goos, tasks, tt.want)
 			}
@@ -887,10 +876,7 @@ deploy:
 
 	for _, tt := range tests {
 		t.Run(tt.goos, func(t *testing.T) {
-			tasks, err := parseJustfileFor(tt.goos, nil, "", []byte(in))
-			if err != nil {
-				t.Fatalf("parseJustfileFor(%q) error = %v", tt.goos, err)
-			}
+			tasks := parseJustfileFor(tt.goos, nil, "", []byte(in))
 			if !reflect.DeepEqual(tasks, tt.want) {
 				t.Errorf("parseJustfileFor(%q) = %+v, want %+v", tt.goos, tasks, tt.want)
 			}
@@ -907,10 +893,7 @@ func parseJustfileTree(t *testing.T, goos, root, main string, tree map[string]st
 	for name, content := range tree {
 		files[filepath.Join(root, name)] = content
 	}
-	tasks, err := parseJustfileFor(goos, files, root, []byte(main))
-	if err != nil {
-		t.Fatalf("parseJustfileFor() error = %v", err)
-	}
+	tasks := parseJustfileFor(goos, files, root, []byte(main))
 	return tasks
 }
 
@@ -1164,10 +1147,7 @@ func TestParseJustfileImportAbsolute(t *testing.T) {
 	abs := filepath.Join(root, "abs.just")
 	files := mapFiles{abs: "from-abs:\n    echo abs\n"}
 
-	tasks, err := parseJustfileFor("linux", files, t.TempDir(), []byte("import \""+abs+"\"\n"))
-	if err != nil {
-		t.Fatalf("parseJustfileFor() error = %v", err)
-	}
+	tasks := parseJustfileFor("linux", files, t.TempDir(), []byte("import \""+abs+"\"\n"))
 	want := []Task{{Name: "from-abs", Args: []string{"just", "from-abs"}}}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("parseJustfileFor() = %+v, want %+v", tasks, want)
@@ -1182,10 +1162,7 @@ func TestParseJustfileImportHome(t *testing.T) {
 	t.Setenv("USERPROFILE", home)
 	files := mapFiles{filepath.Join(home, "home.just"): "from-home:\n    echo home\n"}
 
-	tasks, err := parseJustfileFor("linux", files, t.TempDir(), []byte("import \"~/home.just\"\n"))
-	if err != nil {
-		t.Fatalf("parseJustfileFor() error = %v", err)
-	}
+	tasks := parseJustfileFor("linux", files, t.TempDir(), []byte("import \"~/home.just\"\n"))
 	want := []Task{{Name: "from-home", Args: []string{"just", "from-home"}}}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("parseJustfileFor() = %+v, want %+v", tasks, want)

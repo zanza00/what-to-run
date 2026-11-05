@@ -62,3 +62,10 @@ rules that live in `AGENTS.md` (draft PRs, stacked PRs, manual merges,
   had to build it itself; its brief assumed the worktree existed. The
   implement-spec dispatch order is: integration branch, ticket worktree,
   then the brief.
+- **2026-11-05**: a spec's descriptive prose can coin a domain word the
+  same way its names do. The FP1 spec said "the register" and the
+  collision with the sources registry and the color register surfaced
+  only in the worktree, at Standards-review time. Check a spec's
+  umbrella vocabulary against GLOSSARY.md and the existing terms before
+  dispatching an implementer, the way the persisting rule checks names
+  before the first commit.

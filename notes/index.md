@@ -36,8 +36,8 @@ it was true at.
   the re-validated roadmap, twelve candidates, the TUI measurements, the
   rejected list and the attack plan.
 - [attack-plan](attack-plan.md) — the execution tracker of the twelve
-  candidates: a status table with dates, a progress log, and the resume
-  pointer.
+  candidates plus the row-cache follow-up (row 13): a status table with
+  dates, a progress log, and the resume pointer.
 - [warning-identity](warning-identity.md) — the settled piece-1 design
   (2026-11-04): a warning carries a kind and a dismissal key instead of
   being its message text, and the dismissed-warnings file accepts both the
@@ -62,3 +62,8 @@ it was true at.
   one painter in `row.go` owns the row assembly of both the task and theme
   rows, so the per-segment, never-dim and pad laws have one home, and the
   SGR pin covers the selected theme row too.
+- [display-mode](display-mode.md) — the settled piece-7 design (2026-11-05):
+  one display module owns the mode facts, the geometry facts and the
+  derivations — five operations settle, two named facts replace fifteen
+  recombinations, Preview crosses the same door as the messages, and the
+  themeModalHeight asymmetry is recorded as a candidate follow-up.

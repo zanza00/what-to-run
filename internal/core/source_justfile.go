@@ -24,7 +24,8 @@ func justfileSource(files Files) source {
 			SearchParents: true,
 		},
 		Parse: func(dir, _ string, data []byte) ([]Task, error) {
-			return parseJustfileFor(runtime.GOOS, files, dir, data)
+			// The parse cannot fail, so the seam always receives nil.
+			return parseJustfileFor(runtime.GOOS, files, dir, data), nil
 		},
 	}
 }
@@ -65,84 +66,14 @@ var justAssignmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*\s*:=`)
 
 // parseJustfileFor returns the recipes that a justfile declares for goos,
 // sorted by name like the ungrouped part of "just --list". Each recipe runs as
-// "just <name>". Imported recipes are listed as if the root file declared them.
+// "just <name>".
 //
-// The parser is line-based and forgiving. It recognizes a recipe header at
-// column 0. It keeps the last contiguous "#" comment line above the header, or
-// the "[doc(...)]" attribute of the recipe, as the description. It hides a
-// private recipe: the "_" prefix and the "[private]" attribute.
-//
-// Platform attributes filter a recipe. [windows], [linux], [macos] and [unix]
-// list the recipe only on a matching GOOS, where unix means any GOOS but
-// Windows, and several platform attributes are OR-ed. Other attributes do not
-// affect the list.
-//
-// A name may have several definitions, and only one row appears. just sees the
-// first definition that is enabled on goos, so its doc and its privacy decide
-// the row. A name with no enabled definition is dropped. So a recipe defined
-// under [unix] and again under [windows] shows one row, with the doc of the
-// active definition.
-//
-// A doc attribute always decides, even when its text is empty or blank. just
-// shows no description then, so the "#" comment above does not apply. An
-// attribute list may carry a trailing "#" comment and may list several
-// attributes separated by commas, as in [private, group("g")] # why. The
-// scanner ignores commas and "#" inside a quoted doc string, reads "private"
-// and "doc(...)", and leaves any other attribute alone.
-//
-// The list may also span several lines, as just allows ([private, on one line
-// and group("g")] on the next, indented). The parser buffers its lines, blank
-// ones included, until the "]" outside a quoted string, so it does not mistake
-// an indented continuation for a recipe body. A leading "#!" is a shebang, not
-// a doc comment. The parser ignores the lines inside recipe bodies.
-//
-// A recipe header may continue on the next line. A column-0 line that ends with
-// a backslash, after any trailing spaces or tabs, joins the following line,
-// indented or not, with a single space. Several continuations join in turn, so
-// "foo \" and "  bar:" declare the recipe "foo bar".
-//
-// An indented line never continues. A shell line that ends with a backslash
-// inside a recipe body stays a body line and does not swallow the recipe below
-// it. A "#" comment is never continued either, whether it opens the line or
-// follows a header ("build: # note \"). just keeps that backslash as comment
-// text, so the recipe below it stays a recipe. The same rule applies to a
-// backslash left inside an unterminated quoted string. The parser skips a
-// continued setting or assignment line like the one-line form, and it drops a
-// continuation that the file never closes.
-//
-// The parser follows imports and modules recursively. "import" and "import?"
-// take a quoted path, resolved against the directory of the declaring file,
-// absolute paths and a leading "~/" included. The imported recipes keep the
-// namespace of the importing file, as they do in just. "mod" and "mod?" name a
-// module whose recipes are listed as "name::recipe", the form that just accepts
-// on the command line. The source of the module is name.just or, inside the
-// name/ directory, mod.just or justfile/.justfile in any capitalization, and an
-// explicit quoted path may name the file or its directory.
-//
-// The parser skips a file that is missing, unreadable or unparsable. It does
-// not read a file that is already on the active chain, so a cycle terminates
-// and the picker never fails on an include. A nil Files port stops at the root
-// document, which is what the parser tests use.
-//
-// When more than one file defines a name, the shallowest definition wins and,
-// at equal depth, the first one met in source order. That is the rule that just
-// documents for duplicate recipes. The platform and privacy attributes still
-// filter the definitions before that choice, so only the definitions enabled on
-// goos take part in it. A module is a namespace of its own, so its recipes do
-// not collide with root or imported ones.
-//
-// The parser skips settings, aliases and exports, as it does the top-level
-// variable assignments. The assignment rule is anchored on the name and the
-// ":=", so a recipe header with a trailing comment or a parameter default that
-// contains ":=" is still listed. It skips a keyword statement only while no
-// recipe-header colon follows, so a recipe named "set", "alias", "export",
-// "import" or "mod" is still listed, however its parameters look. Aliases are
-// not listed as extra rows. Groups are ignored: the picker shows one flat
-// alphabetical list, which orders grouped recipes differently from "just
-// --list". Triple-quoted strings can contain a column-0 line that looks like a
-// recipe header, and the line-based parser cannot tell it from a real one.
-func parseJustfileFor(goos string, files Files, dir string, data []byte) ([]Task, error) {
-	return selectJustTasks(goos, justCollect(files, dir, "", data, 0, nil)), nil
+// Three functions own the contract. justDocumentOf parses one justfile
+// document, justCollect gathers the definitions of the root justfile, of the
+// files it imports and of its modules, and selectJustTasks picks one
+// definition per recipe name.
+func parseJustfileFor(goos string, files Files, dir string, data []byte) []Task {
+	return selectJustTasks(goos, justCollect(files, dir, "", data, 0, nil))
 }
 
 // justDocument is one parsed justfile: the recipes it defines, the local
@@ -171,6 +102,24 @@ type justModule struct {
 // justDocumentOf parses one justfile document into the recipes it defines, the
 // local files it imports and the modules it declares, in source order. It keeps
 // every duplicate and platform variant.
+//
+// The parser is line-based and forgiving. It recognizes a recipe header at
+// column 0, and it keeps the last contiguous "#" comment line above the header,
+// or the "[doc(...)]" attribute of the recipe, as the description. A doc
+// attribute always decides, even when its text is empty or blank. just shows
+// no description then, so the "#" comment above does not apply. The "_"
+// prefix and the "[private]" attribute hide a recipe. The parser ignores the
+// lines inside recipe bodies, and a leading "#!" is a shebang, not a doc
+// comment.
+//
+// The parser skips settings, aliases, exports and the top-level variable
+// assignments, and aliases are not listed as extra rows. A recipe header may
+// continue on the next line, and justLogicalLine owns the joining of the
+// continuations: the parser skips a continued setting or assignment line like
+// the one-line form, and it drops a continuation that the file never closes.
+//
+// Triple-quoted strings can contain a column-0 line that looks like a recipe
+// header, and the line-based parser cannot tell it from a real one.
 func justDocumentOf(data []byte) justDocument {
 	var (
 		defs       []justRecipe
@@ -305,6 +254,11 @@ func justDocumentOf(data []byte) justDocument {
 // include hops from the root file. active holds the absolute paths on the
 // current include chain. A cycle is skipped, while the same file reached from
 // two branches is still read under both.
+//
+// The imported recipes keep the namespace of the importing file, as they do in
+// just, and a module's recipes are listed as "name::recipe", the form that just
+// accepts on the command line. The parser skips a file that is missing,
+// unreadable or unparsable, so the picker never fails on an include.
 func justCollect(files Files, dir, prefix string, data []byte, depth int, active map[string]bool) []justDefinition {
 	doc := justDocumentOf(data)
 	defs := make([]justDefinition, 0, len(doc.defs))
@@ -442,10 +396,18 @@ func justModuleStatement(line string) (justModule, bool) {
 }
 
 // selectJustTasks picks one definition per recipe name and turns it into a
-// task. The shallowest definition enabled on goos decides, and at equal depth
-// the first one met in source order wins. The privacy of that definition hides
-// the row, and the function drops definitions of other platforms and later
-// duplicates.
+// task. A name may have several definitions, and only one row appears. The
+// platform and the privacy attributes filter the definitions before the
+// choice. The shallowest definition that is still enabled on goos decides, and
+// at equal depth the first one met in source order wins. That is the rule that
+// just documents for duplicate recipes. The doc and the privacy of that
+// definition decide the row. A name with no enabled definition is dropped. A
+// recipe defined under [unix] and again under [windows] shows one row, with
+// the doc of the active definition. A module is a namespace of its own, so its
+// recipes do not collide with root or imported ones.
+//
+// Groups are ignored: the picker shows one flat alphabetical list, which
+// orders grouped recipes differently from "just --list".
 func selectJustTasks(goos string, defs []justDefinition) []Task {
 	best := make(map[string]justDefinition, len(defs))
 	for _, def := range defs {
@@ -575,31 +537,15 @@ func justLogicalLine(lines []string, i int) (line string, next int, ok bool) {
 // that continues it on the next line. The backslash counts only outside a
 // quoted string and outside a "#" comment. just keeps the trailing backslash of
 // "build: # note \" as comment text, and the scanner cannot tell an unterminated
-// string from a continuation either, so it leaves both alone. Quoted strings
-// and escapes are read like justHeaderColon reads them.
+// string from a continuation either, so it leaves both alone: a "#" in the text
+// before the backslash, or a quote left open there, answers that the line does
+// not continue.
 func justContinues(text string) bool {
 	if !strings.HasSuffix(text, `\`) {
 		return false
 	}
-	var quote byte
-	for i := 0; i < len(text)-1; i++ {
-		c := text[i]
-		switch {
-		case quote != 0:
-			if c == '\\' {
-				i++ // skip the escaped byte
-				continue
-			}
-			if c == quote {
-				quote = 0
-			}
-		case c == '"' || c == '\'':
-			quote = c
-		case c == '#':
-			return false
-		}
-	}
-	return quote == 0
+	at, open := justScan(text[:len(text)-1], "#")
+	return at < 0 && !open
 }
 
 // isJustSetting reports whether the line declares a setting, an assignment, an
@@ -633,34 +579,24 @@ func justImportStatement(line string) (string, bool) {
 // justHeaderColon reports whether the line carries the colon that opens a
 // recipe header, which is a ":" outside a quoted string and not part of a ":="
 // assignment. A "#" starts a comment that may contain any text, so the scan
-// stops there. Quoted strings are read like stripJustComment reads them, so the
-// ":" of an import path or of a parameter default does not count.
+// stops there. justScan owns the reading of the quoted strings, so the ":" of
+// an import path or of a parameter default does not count.
 func justHeaderColon(line string) bool {
-	var quote byte
-	for i := 0; i < len(line); i++ {
-		c := line[i]
-		switch {
-		case quote != 0:
-			if c == '\\' {
-				i++ // skip the escaped byte
-				continue
-			}
-			if c == quote {
-				quote = 0
-			}
-		case c == '"' || c == '\'':
-			quote = c
-		case c == '#':
+	for rest := line; ; {
+		at, _ := justScan(rest, ":#")
+		if at < 0 {
 			return false
-		case c == ':':
-			if i+1 < len(line) && line[i+1] == '=' {
-				i++ // skip the "=" of ":="
-				continue
-			}
+		}
+		if rest[at] == '#' {
+			return false
+		}
+		if at+1 >= len(rest) || rest[at+1] != '=' {
 			return true
 		}
+		// The ":" of that ":=" belongs to an assignment, so the scan
+		// resumes after the "=".
+		rest = rest[at+2:]
 	}
-	return false
 }
 
 // justAttrs is the part of a "[...]" attribute list that the picker uses: the
@@ -713,78 +649,32 @@ func justAttributes(list string) justAttrs {
 // close it, so the parser reads a bracket in a doc string like any other
 // character.
 func justAttributeEnd(text string) int {
-	var quote byte
-	for i := 0; i < len(text); i++ {
-		c := text[i]
-		switch {
-		case quote != 0:
-			if c == '\\' {
-				i++ // skip the escaped byte
-				continue
-			}
-			if c == quote {
-				quote = 0
-			}
-		case c == '"' || c == '\'':
-			quote = c
-		case c == ']':
-			return i
-		}
-	}
-	return -1
+	at, _ := justScan(text, "]")
+	return at
 }
 
 // stripJustComment drops a trailing "#" comment from an attribute line and
 // ignores a "#" inside a quoted string.
 func stripJustComment(line string) string {
-	var quote byte
-	for i := 0; i < len(line); i++ {
-		c := line[i]
-		switch {
-		case quote != 0:
-			if c == '\\' {
-				i++ // skip the escaped byte
-				continue
-			}
-			if c == quote {
-				quote = 0
-			}
-		case c == '"' || c == '\'':
-			quote = c
-		case c == '#':
-			return line[:i]
-		}
+	at, _ := justScan(line, "#")
+	if at < 0 {
+		return line
 	}
-	return line
+	return line[:at]
 }
 
 // splitJustAttributes splits an attribute list on the commas that sit outside
 // a quoted string, so the commas of a doc string do not split it.
 func splitJustAttributes(attrs string) []string {
-	var (
-		parts []string
-		start int
-		quote byte
-	)
-	for i := 0; i < len(attrs); i++ {
-		c := attrs[i]
-		switch {
-		case quote != 0:
-			if c == '\\' {
-				i++ // skip the escaped byte
-				continue
-			}
-			if c == quote {
-				quote = 0
-			}
-		case c == '"' || c == '\'':
-			quote = c
-		case c == ',':
-			parts = append(parts, attrs[start:i])
-			start = i + 1
+	var parts []string
+	for rest := attrs; ; {
+		at, _ := justScan(rest, ",")
+		if at < 0 {
+			return append(parts, rest)
 		}
+		parts = append(parts, rest[:at])
+		rest = rest[at+1:]
 	}
-	return append(parts, attrs[start:])
 }
 
 // justDocText returns the text of one "doc(...)" attribute and unquotes the

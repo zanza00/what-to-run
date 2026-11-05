@@ -37,7 +37,8 @@ it was true at.
   rejected list and the attack plan.
 - [attack-plan](attack-plan.md) — the execution tracker of the twelve
   candidates plus the row-cache follow-up (row 13): a status table with
-  dates, a progress log, and the resume pointer.
+  dates, a progress log, and the resume pointer; the plan closed on
+  2026-11-06.
 - [warning-identity](warning-identity.md) — the settled piece-1 design
   (2026-11-04): a warning carries a kind and a dismissal key instead of
   being its message text, and the dismissed-warnings file accepts both the
@@ -88,3 +89,9 @@ it was true at.
   — and enumerates the ancestors at most once, into `parentLevels` that
   every parent-searching source consumes in registry order, so task and
   warning order cannot move.
+- [core-test-friction](core-test-friction.md) — the settled piece-11
+  design (2026-11-05): the run-prefix rule of the justfile tests is
+  asserted once in `justTask`, the registry invariants mutate through the
+  ID-keyed `sourceByID`, and the positionally-intended cases keep their
+  indices with comments — the tables keep asserting exactly what they
+  asserted, with the production diff empty by gate.

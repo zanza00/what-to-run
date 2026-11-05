@@ -108,6 +108,14 @@ and the mutation test proved a register-keyed `themeModalHeight` fails
 its leg (the window settles {7, 6} where the old algebra settles
 {7, 3}).
 
+Superseded as a candidate on 2026-11-06: the plan-closing grilling of
+2026-11-05 weighed the follow-up against the arch-bench numbers (the
+modal-open cost sits at the overlay compositor, not at the height math)
+and the row cache (the steady-frame derivations), found no
+user-visible rider, and the maintainer let it die as accepted. The
+asymmetry above stays as the byte-preserving fact of the picked theme
+box height; the tracker's closing line records the death.
+
 ## The ratifications (2026-11-05, PR #128)
 
 The Spec axis ruled the implementer's seven declared deviations within

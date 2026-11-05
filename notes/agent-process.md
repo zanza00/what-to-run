@@ -79,3 +79,10 @@ rules that live in `AGENTS.md` (draft PRs, stacked PRs, manual merges,
   exemptions. A spec now either verifies a uniform claim per site
   before writing it, or names it as the open question the implementer
   must settle first, before the code is written.
+- **2026-11-05** (the piece-10 implementer session): a child whose turn
+  ends with an empty report leaves the tree as the ground truth. The
+  second turn of the piece-10 implementer stopped mid-corrections with
+  an empty message; the worktree showed only part of the bounce. Verify
+  the tree state first, then bounce the resume from what is missing —
+  the child keeps its context, so the bounce names only the missing
+  work, never re-explains the piece.

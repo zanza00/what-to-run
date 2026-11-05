@@ -28,6 +28,13 @@ rules that live in `AGENTS.md` (draft PRs, stacked PRs, manual merges,
   axes run in-context inside a child; only the main session can spawn the
   axes in parallel. Learned in the AUR-removal implement-spec run (PR
   #110), where every implementer hit both limits.
+- **2026-11-05**: a spec names a new type, file and field with the one
+  word its comments' prose will use, and the implementer checks the word
+  against the prose before the first commit (the "persisting rule"). The
+  maintainer ratified the rule after the piece-5 review: the piece-3 and
+  piece-4 Standards reviews both caught a spec-named operation drifting
+  from its comment prose (the `reprise`/`settle` case), and the rule,
+  written into the FP5 spec and brief, took the naming findings to zero.
 
 ## Recurring gotchas
 

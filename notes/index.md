@@ -54,3 +54,7 @@ it was true at.
   window module — the cursor, the offset, operations that settle, one render
   read and one cursor read — serves the task list, the theme picker and the
   warning list at height one.
+- [list-module](list-module.md) — the settled piece-5 design (2026-11-05):
+  the task list owns the tasks, the filter text and their derived facts in
+  one module — built at construction, rebuilt at every mutation — so
+  staleness is impossible and every read is a plain return.

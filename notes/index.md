@@ -67,3 +67,8 @@ it was true at.
   derivations — five operations settle, two named facts replace fifteen
   recombinations, Preview crosses the same door as the messages, and the
   themeModalHeight asymmetry is recorded as a candidate follow-up.
+- [row-cache](row-cache.md) — the settled row-13 design (2026-11-05): one
+  rowCache owns the pre-paint row derivations, keyed by the ranked
+  position and the listing era, emptied wholesale at every era —
+  steady frames stop re-deriving, the paint stays fresh, and the landed
+  benchstat numbers prove the gain.

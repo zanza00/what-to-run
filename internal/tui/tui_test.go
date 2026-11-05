@@ -392,7 +392,13 @@ func TestViewFlattensMultiLineDescriptions(t *testing.T) {
 			}}
 			m := update(newModel(Options{}, tasks, nil), tea.WindowSizeMsg{Width: 80, Height: 10})
 
-			row := m.taskRow(tasks[0], false, 80)
+			// The direct call must stand: listLines paints the one
+			// row of this model as the cursor row, in the selected
+			// branch, and the pin below reads the plain branch
+			// (the badge through the dim style, no separator inside
+			// the badge style).
+			d := deriveRow(tasks[0], m.shell, m.list.filterTokens(), m.list.commandWidth(), 80)
+			row := m.taskRow(tasks[0], d, false, 80)
 			if strings.ContainsAny(row, "\r\n") {
 				t.Errorf("taskRow() = %q, want no embedded newline", row)
 			}

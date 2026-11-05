@@ -7,11 +7,14 @@ import (
 )
 
 // The task list owns the tasks, the filter text and the facts that they
-// derive: the filter tokens, the ranked tasks and the command width. The list
-// derives the facts once, at construction, and it derives them again at every
-// mutation. No mutation can skip that derivation, so the facts are never
-// stale, and every read below is a plain return of a fact: the list carries no
-// validity flag and no fallback path.
+// derive: the filter tokens, the ranked tasks and the command width. The
+// list owns the generation too, the count of the derivations that rebuild
+// has run; the row cache reads the count to tell the facts of one ranking
+// from the facts of an earlier one. The list derives the facts once, at
+// construction, and it derives them again at every mutation. No mutation
+// can skip that derivation, so the facts are never stale, and every read
+// below is a plain return of a fact: the list carries no validity flag and
+// no fallback path.
 //
 // The model holds one list and mutates it only through setFilter and setTasks
 // (see tui.go). The reads are the model's only way to the tasks, the filter
@@ -30,6 +33,11 @@ type taskList struct {
 	tokens []string    // the filter text as lowercase whitespace tokens
 	ranked []core.Task // the tasks that match the filter, from the best match to the worst one
 	cmdW   int         // the widest command line among the ranked tasks
+
+	// gen is the generation of the facts above: the count of the derivations
+	// that rebuild has run. The row cache keys its derivations on the
+	// generation, so a bump tells it that every derived fact changed.
+	gen int
 }
 
 // newTaskList builds the list over tasks and derives the facts of the empty
@@ -55,11 +63,14 @@ func (l *taskList) setTasks(tasks []core.Task) {
 
 // rebuild derives the facts from the filter text and the tasks, each fact from
 // the one before it: the tokens, then the ranking over the full task list,
-// then the command width over the ranked tasks.
+// then the command width over the ranked tasks. The generation counts the
+// runs of this derivation, so the row cache can tell the facts of this
+// ranking from the facts of an earlier one.
 func (l *taskList) rebuild() {
 	l.tokens = strings.Fields(strings.ToLower(l.filter))
 	l.ranked = rankTasks(l.tasks, l.tokens, l.shell)
 	l.cmdW = commandWidthFor(l.ranked, l.shell)
+	l.gen++
 }
 
 // visible returns the tasks that match the current filter, ranked from the
@@ -91,4 +102,11 @@ func (l taskList) commandWidth() int {
 // taskCount returns the number of tasks that the list holds.
 func (l taskList) taskCount() int {
 	return len(l.tasks)
+}
+
+// generation returns the count of the derivations that the list has run. The
+// row cache reads the generation once per frame and keys its derivations on
+// it, so the read must stay a plain fact of the list.
+func (l taskList) generation() int {
+	return l.gen
 }

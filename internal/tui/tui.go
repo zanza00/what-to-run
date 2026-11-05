@@ -335,6 +335,13 @@ type model struct {
 	// owns no clamp of its own.
 	listWin window
 
+	// rowCache holds the derivations of the task rows of the open era: one
+	// generation of the list and one width of the frame (see row_cache.go).
+	// The field is a pointer because the model is a value: the render fills
+	// the cache through the pointer, so every copy of the model shares the
+	// derivations of the open era.
+	rowCache *rowCache
+
 	// status is the message that the help line paints when the model holds
 	// one: the outcome of the last run in place, the failure of a theme
 	// save, or the failure of a dismissal save (see status.go).
@@ -399,6 +406,7 @@ func newModel(opts Options, tasks []core.Task, warnings []core.Warning) model {
 		empty:        len(tasks) == 0,
 		display:      newDisplay(opts.Inline),
 		list:         newTaskList(tasks, shell),
+		rowCache:     &rowCache{},
 		themeWin:     window{cursor: idx},
 		styles:       newStyles(themes[idx]),
 		warningModal: warnOpen,
@@ -1345,9 +1353,23 @@ func (m model) listLines(w int) []string {
 	h := m.listHeight()
 	off, end := m.listWin.visibleRange(len(vis), h)
 
+	// The era of this frame is the generation of the listing together with
+	// the width of the frame (see row_cache.go). The tokens and the command
+	// width feed the derivations. The reads happen once per frame, so every
+	// row of the loop derives from the same facts.
+	e := era{gen: m.list.generation(), width: w}
+	tokens := m.list.filterTokens()
+	listCmdW := m.list.commandWidth()
+
 	rows := make([]string, 0, end-off)
 	for i, t := range vis[off:end] {
-		rows = append(rows, m.taskRow(t, off+i == m.listWin.cursor, w))
+		pos := off + i
+		d, hit := m.rowCache.lookup(e, pos)
+		if !hit {
+			d = deriveRow(t, m.shell, tokens, listCmdW, w)
+			m.rowCache.fill(e, pos, d)
+		}
+		rows = append(rows, m.taskRow(t, d, off+i == m.listWin.cursor, w))
 	}
 	return rows
 }
@@ -1377,15 +1399,13 @@ func flattenDesc(s string) string {
 	return b.String()
 }
 
-// taskRow budgets one list row: the cursor marker, the command line that will
-// run, the description and the source file, right-aligned. The command comes
-// first and keeps its whole text, because it already contains the task name for
-// every runner. Then the description takes the room that is left, and it is
-// dropped before the command shrinks. The row laws live in row.go, and the
-// painter assembles both branches from the budgets computed here.
-func (m model) taskRow(t core.Task, selected bool, w int) string {
+// taskRow paints one list row from its derivation: the cursor marker, the
+// command line that will run, the description, and the source file
+// right-aligned (see row_cache.go for the derivation). The paint owns no
+// algebra: it applies the styles of the frame to the derivation, so the only
+// work here is the assembly. The row laws live in row.go.
+func (m model) taskRow(t core.Task, d rowDerivations, selected bool, w int) string {
 	badge := t.Source
-	badgeW := lipgloss.Width(badge)
 
 	marker := "  "
 	st := rowStyles{badge: m.styles.dim}
@@ -1396,41 +1416,16 @@ func (m model) taskRow(t core.Task, selected bool, w int) string {
 		cmdStyle, descStyle, matchStyle = m.styles.selectedName, m.styles.selectedText, m.styles.selectedMatch
 	}
 
-	room := max(w-badgeW-1, 0) // columns left of the badge separator
-	avail := max(room-2, 0)    // columns after the marker
-	tokens := m.list.filterTokens()
-
-	cmdW := min(m.list.commandWidth(), avail)
-	cmdRaw := t.CommandLineFor(m.shell)
-	cmd, cmdMatch := truncateMatched(cmdRaw, matchPositions(cmdRaw, tokens), cmdW)
-	cmd += strings.Repeat(" ", max(cmdW-lipgloss.Width(cmd), 0))
-
-	desc := t.Desc
-	if t.Source == "rc" && slices.Contains(t.Args, desc) {
-		// The command already says it. An rc task without a custom
-		// description defaults to its own command (sh -c <cmd>).
-		desc = ""
-	}
-	desc = flattenDesc(desc)
-	var (
-		descLine  string
-		descMatch []bool
-	)
-	if descW := avail - cmdW - 1; desc != "" && descW > 0 {
-		var dm []bool
-		desc, dm = truncateMatched(desc, matchPositions(desc, tokens), descW)
-		descLine = " " + desc
-		if dm != nil {
-			descMatch = append([]bool{false}, dm...)
-		}
-	}
+	room := max(w-d.badgeW-1, 0) // columns left of the badge separator
 
 	// The pieces carry the styles of the branch, so the painter paints the
-	// row without knowing the theme.
+	// row without knowing the theme. The styles come from this frame, so a
+	// cursor move or a ctrl+t theme change paints the same derivations
+	// under new styles.
 	pieces := make([]rowPiece, 0, 2)
-	pieces = append(pieces, rowPiece{text: cmd, matched: cmdMatch, base: cmdStyle, highlight: matchStyle})
-	if descLine != "" {
-		pieces = append(pieces, rowPiece{text: descLine, matched: descMatch, base: descStyle, highlight: matchStyle})
+	pieces = append(pieces, rowPiece{text: d.cmd, matched: d.cmdMask, base: cmdStyle, highlight: matchStyle})
+	if d.descLine != "" {
+		pieces = append(pieces, rowPiece{text: d.descLine, matched: d.descMask, base: descStyle, highlight: matchStyle})
 	}
 	return paintRow(selected, marker, pieces, badge, room, st)
 }

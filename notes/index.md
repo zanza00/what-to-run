@@ -58,3 +58,7 @@ it was true at.
   the task list owns the tasks, the filter text and their derived facts in
   one module — built at construction, rebuilt at every mutation — so
   staleness is impossible and every read is a plain return.
+- [row-painter](row-painter.md) — the settled piece-6 design (2026-11-05):
+  one painter in `row.go` owns the row assembly of both the task and theme
+  rows, so the per-segment, never-dim and pad laws have one home, and the
+  SGR pin covers the selected theme row too.

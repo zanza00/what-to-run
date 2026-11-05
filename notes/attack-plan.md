@@ -18,7 +18,7 @@ below carries the date it became true.
 | 7 | FP1 display-mode module (+ Preview) | Strong | done (2026-11-05, PR #128, cbdde4f) | Preview crosses the same door as the messages; the decisions and the themeModalHeight finding live in [display-mode](display-mode.md) |
 | 8 | Parser frame shared (core) | Strong | done (2026-11-05, PR #132, cfc203a) | the discover seam owns the skeleton; the npm, make and hatch exemptions are ratified facts; the decisions live in [parser-frame](parser-frame.md) |
 | 9 | justfile: one quote scanner + split | Strong | done (2026-11-05, PR #134, f0f9b2c) | the 81-case table passed case-for-case unchanged; the decisions and the deletion taxonomy live in [justfile-scanner](justfile-scanner.md) |
-| 10 | Discovery: one read, one walk | Worth exploring | not started (2026-11-04) | inside Discover; no new interfaces |
+| 10 | Discovery: one read, one walk | Worth exploring | done (2026-11-05, PR #136, 7fe6a3b) | the read law and the parent levels own one home in the seam; the decisions live in [discovery-read-walk](discovery-read-walk.md) |
 | 11 | Core test friction | Worth exploring | not started (2026-11-04) | the name→argv rule asserted once; label-keyed registry mutations |
 | 12 | Files `~/` exception | Speculative | not started (2026-11-04) | may close as an accepted exception, no code |
 | 13 | Measured row cache (arch-bench patch B) | follow-up (grilled) | done (2026-11-05, PR #130, 35ba523) | the derivations live in the era-keyed cache; the suite landed at the merged seams; the decisions and the two ratifications live in [row-cache](row-cache.md) |
@@ -134,3 +134,16 @@ To resume work: read this table, then the candidate details in
   unchanged). The decisions and the deletion taxonomy live in
   [justfile-scanner](justfile-scanner.md); the spec survives at
   `.scratch/justfile-scanner/spec.md`. Pieces 10-12 close the plan.
+- 2026-11-05: piece 10 shipped — PR #136 landed on `main` with merge commit
+  `7fe6a3b` (one Discover reads one file at most once — a `readCache`
+  over the Files port remembering every result, misses included, keyed by
+  the exact path string — and enumerates the ancestors once — `parentLevels`,
+  consulted in registry order, the failure remembered and replayed per
+  source; a Python project reads its pyproject.toml once instead of five
+  times, and the eight walkers miss once per candidate per level). The
+  differential ran 36 comparisons at zero differences, the pins cover the
+  read counts, the levels, the laziness and the replay, and the commit
+  named them; the decisions live in
+  [discovery-read-walk](discovery-read-walk.md), and the spec survives at
+  `.scratch/discovery-read-walk/spec.md`. Piece 11 (core test friction)
+  is next.

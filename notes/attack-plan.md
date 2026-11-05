@@ -16,7 +16,7 @@ below carries the date it became true.
 | 5 | FP5 list module (absorbs the snapshot) | Worth exploring | done (2026-11-05, PR #124, 1662dc6) | the measured row cache rides its own follow-up; the decisions live in [list-module](list-module.md) |
 | 6 | FP3 row painter | Worth exploring | done (2026-11-05, PR #126, d2256f8) | the three selection laws own one home in `row.go`; the decisions live in [row-painter](row-painter.md) |
 | 7 | FP1 display-mode module (+ Preview) | Strong | done (2026-11-05, PR #128, cbdde4f) | Preview crosses the same door as the messages; the decisions and the themeModalHeight finding live in [display-mode](display-mode.md) |
-| 8 | Parser frame shared (core) | Strong | not started (2026-11-04) | stops the eleventh copy; tickets likely |
+| 8 | Parser frame shared (core) | Strong | done (2026-11-05, PR #132, cfc203a) | the discover seam owns the skeleton; the npm, make and hatch exemptions are ratified facts; the decisions live in [parser-frame](parser-frame.md) |
 | 9 | justfile: one quote scanner + split | Strong | not started (2026-11-04) | the 81-case table must pass unchanged |
 | 10 | Discovery: one read, one walk | Worth exploring | not started (2026-11-04) | inside Discover; no new interfaces |
 | 11 | Core test friction | Worth exploring | not started (2026-11-04) | the name→argv rule asserted once; label-keyed registry mutations |
@@ -111,3 +111,15 @@ To resume work: read this table, then the candidate details in
   numbers live in [row-cache](row-cache.md); the spec survives at
   `.scratch/row-cache/spec.md`. The TUI pieces are done: the core
   pieces 8-11 are next.
+- 2026-11-05: piece 8 shipped — PR #132 landed on `main` with merge commit
+  `cfc203a` (the parser skeleton owned by the discover seam: the
+  empty-file guard and the sorted-by-name convention live once at the
+  `Parse` call site, the help-else-body chain in one `helpOrBody`
+  helper with seven call sites, and the two nil-drift deviants return
+  to the sibling convention; the maintainer ratified three honest
+  exemptions — npm keeps its empty-file warning, make and hatch keep
+  their document order, fifteen of the eighteen sort sites died — and
+  the corpus differential proved zero differences over 106 entries).
+  The decisions and the lesson of the two false spec claims live in
+  [parser-frame](parser-frame.md); the spec survives at
+  `.scratch/parser-frame/spec.md`. Piece 9 (justfile) is next.

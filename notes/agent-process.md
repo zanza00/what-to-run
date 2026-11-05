@@ -69,3 +69,13 @@ rules that live in `AGENTS.md` (draft PRs, stacked PRs, manual merges,
   umbrella vocabulary against GLOSSARY.md and the existing terms before
   dispatching an implementer, the way the persisting rule checks names
   before the first commit.
+- **2026-11-05**: a spec's uniform claims are verified per site. Two
+  consecutive pieces (row 13, piece 8) stated assumptions as facts —
+  "the entries follow the visible window", "the unguarded parsers
+  produce zero tasks on empty bytes", "each parser sorted its own
+  slice" — and the implementers' differentials discovered the truth
+  (visited-rows-in-era; npm always warned; make and hatch deliver
+  document order). Both times the maintainer ratified the honest
+  exemptions. A spec now either verifies a uniform claim per site
+  before writing it, or names it as the open question the implementer
+  must settle first, before the code is written.

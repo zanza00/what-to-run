@@ -1438,19 +1438,23 @@ func flattenDesc(s string) string {
 	return b.String()
 }
 
-// taskRow renders one list row: the cursor marker, the command line that will
+// taskRow budgets one list row: the cursor marker, the command line that will
 // run, the description and the source file, right-aligned. The command comes
 // first and keeps its whole text, because it already contains the task name for
 // every runner. Then the description takes the room that is left, and it is
-// dropped before the command shrinks. The whole selected row carries the tint
-// of the theme, or reverse video in the colorless theme.
+// dropped before the command shrinks. The row laws live in row.go, and the
+// painter assembles both branches from the budgets computed here.
 func (m model) taskRow(t core.Task, selected bool, w int) string {
 	badge := t.Source
 	badgeW := lipgloss.Width(badge)
 
 	marker := "  "
+	st := rowStyles{badge: m.styles.dim}
+	cmdStyle, descStyle, matchStyle := lipgloss.Style{}, m.styles.dim, m.styles.match
 	if selected {
 		marker = "▌ "
+		st = rowStyles{marker: m.styles.marker, pad: m.styles.selectedPad, badge: m.styles.selectedText}
+		cmdStyle, descStyle, matchStyle = m.styles.selectedName, m.styles.selectedText, m.styles.selectedMatch
 	}
 
 	room := max(w-badgeW-1, 0) // columns left of the badge separator
@@ -1482,149 +1486,14 @@ func (m model) taskRow(t core.Task, selected bool, w int) string {
 		}
 	}
 
-	if selected {
-		// The marker takes the accent color, and the rest of the row takes the
-		// light tone of the theme over its tint (reverse video, in mono). The
-		// row never takes the dim color, because the dim color can be nearly
-		// identical to the tint.
-		left := m.styles.marker.Render(marker) +
-			renderMatched(cmd, cmdMatch, m.styles.selectedName, m.styles.selectedMatch)
-		if descLine != "" {
-			left += renderMatched(descLine, descMatch, m.styles.selectedText, m.styles.selectedMatch)
-		}
-		pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
-		if pad != "" {
-			pad = m.styles.selectedPad.Render(pad)
-		}
-		return left + pad + m.styles.selectedText.Render(" "+badge)
-	}
-
-	left := marker + renderMatched(cmd, cmdMatch, lipgloss.Style{}, m.styles.match)
+	// The pieces carry the styles of the branch, so the painter paints the
+	// row without knowing the theme.
+	pieces := make([]rowPiece, 0, 2)
+	pieces = append(pieces, rowPiece{text: cmd, matched: cmdMatch, base: cmdStyle, highlight: matchStyle})
 	if descLine != "" {
-		left += renderMatched(descLine, descMatch, m.styles.dim, m.styles.match)
+		pieces = append(pieces, rowPiece{text: descLine, matched: descMatch, base: descStyle, highlight: matchStyle})
 	}
-	pad := strings.Repeat(" ", max(room-lipgloss.Width(left), 0))
-	return left + pad + " " + m.styles.dim.Render(badge)
-}
-
-// truncateMatched fits s within maxW terminal columns while it keeps the
-// matched runes visible. When a right truncation would cut off a match, the
-// visible window shifts toward the matched span and gets a leading ellipsis.
-func truncateMatched(s string, matched []bool, maxW int) (string, []bool) {
-	if maxW <= 0 || s == "" {
-		return "", nil
-	}
-	if lipgloss.Width(s) <= maxW {
-		return s, matched
-	}
-	if maxW == 1 {
-		return "…", nil
-	}
-
-	firstMatch, lastMatch := -1, -1
-	for i, ok := range matched {
-		if ok {
-			if firstMatch < 0 {
-				firstMatch = i
-			}
-			lastMatch = i
-		}
-	}
-
-	runes := []rune(s)
-	width, end := 0, 0
-	for end < len(runes) {
-		rw := ansi.StringWidth(string(runes[end]))
-		if width+rw > maxW-1 {
-			break
-		}
-		width += rw
-		end++
-	}
-	if firstMatch < 0 || lastMatch < end {
-		var m []bool
-		if len(matched) > 0 {
-			m = append(slices.Clone(matched[:end]), false)
-		}
-		return string(runes[:end]) + "…", m
-	}
-
-	// A match lies past the right truncation point. Try a suffix that is
-	// anchored to the end of s first, then a middle window framed by two
-	// ellipses.
-	suffixW := 0
-	start := len(runes)
-	for start > 0 {
-		rw := ansi.StringWidth(string(runes[start-1]))
-		if 1+suffixW+rw > maxW {
-			break
-		}
-		suffixW += rw
-		start--
-	}
-	if start <= firstMatch {
-		m := make([]bool, 1+len(runes)-start)
-		copy(m[1:], matched[start:])
-		return "…" + string(runes[start:]), m
-	}
-
-	if maxW < 3 {
-		return ansi.Truncate(s, maxW, "…"), nil
-	}
-	start, end = firstMatch, firstMatch
-	midW := 0
-	for end < len(runes) {
-		rw := ansi.StringWidth(string(runes[end]))
-		if midW+rw > maxW-2 {
-			break
-		}
-		midW += rw
-		end++
-	}
-	for start > 0 {
-		rw := ansi.StringWidth(string(runes[start-1]))
-		if midW+rw > maxW-2 {
-			break
-		}
-		midW += rw
-		start--
-	}
-	m := make([]bool, 0, (end-start)+2)
-	m = append(m, false)
-	m = append(m, matched[start:end]...)
-	m = append(m, false)
-	return "…" + string(runes[start:end]) + "…", m
-}
-
-// renderMatched renders s and applies highlight to the runes marked in matched
-// and base to the other runes. Adjacent runes with the same state are grouped
-// into a single segment, so the renderer emits no unnecessary ANSI resets.
-func renderMatched(s string, matched []bool, base, highlight lipgloss.Style) string {
-	if s == "" {
-		return ""
-	}
-	if !slices.Contains(matched, true) {
-		return base.Render(s)
-	}
-
-	runes := []rune(s)
-	var b strings.Builder
-	start := 0
-	for start < len(runes) {
-		isMatch := start < len(matched) && matched[start]
-		end := start + 1
-		for end < len(runes) && (end < len(matched) && matched[end]) == isMatch {
-			end++
-		}
-		seg := string(runes[start:end])
-		if isMatch {
-			b.WriteString(highlight.Render(seg))
-		} else {
-			b.WriteString(base.Render(seg))
-		}
-		start = end
-	}
-	return b.String()
+	return paintRow(selected, marker, pieces, badge, room, st)
 }
 
 // commandWidthFor returns the widest command line in tasks.

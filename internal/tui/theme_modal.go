@@ -106,9 +106,10 @@ func themeModalLayout(w int) (nameCol, innerW int) {
 	return nameCol, innerW
 }
 
-// themeModalRow renders one theme row: the cursor marker and the name in the
-// accent of the theme, over the tint of the theme when the row is being
-// previewed.
+// themeModalRow budgets one theme row for the box columns: the cursor marker,
+// the name truncated to the name column and the pad to the content width. The
+// row laws live in row.go, and the painter assembles both branches from the
+// styles of the theme that the row wears.
 func themeModalRow(th theme, selected bool, nameCol, innerW int) string {
 	st := newStyles(th)
 
@@ -116,14 +117,10 @@ func themeModalRow(th theme, selected bool, nameCol, innerW int) string {
 	name += strings.Repeat(" ", max(nameCol-lipgloss.Width(name), 0))
 
 	if selected {
-		left := st.marker.Render("▌ ") + st.selectedName.Render(name)
-		pad := strings.Repeat(" ", max(innerW-lipgloss.Width(left), 0))
-		if pad != "" {
-			pad = st.selectedPad.Render(pad)
-		}
-		return left + pad
+		pieces := []rowPiece{{text: name, base: st.selectedName}}
+		return paintRow(true, "▌ ", pieces, "", innerW, rowStyles{marker: st.marker, pad: st.selectedPad})
 	}
 
-	left := "  " + st.title.Render(name)
-	return left + strings.Repeat(" ", max(innerW-lipgloss.Width(left), 0))
+	pieces := []rowPiece{{text: name, base: st.title}}
+	return paintRow(false, "  ", pieces, "", innerW, rowStyles{})
 }

@@ -24,6 +24,7 @@
 package core
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -80,8 +81,8 @@ func (s SourceInfo) DisplayFile() string {
 
 // source is one family of project files. To add a source, write a SourceInfo
 // literal in defaultSources and a parser function. The framework does the rest.
-// The registry order is the discovery order, and each parser decides the order
-// of the tasks it returns.
+// The registry order is the discovery order, and sortSourceTasks at the seam
+// owns the order of the tasks of a source.
 type source struct {
 	SourceInfo
 
@@ -244,12 +245,17 @@ func discoverSource(files Files, src source, dir string) ([]Task, *Warning) {
 }
 
 // readSourceFile reads the first candidate file of src that exists in dir and
-// runs the parser on it. prefix is the path of the directory relative to the
-// project directory, and it is empty for the project directory itself: the
-// badge is the file name there and prefix/name above it. found reports whether
-// the function read a file, whether it parsed or not. The warning keys on the
-// leaf name, never on the badge, and a read failure and a parse failure of one
-// file produce the same warning.
+// runs the parser on it. This function owns the law of the empty file: a file
+// that holds only whitespace reports like a missing one, with no parser call
+// and no warning. The package.json source is the exception, because JSON
+// parses no empty document, so its empty file keeps its parse failure as a
+// warning. sortSourceTasks owns the order of the tasks that come back.
+// prefix is the path of the directory relative to the project directory, and
+// it is empty for the project directory itself: the badge is the file name
+// there and prefix/name above it. found reports whether the function read a
+// file, whether it parsed or not. The warning keys on the leaf name, never on
+// the badge, and a read failure and a parse failure of one file produce the
+// same warning.
 func readSourceFile(files Files, src source, dir, prefix string) (tasks []Task, found bool, warn *Warning) {
 	for _, name := range src.Files {
 		path := filepath.Join(dir, name)
@@ -265,17 +271,46 @@ func readSourceFile(files Files, src source, dir, prefix string) (tasks []Task, 
 			w := NewSourceWarning(src.ID, name, fmt.Sprintf("%s: %v", badge, err))
 			return nil, true, &w
 		}
+		if emptyFile(data) && src.ID != "npm" {
+			// JSON parses no empty document, so the npm source still reads
+			// its empty file and keeps its warning. For every other source
+			// the file was read, and the parent search stops here too.
+			return nil, true, nil
+		}
 		tasks, err := src.Parse(filepath.Dir(path), name, data)
 		if err != nil {
 			w := NewSourceWarning(src.ID, name, fmt.Sprintf("%s: %v", badge, err))
 			return nil, true, &w
 		}
+		tasks = sortSourceTasks(src, tasks)
 		for i := range tasks {
 			tasks[i].Source = badge
 		}
 		return tasks, true, nil
 	}
 	return nil, false, nil
+}
+
+// emptyFile reports whether data holds nothing but whitespace. Such a file
+// declares no tasks, so the seam reports it like a missing one, as the law of
+// readSourceFile states.
+func emptyFile(data []byte) bool {
+	return len(bytes.TrimSpace(data)) == 0
+}
+
+// sortSourceTasks returns the tasks of src in the order that the picker shows
+// them: sorted by name. The make source keeps the order of its file, because
+// a Makefile lists its targets in that order. The hatch source also keeps
+// the order of its parser: its sorted loops list the environments and then
+// the scripts of each one.
+func sortSourceTasks(src source, tasks []Task) []Task {
+	if src.ID == "make" || src.ID == "hatch" {
+		return tasks
+	}
+	slices.SortStableFunc(tasks, func(a, b Task) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	return tasks
 }
 
 // enabledSources drops the sources that disable names, by ID, and reports the
@@ -309,14 +344,10 @@ func enabledSources(sources []source, disable []string) ([]source, []Warning) {
 func rcTasks(settings Settings, dir string) []Task {
 	var tasks []Task
 	for _, t := range settings.Tasks {
-		desc := t.Description
-		if desc == "" {
-			desc = t.Command
-		}
 		task := Task{
 			Source: "rc",
 			Name:   t.Name,
-			Desc:   desc,
+			Desc:   helpOrBody(t.Description, t.Command),
 			Args:   shellCommand(t.Command),
 		}
 		if t.Cwd != "" {
@@ -329,10 +360,10 @@ func rcTasks(settings Settings, dir string) []Task {
 
 // Discover scans dir for the tasks of the rc file and of the built-in sources,
 // in display order: rc tasks first, then each enabled source in registry order.
-// Each parser decides the order of its own tasks. A source that fails to parse
-// is reported in warnings and skipped, and the function does not read a
-// disabled source at all. rc tasks shadow same-named tasks of the built-in
-// sources.
+// Each source's tasks arrive in the order that sortSourceTasks gives them. A
+// source that fails to parse is reported in warnings and skipped, and the
+// function does not read a disabled source at all. rc tasks shadow
+// same-named tasks of the built-in sources.
 func Discover(files Files, dir string, settings Settings) ([]Task, []Warning) {
 	sources, warns := enabledSources(defaultSources(settings, files), settings.Disable)
 

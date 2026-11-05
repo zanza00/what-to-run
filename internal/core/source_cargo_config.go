@@ -2,9 +2,6 @@
 package core
 
 import (
-	"bytes"
-	"maps"
-	"slices"
 	"strings"
 	"unicode"
 
@@ -27,18 +24,12 @@ func cargoAliasSource() source {
 }
 
 // parseCargoConfig returns the aliases that the [alias] table of the cargo
-// config declares, sorted by name. Each alias runs as "cargo <name>". The
-// description shows the alias expansion, and the parser follows alias chains
-// the way cargo does (zellij's q -> x -> xtask). Shell aliases ("!...") are
-// shown verbatim. An entry that is not a string, or whose expansion is empty,
-// is skipped, because cargo would not run it either.
+// config declares. Each alias runs as "cargo <name>". The description shows
+// the alias expansion, and the parser follows alias chains the way cargo does
+// (zellij's q -> x -> xtask). Shell aliases ("!...") are shown verbatim. An
+// entry that is not a string, or whose expansion is empty, is skipped,
+// because cargo would not run it either.
 func parseCargoConfig(_, _ string, data []byte) ([]Task, error) {
-	// An empty file declares no aliases, so report it like a missing file
-	// instead of failing on invalid TOML.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	var doc struct {
 		Alias map[string]any `toml:"alias"`
 	}
@@ -54,7 +45,7 @@ func parseCargoConfig(_, _ string, data []byte) ([]Task, error) {
 	}
 
 	tasks := make([]Task, 0, len(aliases))
-	for _, name := range slices.Sorted(maps.Keys(aliases)) {
+	for name := range aliases {
 		desc := cargoAliasDesc(name, aliases)
 		if desc == "" {
 			continue

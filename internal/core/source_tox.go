@@ -4,10 +4,7 @@
 package core
 
 import (
-	"bytes"
 	"fmt"
-	"maps"
-	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -36,22 +33,15 @@ type toxConfig struct {
 	Env     map[string]any `toml:"env"`
 }
 
-// parseTox returns the environments that the tox configuration declares,
-// sorted by name. Each environment runs through "tox run" with -e, because
-// tox owns the environment, the substitutions and the lifecycle. The
-// description is display text and never a promise of the executed command. A
-// name that contains template braces stays hidden, because it expands at run
-// time. An entry that is not an environment shape is skipped. The winning
-// file's name picks the format: tox.ini and setup.cfg hold the INI form, a
-// pyproject.toml keeps the tables under [tool.tox] and a standalone tox.toml
-// holds them at the root.
+// parseTox returns the environments that the tox configuration declares.
+// Each environment runs through "tox run" with -e, because tox owns the
+// environment, the substitutions and the lifecycle. The description is display
+// text and never a promise of the executed command. A name that contains
+// template braces stays hidden, because it expands at run time. An entry that
+// is not an environment shape is skipped. The winning file's name picks the
+// format: tox.ini and setup.cfg hold the INI form, a pyproject.toml keeps the
+// tables under [tool.tox] and a standalone tox.toml holds them at the root.
 func parseTox(_, name string, data []byte) ([]Task, error) {
-	// An empty file declares no environments, so report it like a missing
-	// file instead of failing on the format.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	if name == "tox.ini" || name == "setup.cfg" {
 		return parseToxIni(name, data)
 	}
@@ -91,7 +81,7 @@ func parseTox(_, name string, data []byte) ([]Task, error) {
 	}
 
 	out := make([]Task, 0, len(names))
-	for _, envName := range slices.Sorted(maps.Keys(names)) {
+	for envName := range names {
 		if strings.ContainsAny(envName, "{}") {
 			continue
 		}
@@ -204,7 +194,7 @@ func parseToxIni(name string, data []byte) ([]Task, error) {
 
 	base := sections["testenv"]
 	out := make([]Task, 0, len(names))
-	for _, envName := range slices.Sorted(maps.Keys(names)) {
+	for envName := range names {
 		if strings.ContainsAny(envName, "{}") {
 			continue
 		}

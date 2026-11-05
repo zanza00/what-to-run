@@ -1,8 +1,6 @@
 package core
 
 import (
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -18,24 +16,6 @@ func TestParseTaskfile(t *testing.T) {
 		in   string
 		want []Task
 	}{
-		{
-			name: "task table with desc, commands, task and cmd entries",
-			in: `version: '3'
-tasks:
-  build:
-    cmds:
-      - echo build
-      - task: lint
-      - cmd: echo done
-  lint:
-    desc: Lint the code
-    cmds: [golangci-lint run ./...]
-`,
-			want: []Task{
-				{Name: "build", Desc: "echo build && task lint && echo done", Args: []string{"task", "build"}},
-				{Name: "lint", Desc: "Lint the code", Args: []string{"task", "lint"}},
-			},
-		},
 		{
 			name: "short string syntax",
 			in: `tasks:
@@ -198,29 +178,8 @@ includes:
 			},
 		},
 		{
-			name: "tasks are sorted by name",
-			in: `tasks:
-  test:
-    desc: Run the tests
-  build:
-    desc: Build the app
-  all:
-    desc: Run everything
-`,
-			want: []Task{
-				{Name: "all", Desc: "Run everything", Args: []string{"task", "all"}},
-				{Name: "build", Desc: "Build the app", Args: []string{"task", "build"}},
-				{Name: "test", Desc: "Run the tests", Args: []string{"task", "test"}},
-			},
-		},
-		{
 			name: "empty file declares no tasks",
 			in:   "",
-			want: nil,
-		},
-		{
-			name: "whitespace-only file declares no tasks",
-			in:   " \n\t\n",
 			want: nil,
 		},
 		{
@@ -238,6 +197,74 @@ includes:
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parseTaskfile() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestDiscoverTaskfile drives the seam for the two facts that the seam owns:
+// the order of the tasks and the report of a file that holds only
+// whitespace. The description of a cmds list stays a fact of the parser, and
+// its case sits here because its document declares two tasks, so the want
+// needs the order of the seam.
+func TestDiscoverTaskfile(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want []Task
+	}{
+		{
+			name: "tasks arrive sorted by name",
+			in: `tasks:
+  test:
+    desc: Run the tests
+  build:
+    desc: Build the app
+  all:
+    desc: Run everything
+`,
+			want: []Task{
+				{Source: "Taskfile.yml", Name: "all", Desc: "Run everything", Args: []string{"task", "all"}},
+				{Source: "Taskfile.yml", Name: "build", Desc: "Build the app", Args: []string{"task", "build"}},
+				{Source: "Taskfile.yml", Name: "test", Desc: "Run the tests", Args: []string{"task", "test"}},
+			},
+		},
+		{
+			name: "task table with desc, commands, task and cmd entries",
+			in: `version: '3'
+tasks:
+  build:
+    cmds:
+      - echo build
+      - task: lint
+      - cmd: echo done
+  lint:
+    desc: Lint the code
+    cmds: [golangci-lint run ./...]
+`,
+			want: []Task{
+				{Source: "Taskfile.yml", Name: "build", Desc: "echo build && task lint && echo done", Args: []string{"task", "build"}},
+				{Source: "Taskfile.yml", Name: "lint", Desc: "Lint the code", Args: []string{"task", "lint"}},
+			},
+		},
+		{
+			name: "whitespace-only file declares no tasks",
+			in:   " \n\t\n",
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "Taskfile.yml", tt.in)
+
+			got, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
@@ -268,11 +295,13 @@ func TestParseTaskfileCmdsScalarEqualsList(t *testing.T) {
 // the string file and directory forms, the map form, namespacing and its
 // chain, flatten, optional and mandatory missing files, internal includes,
 // remote paths, broken included files and duplicate final names.
-func TestParseTaskfileIncludes(t *testing.T) {
-	// task builds the task that the parser derives from a name and a
-	// description.
+// TestDiscoverTaskfileIncludes drives the seam, because the parser delivers
+// the order of its maps and the seam owns the order of the tasks. task builds
+// the task that a Taskfile in the project directory derives from a name and a
+// description.
+func TestDiscoverTaskfileIncludes(t *testing.T) {
 	task := func(name, desc string) Task {
-		return Task{Name: name, Desc: desc, Args: []string{"task", name}}
+		return Task{Source: "Taskfile.yml", Name: name, Desc: desc, Args: []string{"task", name}}
 	}
 
 	tests := []struct {
@@ -523,13 +552,14 @@ tasks:
 			for name, content := range tt.files {
 				writeFile(t, dir, name, content)
 			}
+			writeFile(t, dir, "Taskfile.yml", tt.root)
 
-			got, err := parseTaskfile(osFiles{}, dir, []byte(tt.root))
-			if err != nil {
-				t.Fatalf("parseTaskfile() error = %v", err)
+			got, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parseTaskfile() = %+v, want %+v", got, tt.want)
+				t.Errorf("discoverSource() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
@@ -558,64 +588,56 @@ tasks:
 	}
 }
 
-// TestParseTaskfileIncludeCycle: two Taskfiles that include each other
+// TestDiscoverTaskfileIncludeCycle: two Taskfiles that include each other
 // terminate. The parser reads the include once, and the result is stable
 // across calls.
-func TestParseTaskfileIncludeCycle(t *testing.T) {
+func TestDiscoverTaskfileIncludeCycle(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Taskfile.yml", "includes:\n  a: ./a/Taskfile.yml\n")
 	writeFile(t, dir, "a/Taskfile.yml", "includes:\n  b: ../b/Taskfile.yml\ntasks:\n  one:\n    desc: From a\n")
 	writeFile(t, dir, "b/Taskfile.yml", "includes:\n  a: ../a/Taskfile.yml\ntasks:\n  two:\n    desc: From b\n")
-	root, err := os.ReadFile(filepath.Join(dir, "Taskfile.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	first, err := parseTaskfile(osFiles{}, dir, root)
-	if err != nil {
-		t.Fatalf("parseTaskfile() error = %v", err)
+	first, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
-	second, err := parseTaskfile(osFiles{}, dir, root)
-	if err != nil {
-		t.Fatalf("second parseTaskfile() error = %v", err)
+	second, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("second discoverSource() error = %v", warn)
 	}
 	want := []Task{
-		{Name: "a:b:two", Desc: "From b", Args: []string{"task", "a:b:two"}},
-		{Name: "a:one", Desc: "From a", Args: []string{"task", "a:one"}},
+		{Source: "Taskfile.yml", Name: "a:b:two", Desc: "From b", Args: []string{"task", "a:b:two"}},
+		{Source: "Taskfile.yml", Name: "a:one", Desc: "From a", Args: []string{"task", "a:one"}},
 	}
 	if !reflect.DeepEqual(first, want) {
-		t.Errorf("parseTaskfile() = %+v, want %+v", first, want)
+		t.Errorf("discoverSource() = %+v, want %+v", first, want)
 	}
 	if !reflect.DeepEqual(first, second) {
-		t.Errorf("parseTaskfile() is not deterministic: %+v vs %+v", first, second)
+		t.Errorf("discoverSource() is not deterministic: %+v vs %+v", first, second)
 	}
 }
 
-// TestParseTaskfileIncludesFixture parses the permanent fixture. The fixture
-// is a root Taskfile with a map include into .taskfiles/, a string directory
-// include, a flatten include, an internal include, an optional missing include
-// and a nested include. The test pins the final names, the descriptions and
-// the order.
-func TestParseTaskfileIncludesFixture(t *testing.T) {
+// TestDiscoverTaskfileIncludesFixture runs the permanent fixture through the
+// seam. The fixture is a root Taskfile with a map include into .taskfiles/, a
+// string directory include, a flatten include, an internal include, an
+// optional missing include and a nested include. The test pins the final
+// names, the descriptions and the order.
+func TestDiscoverTaskfileIncludesFixture(t *testing.T) {
 	const dir = "testdata/taskfile-includes"
-	root, err := os.ReadFile(filepath.Join(dir, "Taskfile.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	got, err := parseTaskfile(osFiles{}, dir, root)
-	if err != nil {
-		t.Fatalf("parseTaskfile() error = %v", err)
+	got, warn := discoverSource(osFiles{}, taskfileSource(osFiles{}), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{
-		{Name: "build", Desc: "Build the project", Args: []string{"task", "build"}},
-		{Name: "docs:nested:lint", Desc: "Lint the documentation", Args: []string{"task", "docs:nested:lint"}},
-		{Name: "docs:serve", Desc: "Serve the documentation", Args: []string{"task", "docs:serve"}},
-		{Name: "test", Desc: "Test the shared code", Args: []string{"task", "test"}},
-		{Name: "tools:format", Desc: "Format the tools", Args: []string{"task", "tools:format"}},
+		{Source: "Taskfile.yml", Name: "build", Desc: "Build the project", Args: []string{"task", "build"}},
+		{Source: "Taskfile.yml", Name: "docs:nested:lint", Desc: "Lint the documentation", Args: []string{"task", "docs:nested:lint"}},
+		{Source: "Taskfile.yml", Name: "docs:serve", Desc: "Serve the documentation", Args: []string{"task", "docs:serve"}},
+		{Source: "Taskfile.yml", Name: "test", Desc: "Test the shared code", Args: []string{"task", "test"}},
+		{Source: "Taskfile.yml", Name: "tools:format", Desc: "Format the tools", Args: []string{"task", "tools:format"}},
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("parseTaskfile() = %+v, want %+v", got, want)
+		t.Errorf("discoverSource() = %+v, want %+v", got, want)
 	}
 }
 

@@ -3,9 +3,6 @@
 package core
 
 import (
-	"bytes"
-	"maps"
-	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -27,19 +24,13 @@ func poeSource() source {
 	}
 }
 
-// parsePoe returns the tasks that the [tool.poe.tasks] table declares, sorted
-// by name. Each task runs through "poe". The description comes from the task's
-// help text and otherwise from the raw body, which is display text and never a
-// promise of the executed command. Task names that start with an underscore
-// stay hidden, because poe hides them from its own listing too. An entry that
-// is not a task shape is skipped.
+// parsePoe returns the tasks that the [tool.poe.tasks] table declares. Each
+// task runs through "poe". The description comes from the task's help text
+// and otherwise from the raw body, which is display text and never a promise
+// of the executed command. Task names that start with an underscore stay
+// hidden, because poe hides them from its own listing too. An entry that is
+// not a task shape is skipped.
 func parsePoe(_, name string, data []byte) ([]Task, error) {
-	// An empty file declares no tasks, so report it like a missing file
-	// instead of failing on invalid TOML.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	var doc struct {
 		Tool struct {
 			Poe struct {
@@ -61,7 +52,7 @@ func parsePoe(_, name string, data []byte) ([]Task, error) {
 	}
 
 	out := make([]Task, 0, len(tasks))
-	for _, task := range slices.Sorted(maps.Keys(tasks)) {
+	for task := range tasks {
 		if strings.HasPrefix(task, "_") {
 			continue
 		}
@@ -120,10 +111,8 @@ func poeTaskDesc(v any) (string, bool) {
 			if !ok {
 				return "", false
 			}
-			if help, isString := task["help"].(string); isString && help != "" {
-				desc = help
-			}
-			return desc, true
+			help, _ := task["help"].(string)
+			return helpOrBody(help, desc), true
 		}
 	}
 	return "", false

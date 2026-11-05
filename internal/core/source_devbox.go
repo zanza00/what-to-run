@@ -1,12 +1,7 @@
 // The devbox.json source: Jetify devbox shell scripts.
 package core
 
-import (
-	"bytes"
-	"maps"
-	"slices"
-	"strings"
-)
+import "strings"
 
 // devboxSource returns the source for the devbox.json of the project.
 func devboxSource() source {
@@ -21,17 +16,11 @@ func devboxSource() source {
 }
 
 // parseDevbox returns the scripts that the shell.scripts object of devbox.json
-// declares, sorted by name. Each script runs through "devbox run". A script is
-// a command string or an array of commands, and the description shows those
-// commands. The parser ignores shell.init_hook and the rest of the file, and it
-// skips a script without usable commands.
+// declares. Each script runs through "devbox run". A script is a command
+// string or an array of commands, and the description shows those commands.
+// The parser ignores shell.init_hook and the rest of the file, and it skips a
+// script without usable commands.
 func parseDevbox(_, _ string, data []byte) ([]Task, error) {
-	// An empty file declares no scripts, so report it like a missing file
-	// instead of failing on invalid JSON.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	var doc struct {
 		Shell struct {
 			Scripts map[string]any `json:"scripts"`
@@ -42,7 +31,7 @@ func parseDevbox(_, _ string, data []byte) ([]Task, error) {
 	}
 
 	tasks := make([]Task, 0, len(doc.Shell.Scripts))
-	for _, name := range slices.Sorted(maps.Keys(doc.Shell.Scripts)) {
+	for name := range doc.Shell.Scripts {
 		desc, ok := devboxScriptDesc(doc.Shell.Scripts[name])
 		if !ok {
 			continue

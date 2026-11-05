@@ -2,8 +2,6 @@
 package core
 
 import (
-	"maps"
-	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -31,8 +29,8 @@ type cargoTask struct {
 }
 
 // parseCargoMakefile returns the cargo-make tasks that the [tasks] section of
-// the project's Makefile.toml declares, sorted by name. It skips private and
-// disabled tasks, because the picker could not run them directly.
+// the project's Makefile.toml declares. It skips private and disabled tasks,
+// because the picker could not run them directly.
 func parseCargoMakefile(_, _ string, data []byte) ([]Task, error) {
 	var doc struct {
 		Tasks map[string]cargoTask `toml:"tasks"`
@@ -41,9 +39,8 @@ func parseCargoMakefile(_, _ string, data []byte) ([]Task, error) {
 		return nil, err
 	}
 
-	tasks := make([]Task, 0, len(doc.Tasks))
-	for _, name := range slices.Sorted(maps.Keys(doc.Tasks)) {
-		t := doc.Tasks[name]
+	var tasks []Task
+	for name, t := range doc.Tasks {
 		if t.Private || t.Disabled {
 			continue
 		}

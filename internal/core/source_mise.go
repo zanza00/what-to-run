@@ -2,9 +2,6 @@
 package core
 
 import (
-	"bytes"
-	"maps"
-	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -24,19 +21,13 @@ func miseSource() source {
 	}
 }
 
-// parseMise returns the tasks that the [tasks] table of mise.toml declares,
-// sorted by name. Each task runs through "mise run". A task is a command string
-// or a table with a description, run commands and depends. The description
-// shows the run commands when the table does not declare one, and the parser
-// keeps a table without a run, because a depends-only task is still runnable.
-// An entry whose value is neither a string nor a table is skipped.
+// parseMise returns the tasks that the [tasks] table of mise.toml declares.
+// Each task runs through "mise run". A task is a command string or a table
+// with a description, run commands and depends. The description shows the
+// run commands when the table does not declare one, and the parser keeps a
+// table without a run, because a depends-only task is still runnable. An
+// entry whose value is neither a string nor a table is skipped.
 func parseMise(_, _ string, data []byte) ([]Task, error) {
-	// An empty file declares no tasks, so report it like a missing file
-	// instead of failing on invalid TOML.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	var doc struct {
 		Tasks map[string]any `toml:"tasks"`
 	}
@@ -45,7 +36,7 @@ func parseMise(_, _ string, data []byte) ([]Task, error) {
 	}
 
 	tasks := make([]Task, 0, len(doc.Tasks))
-	for _, name := range slices.Sorted(maps.Keys(doc.Tasks)) {
+	for name := range doc.Tasks {
 		desc, ok := miseTaskDesc(doc.Tasks[name])
 		if !ok {
 			continue
@@ -71,11 +62,9 @@ func miseTaskDesc(v any) (string, bool) {
 	case string:
 		return task, true
 	case map[string]any:
-		if desc, isString := task["description"].(string); isString && desc != "" {
-			return desc, true
-		}
+		help, _ := task["description"].(string)
 		desc, _ := miseRunDesc(task["run"])
-		return desc, true
+		return helpOrBody(help, desc), true
 	}
 	return "", false
 }

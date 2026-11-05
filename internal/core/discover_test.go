@@ -67,6 +67,21 @@ func TestDiscoverPackageScripts(t *testing.T) {
 			},
 		},
 		{
+			name:    "empty file keeps the parse warning",
+			pkg:     "",
+			wantErr: true,
+		},
+		{
+			name: "package.json without scripts",
+			pkg:  `{"name": "no-scripts"}`,
+			want: nil,
+		},
+		{
+			name: "package.json with an empty scripts table",
+			pkg:  `{"scripts": {}}`,
+			want: nil,
+		},
+		{
 			name:    "broken json",
 			pkg:     `{"scripts": `,
 			wantErr: true,
@@ -300,6 +315,22 @@ func TestDiscoverCargoMakeTasksBrokenToml(t *testing.T) {
 	_, warn := discoverSource(osFiles{}, cargoMakeSource(), dir)
 	if warn == nil || !strings.Contains(warn.Error(), "Makefile.toml") {
 		t.Errorf("discoverSource() error = %v, want a Makefile.toml parse error", warn)
+	}
+}
+
+// TestDiscoverCargoMakeTasksWithoutTasks pins the zero-task form of the
+// cargo-make source: a Makefile.toml that declares no task yields no tasks,
+// and the parsers report no tasks as nil.
+func TestDiscoverCargoMakeTasksWithoutTasks(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "Makefile.toml", "[config]\ninit_task = \"build\"\n")
+
+	tasks, warn := discoverSource(osFiles{}, cargoMakeSource(), dir)
+	if warn != nil {
+		t.Fatalf("discoverSource() error = %v", warn)
+	}
+	if tasks != nil {
+		t.Errorf("discoverSource() = %+v, want nil tasks", tasks)
 	}
 }
 
@@ -648,5 +679,113 @@ func TestCheckSourceIDNeedsNoFiles(t *testing.T) {
 	want := `"Makefile.toml" is a file name; use "cargo-make"`
 	if got == nil || got.Error() != want {
 		t.Errorf("CheckSourceID(%q) = %v, want %q", "Makefile.toml", got, want)
+	}
+}
+
+// TestEmptyFile pins the seam's report of a file whose data is all
+// whitespace. A byte order mark is not whitespace, so a file that holds only
+// one still reaches the parser, as today.
+func TestEmptyFile(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		want bool
+	}{
+		{name: "nil data", data: nil, want: true},
+		{name: "empty data", data: []byte{}, want: true},
+		{name: "spaces, tabs and newlines", data: []byte(" \t\r\n \n"), want: true},
+		{name: "one word", data: []byte("run"), want: false},
+		{name: "comment only", data: []byte("# a comment"), want: false},
+		{name: "byte order mark only", data: []byte("\xEF\xBB\xBF"), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := emptyFile(tt.data); got != tt.want {
+				t.Errorf("emptyFile(%q) = %v, want %v", tt.data, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSortSourceTasks pins the seam's order: the tasks of a source arrive
+// sorted by name. The make source keeps the order of its file, and the hatch
+// source keeps the order of its environments, because both orders are the
+// tools' own listings.
+func TestSortSourceTasks(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+		in   []Task
+		want []Task
+	}{
+		{
+			name: "tasks arrive sorted by name",
+			id:   "deno",
+			in:   []Task{{Name: "test"}, {Name: "build"}, {Name: "fmt"}},
+			want: []Task{{Name: "build"}, {Name: "fmt"}, {Name: "test"}},
+		},
+		{
+			name: "sorting keeps every task whole",
+			id:   "poe",
+			in:   []Task{{Name: "zzz", Desc: "the z task"}, {Name: "aaa", Desc: "the a task"}},
+			want: []Task{{Name: "aaa", Desc: "the a task"}, {Name: "zzz", Desc: "the z task"}},
+		},
+		{
+			name: "no tasks stay no tasks",
+			id:   "deno",
+			in:   nil,
+			want: nil,
+		},
+		{
+			name: "make keeps the order of the file",
+			id:   "make",
+			in:   []Task{{Name: "build"}, {Name: "test"}, {Name: "clean"}, {Name: "run"}},
+			want: []Task{{Name: "build"}, {Name: "test"}, {Name: "clean"}, {Name: "run"}},
+		},
+		{
+			name: "hatch keeps the order of the environments",
+			id:   "hatch",
+			in:   []Task{{Name: "default:z"}, {Name: "default-dev:a"}},
+			want: []Task{{Name: "default:z"}, {Name: "default-dev:a"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := source{SourceInfo: SourceInfo{ID: tt.id}}
+			got := sortSourceTasks(src, tt.in)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("sortSourceTasks(%q) = %+v, want %+v", tt.id, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestDiscoverSourceEmptyFileLikeMissing pins the seam's first law through a
+// source that searches parents: a file that holds only whitespace reports
+// like a missing one with no tasks and no warning, and the search does not
+// continue above it, because a file was read.
+func TestDiscoverSourceEmptyFileLikeMissing(t *testing.T) {
+	tests := []struct {
+		name     string
+		emptyDoc string
+	}{
+		{name: "empty file", emptyDoc: ""},
+		{name: "whitespace-only file", emptyDoc: " \n\t\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parent := t.TempDir()
+			writeFile(t, parent, "pyproject.toml", "[tool.taskipy.tasks]\nup = \"task up\"\n")
+			dir := filepath.Join(parent, "sub")
+			writeFile(t, dir, "pyproject.toml", tt.emptyDoc)
+
+			tasks, warn := discoverSource(osFiles{}, taskipySource(), dir)
+			if warn != nil {
+				t.Fatalf("discoverSource() error = %v", warn)
+			}
+			if tasks != nil {
+				t.Errorf("discoverSource() = %+v, want nil tasks", tasks)
+			}
+		})
 	}
 }

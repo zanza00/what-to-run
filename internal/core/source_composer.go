@@ -1,12 +1,7 @@
 // The composer.json source: Composer custom scripts.
 package core
 
-import (
-	"bytes"
-	"maps"
-	"slices"
-	"strings"
-)
+import "strings"
 
 // composerSource returns the source for the composer.json of the project.
 func composerSource() source {
@@ -20,20 +15,14 @@ func composerSource() source {
 	}
 }
 
-// parseComposer returns the custom scripts that composer.json declares, sorted
-// by name. Each script runs through "composer run-script". The parser leaves
-// out the documented lifecycle and plugin events of Composer, because composer
-// runs them itself at the matching moment. They are not commands to start by
+// parseComposer returns the custom scripts that composer.json declares. Each
+// script runs through "composer run-script". The parser leaves out the
+// documented lifecycle and plugin events of Composer, because composer runs
+// them itself at the matching moment. They are not commands to start by
 // hand. A script is a command string or an array of commands, and
 // scripts-descriptions overrides the description, which otherwise shows those
 // commands.
 func parseComposer(_, _ string, data []byte) ([]Task, error) {
-	// An empty file declares no scripts, so report it like a missing file
-	// instead of failing on invalid JSON.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	var doc struct {
 		Scripts             map[string]any `json:"scripts"`
 		ScriptsDescriptions map[string]any `json:"scripts-descriptions"`
@@ -43,7 +32,7 @@ func parseComposer(_, _ string, data []byte) ([]Task, error) {
 	}
 
 	tasks := make([]Task, 0, len(doc.Scripts))
-	for _, name := range slices.Sorted(maps.Keys(doc.Scripts)) {
+	for name := range doc.Scripts {
 		if composerLifecycleEvent(name) {
 			continue
 		}

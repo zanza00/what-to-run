@@ -1,13 +1,7 @@
 // The taskipy source: tasks of taskipy, from pyproject.toml.
 package core
 
-import (
-	"bytes"
-	"maps"
-	"slices"
-
-	"github.com/pelletier/go-toml/v2"
-)
+import "github.com/pelletier/go-toml/v2"
 
 // taskipySource returns the source for the pyproject.toml of the project. The
 // source searches the parent directories, because taskipy walks up to find the
@@ -24,19 +18,13 @@ func taskipySource() source {
 	}
 }
 
-// parseTaskipy returns the tasks that the [tool.taskipy.tasks] table declares,
-// sorted by name. Each task runs through "task". The description comes from
-// the task's help text and otherwise from the command, which is display text
-// and never a promise of the executed command. The variables and settings
-// tables under [tool.taskipy] declare no tasks, so this function does not
-// read them. An entry that is not a task shape is skipped.
+// parseTaskipy returns the tasks that the [tool.taskipy.tasks] table
+// declares. Each task runs through "task". The description comes from the
+// task's help text and otherwise from the command, which is display text and
+// never a promise of the executed command. The variables and settings tables
+// under [tool.taskipy] declare no tasks, so this function does not read them.
+// An entry that is not a task shape is skipped.
 func parseTaskipy(_, _ string, data []byte) ([]Task, error) {
-	// An empty file declares no tasks, so report it like a missing file
-	// instead of failing on invalid TOML.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	var doc struct {
 		Tool struct {
 			Taskipy struct {
@@ -50,7 +38,7 @@ func parseTaskipy(_, _ string, data []byte) ([]Task, error) {
 
 	tasks := doc.Tool.Taskipy.Tasks
 	out := make([]Task, 0, len(tasks))
-	for _, name := range slices.Sorted(maps.Keys(tasks)) {
+	for name := range tasks {
 		desc, ok := taskipyTaskDesc(tasks[name])
 		if !ok {
 			continue
@@ -81,10 +69,8 @@ func taskipyTaskDesc(v any) (string, bool) {
 		if !isString {
 			return "", false
 		}
-		if help, isString := task["help"].(string); isString && help != "" {
-			return help, true
-		}
-		return cmd, true
+		help, _ := task["help"].(string)
+		return helpOrBody(help, cmd), true
 	}
 	return "", false
 }

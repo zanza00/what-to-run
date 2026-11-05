@@ -62,7 +62,7 @@ func TestThemeSaveEffectReportsTheSavedTheme(t *testing.T) {
 	if m.status.kind != statusNone {
 		t.Errorf("status kind after the save = %d, want none", m.status.kind)
 	}
-	if got, want := taskNames(m.tasks), []string{"from-rc"}; !slices.Equal(got, want) {
+	if got, want := taskNames(m.list.visible()), []string{"from-rc"}; !slices.Equal(got, want) {
 		t.Errorf("tasks after the save = %v, want %v", got, want)
 	}
 }

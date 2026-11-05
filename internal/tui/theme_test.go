@@ -197,8 +197,8 @@ func TestCtrlTOpensTheThemePicker(t *testing.T) {
 	if m.themeWin.cursor != 0 || m.themeBefore != 0 {
 		t.Errorf("opening the picker changed the theme: idx = %d, before = %d", m.themeWin.cursor, m.themeBefore)
 	}
-	if m.filter != "" {
-		t.Errorf("filter after ctrl+t = %q, want empty (it opens the picker, it does not type)", m.filter)
+	if m.list.filterText() != "" {
+		t.Errorf("filter after ctrl+t = %q, want empty (it opens the picker, it does not type)", m.list.filterText())
 	}
 }
 
@@ -320,8 +320,8 @@ func TestThemePickerConfirmAndCancel(t *testing.T) {
 	if m.themeModal || m.themeWin.cursor != 0 {
 		t.Errorf("after esc: modal = %v, theme = %d; want closed on the original 0", m.themeModal, m.themeWin.cursor)
 	}
-	if m.filter != "npm" {
-		t.Errorf("filter after esc in the picker = %q, want %q", m.filter, "npm")
+	if m.list.filterText() != "npm" {
+		t.Errorf("filter after esc in the picker = %q, want %q", m.list.filterText(), "npm")
 	}
 	if cmd != nil {
 		t.Error("esc in the theme picker returned a command, want none (it must not quit)")
@@ -330,8 +330,8 @@ func TestThemePickerConfirmAndCancel(t *testing.T) {
 
 func TestThemePickerIgnoresTyping(t *testing.T) {
 	m := press(update(sized(Options{}), ctrlTKey), "npm")
-	if m.filter != "" {
-		t.Errorf("filter while the picker is open = %q, want empty", m.filter)
+	if m.list.filterText() != "" {
+		t.Errorf("filter while the picker is open = %q, want empty", m.list.filterText())
 	}
 	if !m.themeModal {
 		t.Error("typing closed the theme picker")

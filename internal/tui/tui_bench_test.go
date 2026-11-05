@@ -29,22 +29,12 @@ func benchmarkModel() model {
 	return press(m, "build")
 }
 
-// BenchmarkRenderFilteredCached measures a frame that reuses the snapshot.
+// BenchmarkRenderFilteredCached measures a frame that reuses the derived
+// facts of the task list.
 func BenchmarkRenderFilteredCached(b *testing.B) {
 	m := benchmarkModel()
 	b.ReportAllocs()
 	for b.Loop() {
-		benchSink = m.View().Content
-	}
-}
-
-// BenchmarkRenderFilteredRecompute measures the same frame when every read
-// rebuilds the results, as the picker did before the snapshot.
-func BenchmarkRenderFilteredRecompute(b *testing.B) {
-	m := benchmarkModel()
-	b.ReportAllocs()
-	for b.Loop() {
-		m.snapshot.valid = false
 		benchSink = m.View().Content
 	}
 }

@@ -26,7 +26,7 @@ func TestDiscoverSourceSearchesParentsJust(t *testing.T) {
 	if warn != nil {
 		t.Fatalf("discoverSource() error = %v", warn)
 	}
-	want := []Task{{Source: "../../justfile", Name: "build", Desc: "Build the project", Args: []string{"just", "build"}}}
+	want := []Task{badgeTask("../../justfile", justTask("build", "Build the project"))}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("discoverSource() = %+v, want %+v", tasks, want)
 	}
@@ -63,7 +63,9 @@ func TestDiscoverSourceDoesNotSearchParentsForPackageJSON(t *testing.T) {
 // IDs, labels, display files, candidate order, parse functions and parent
 // search. The test builds the registry through missingFiles, which proves that
 // the metadata needs no disk. It also runs the checks against broken fixtures,
-// so the failure messages are part of the test.
+// so the failure messages are part of the test. The cases whose point is a
+// position keep their indices. Their comments state what that position
+// tests.
 func TestRegistryInvariants(t *testing.T) {
 	if errs := checkRegistry(defaultSources(Settings{}, missingFiles{})); len(errs) != 0 {
 		t.Fatalf("defaultSources() invariants = %v, want none", errs)
@@ -76,30 +78,38 @@ func TestRegistryInvariants(t *testing.T) {
 	}{
 		{
 			name:   "empty id",
-			mutate: func(srcs []source) []source { srcs[0].ID = ""; return srcs },
+			mutate: func(srcs []source) []source { sourceByID(srcs, "npm").ID = ""; return srcs },
 			want:   "empty ID",
 		},
 		{
 			name:   "wrong-case id",
-			mutate: func(srcs []source) []source { srcs[0].ID = "NPM"; return srcs },
+			mutate: func(srcs []source) []source { sourceByID(srcs, "npm").ID = "NPM"; return srcs },
 			want:   "lowercase kebab-case",
 		},
 		{
 			name:   "malformed id",
-			mutate: func(srcs []source) []source { srcs[4].ID = "cargo_make"; return srcs },
+			mutate: func(srcs []source) []source { sourceByID(srcs, "cargo-make").ID = "cargo_make"; return srcs },
 			want:   "lowercase kebab-case",
 		},
 		{
-			name:   "duplicate id",
-			mutate: func(srcs []source) []source { srcs[1].ID = srcs[0].ID; return srcs },
-			want:   "duplicate ID",
+			name: "duplicate id",
+			mutate: func(srcs []source) []source {
+				sourceByID(srcs, "make").ID = sourceByID(srcs, "npm").ID
+				return srcs
+			},
+			want: "duplicate ID",
 		},
 		{
-			name:   "id equal to a file name",
-			mutate: func(srcs []source) []source { srcs[0].ID = srcs[1].Files[1]; return srcs },
-			want:   "is a file name",
+			name: "id equal to a file name",
+			mutate: func(srcs []source) []source {
+				sourceByID(srcs, "npm").ID = sourceByID(srcs, "make").Files[1]
+				return srcs
+			},
+			want: "is a file name",
 		},
 		{
+			// The two cargo sources trade their IDs in place, so the ID of
+			// each position belongs to the other position.
 			name: "id out of registry order",
 			mutate: func(srcs []source) []source {
 				srcs[4].ID, srcs[5].ID = "cargo-alias", "cargo-make"
@@ -110,7 +120,7 @@ func TestRegistryInvariants(t *testing.T) {
 		{
 			name: "extra id",
 			mutate: func(srcs []source) []source {
-				extra := srcs[0]
+				extra := *sourceByID(srcs, "npm")
 				extra.Label, extra.ID = "extra", "extra"
 				extra.Files = []string{"extra.toml"}
 				return append(srcs, extra)
@@ -119,50 +129,65 @@ func TestRegistryInvariants(t *testing.T) {
 		},
 		{
 			name:   "empty label",
-			mutate: func(srcs []source) []source { srcs[0].Label = ""; return srcs },
+			mutate: func(srcs []source) []source { sourceByID(srcs, "npm").Label = ""; return srcs },
 			want:   "empty label",
 		},
 		{
-			name:   "duplicate label",
-			mutate: func(srcs []source) []source { srcs[1].Label = srcs[0].Label; return srcs },
-			want:   "duplicate label",
+			name: "duplicate label",
+			mutate: func(srcs []source) []source {
+				sourceByID(srcs, "make").Label = sourceByID(srcs, "npm").Label
+				return srcs
+			},
+			want: "duplicate label",
 		},
 		{
-			name:   "display override outside the files",
-			mutate: func(srcs []source) []source { srcs[0].DisplayFileOverride = "nope"; return srcs },
-			want:   "DisplayFileOverride",
+			name: "display override outside the files",
+			mutate: func(srcs []source) []source {
+				sourceByID(srcs, "npm").DisplayFileOverride = "nope"
+				return srcs
+			},
+			want: "DisplayFileOverride",
 		},
 		{
-			name:   "display override on a source that needs none",
-			mutate: func(srcs []source) []source { srcs[0].DisplayFileOverride = srcs[0].Files[0]; return srcs },
-			want:   "DisplayFileOverride",
+			name: "display override on a source that needs none",
+			mutate: func(srcs []source) []source {
+				npm := sourceByID(srcs, "npm")
+				npm.DisplayFileOverride = npm.Files[0]
+				return srcs
+			},
+			want: "DisplayFileOverride",
 		},
 		{
-			name:   "missing display override",
-			mutate: func(srcs []source) []source { srcs[1].DisplayFileOverride = ""; return srcs },
-			want:   "display file",
+			name: "missing display override",
+			mutate: func(srcs []source) []source {
+				sourceByID(srcs, "make").DisplayFileOverride = ""
+				return srcs
+			},
+			want: "display file",
 		},
 		{
 			name:   "resolved display file outside the files",
-			mutate: func(srcs []source) []source { srcs[0].Files = nil; return srcs },
+			mutate: func(srcs []source) []source { sourceByID(srcs, "npm").Files = nil; return srcs },
 			want:   "display file",
 		},
 		{
 			name:   "wrong first file",
-			mutate: func(srcs []source) []source { srcs[2].Files[0] = "nope"; return srcs },
+			mutate: func(srcs []source) []source { sourceByID(srcs, "task").Files[0] = "nope"; return srcs },
 			want:   "first file",
 		},
 		{
 			name:   "wrong parent search",
-			mutate: func(srcs []source) []source { srcs[0].SearchParents = true; return srcs },
+			mutate: func(srcs []source) []source { sourceByID(srcs, "npm").SearchParents = true; return srcs },
 			want:   "SearchParents",
 		},
 		{
 			name:   "missing parser",
-			mutate: func(srcs []source) []source { srcs[0].Parse = nil; return srcs },
+			mutate: func(srcs []source) []source { sourceByID(srcs, "npm").Parse = nil; return srcs },
 			want:   "nil parser",
 		},
 		{
+			// The first two sources trade their places, so the source at
+			// each of the two positions belongs to the other position.
 			name: "reordered sources",
 			mutate: func(srcs []source) []source {
 				srcs[0], srcs[1] = srcs[1], srcs[0]
@@ -171,11 +196,15 @@ func TestRegistryInvariants(t *testing.T) {
 			want: "registry order",
 		},
 		{
+			// The slice drops the first source. Every later source then
+			// sits one position up. The registry counts one source short.
 			name:   "missing source",
 			mutate: func(srcs []source) []source { return srcs[1:] },
 			want:   "15 sources, want 16",
 		},
 		{
+			// The append copies the first source after the last one. The
+			// registry then counts one source past the expected.
 			name:   "extra source",
 			mutate: func(srcs []source) []source { return append(srcs, srcs[0]) },
 			want:   "17 sources, want 16",
@@ -494,6 +523,18 @@ func cloneSources(srcs []source) []source {
 	return out
 }
 
+// sourceByID returns the source with the given ID. The invariants test
+// names the source that each mutation breaks, so a reorder of the registry
+// cannot move a mutation under a different case. A missing ID is a bug in
+// the table, not a registry defect, so the lookup panics.
+func sourceByID(srcs []source, id string) *source {
+	i := slices.IndexFunc(srcs, func(src source) bool { return src.ID == id })
+	if i < 0 {
+		panic(fmt.Sprintf("sourceByID: no source with ID %q", id))
+	}
+	return &srcs[i]
+}
+
 // TestDiscoverSourceNearestDirectoryWins: the file in the nearest ancestor
 // wins over the file further up. A file in the directory itself keeps the bare
 // name as its badge.
@@ -511,7 +552,7 @@ func TestDiscoverSourceNearestDirectoryWins(t *testing.T) {
 	if warn != nil {
 		t.Fatalf("discoverSource() error = %v", warn)
 	}
-	want := []Task{{Source: "../justfile", Name: "child-only", Args: []string{"just", "child-only"}}}
+	want := []Task{badgeTask("../justfile", justTask("child-only", ""))}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("discoverSource() from the grandchild = %+v, want %+v", tasks, want)
 	}
@@ -520,7 +561,7 @@ func TestDiscoverSourceNearestDirectoryWins(t *testing.T) {
 	if warn != nil {
 		t.Fatalf("discoverSource() error = %v", warn)
 	}
-	want = []Task{{Source: "justfile", Name: "child-only", Args: []string{"just", "child-only"}}}
+	want = []Task{badgeTask("justfile", justTask("child-only", ""))}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("discoverSource() from the child = %+v, want %+v", tasks, want)
 	}
@@ -535,7 +576,7 @@ func TestDiscoverSourceSearchesParentsFromDot(t *testing.T) {
 	if warn != nil {
 		t.Fatalf("discoverSource() error = %v", warn)
 	}
-	want := []Task{{Source: "../../justfile", Name: "build", Desc: "Build the project", Args: []string{"just", "build"}}}
+	want := []Task{badgeTask("../../justfile", justTask("build", "Build the project"))}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("discoverSource() = %+v, want %+v", tasks, want)
 	}

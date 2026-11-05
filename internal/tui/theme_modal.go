@@ -18,12 +18,15 @@ import (
 const themeModalListRows = 5
 
 // themeModalHeight returns the number of rows that the picker box has
-// available: the whole terminal in fullscreen, or the inline area otherwise.
+// available: the area of the start when the picker was started inline, or
+// the whole terminal otherwise. The start is the key, not the screen that
+// the picker draws on: a picker that was started inline and expanded still
+// sizes the box at the area that it returns to.
 func (m model) themeModalHeight() int {
-	if m.opts.Inline {
-		return m.areaHeight()
+	if m.display.startedInline() {
+		return m.display.areaHeight()
 	}
-	return m.height
+	return m.display.height
 }
 
 // themeModalHints is the key hint line. It stays short, so the box stays

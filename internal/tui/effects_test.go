@@ -52,9 +52,6 @@ func TestThemeSaveEffectReportsTheSavedTheme(t *testing.T) {
 	if got := themes[m.themeWin.cursor].name; got != "nord" {
 		t.Errorf("theme after the save = %q, want nord", got)
 	}
-	if m.opts.Theme != "nord" {
-		t.Errorf("opts.Theme after the save = %q, want nord", m.opts.Theme)
-	}
 	wantNotice := fmt.Sprintf("theme nord saved to %s", config.ShortPath(env.UserFile, env.Home))
 	if m.notice != wantNotice {
 		t.Errorf("notice after the save = %q, want %q", m.notice, wantNotice)

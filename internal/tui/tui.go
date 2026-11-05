@@ -164,13 +164,11 @@ func Run(opts Options) error {
 	}
 
 	final, err := tea.NewProgram(newModel(opts, tasks, warnings), progOpts...).Run()
-	if opts.Inline {
-		// A fullscreen frame (ctrl+f, or the fallback when the terminal cannot
-		// report the cursor row) lives on the alternate screen. The terminal
-		// restores that screen by itself.
-		if m, ok := final.(model); ok && !m.fullscreen {
-			restoreCursor(out, m)
-		}
+	// Only a frame that draws in the area leaves a block on the main screen.
+	// Every other frame draws on the alternate screen, and the terminal
+	// restores that screen by itself (see display.go).
+	if m, ok := final.(model); ok && m.display.anchored() {
+		restoreCursor(out, m.display.areaHeight())
 	}
 	if err != nil {
 		return fmt.Errorf("run tui: %w", err)
@@ -252,7 +250,9 @@ func Preview(w io.Writer, opts Options, width, height int) error {
 			m.styles = newStyles(m.themeAt(m.themeWin.cursor))
 		}
 	}
-	m.width, m.height, m.ready = width, height, true
+	// The geometry crosses the same operation as the window messages, so the
+	// preview frame cannot drift from the live one.
+	m.display.resize(width, height)
 	fmt.Fprintln(w, m.View().Content)
 	return nil
 }
@@ -279,8 +279,7 @@ func inlineInputAvailable() bool {
 // Bubble Tea leaves it, to the first row of the block and clears the block.
 // The shell can then redraw its prompt right below the line that the user was
 // typing on.
-func restoreCursor(w io.Writer, m model) {
-	h := m.areaHeight()
+func restoreCursor(w io.Writer, h int) {
 	if h <= 1 {
 		return
 	}
@@ -323,32 +322,8 @@ type model struct {
 	// through a theme save. The theme modal cannot open without tasks.
 	empty bool
 
-	width  int
-	height int
-	ready  bool // true once the first tea.WindowSizeMsg has arrived
-
-	// startRow is the 0-based row that the inline UI starts on: the line right
-	// below the shell prompt, as the terminal reports it.
-	startRow      int
-	startRowKnown bool // true once tea.CursorPositionMsg has arrived
-
-	// fullscreen reports that the inline picker was expanded to the whole
-	// screen with ctrl+f. It applies only to inline mode: the alternate screen
-	// hides the shell prompt and restores it when the picker toggles back.
-	fullscreen bool
-
-	// inlineUnavailable reports that the terminal never answered the cursor
-	// position query (a console without that support). The picker fell back to
-	// the fullscreen view, and ctrl+f must not go back to a blank inline frame.
-	inlineUnavailable bool
-
-	// mainWidth remembers the width of the main screen while the picker is
-	// expanded. Terminals can report a wider alternate screen (a scrollbar
-	// comes and goes, for example), and the first inline frame after the
-	// picker toggles back must use the width of the main screen. One column too
-	// many wraps every row, scrolls the frame and leaves the previous frame on
-	// screen.
-	mainWidth int
+	// display owns where the picker draws (see display.go).
+	display display
 
 	// list is the task list: the tasks, the filter text and their derived
 	// facts (see list.go).
@@ -422,6 +397,7 @@ func newModel(opts Options, tasks []core.Task, warnings []core.Warning) model {
 		shell:        shell,
 		warnings:     warnings,
 		empty:        len(tasks) == 0,
+		display:      newDisplay(opts.Inline),
 		list:         newTaskList(tasks, shell),
 		themeWin:     window{cursor: idx},
 		styles:       newStyles(themes[idx]),
@@ -434,7 +410,7 @@ func newModel(opts Options, tasks []core.Task, warnings []core.Warning) model {
 // Init implements tea.Model.
 func (m model) Init() tea.Cmd {
 	cmds := []tea.Cmd{tea.RequestBackgroundColor, tea.RequestForegroundColor}
-	if m.opts.Inline {
+	if m.display.startedInline() {
 		// Find out which row the UI starts on, which is the line that anchors
 		// the bottom part of the screen. A terminal that never answers (a
 		// console without cursor position reports) must not leave the frame
@@ -449,33 +425,17 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-		m.ready = true
-		if !m.fullscreen {
-			// While the alternate screen is active, the reported width is not
-			// necessarily the width of the main screen. Keep the width that the
-			// inline frame returns to.
-			m.mainWidth = msg.Width
-		}
+		m.display.resize(msg.Width, msg.Height)
 		// The box changed its height, so the window settles again (see
 		// window.go).
 		m.listWin.settle(len(m.list.visible()), m.listHeight())
 
 	case tea.CursorPositionMsg:
-		m.startRow = msg.Y
-		m.startRowKnown = true
-		// A late reply proves that the terminal does support the query, so
-		// ctrl+f can use the inline area again.
-		m.inlineUnavailable = false
+		m.display.learnPosition(msg.Y)
 		m.listWin.settle(len(m.list.visible()), m.listHeight())
 
 	case cursorPosTimeoutMsg:
-		if m.opts.Inline && !m.startRowKnown {
-			m.inlineUnavailable = true
-			if !m.fullscreen {
-				m.mainWidth = m.width
-				m.fullscreen = true
-			}
+		if m.display.fallBack() {
 			m.listWin.settle(len(m.list.visible()), m.listHeight())
 		}
 
@@ -548,7 +508,7 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "tab":
 		// Inline only: put the command in the shell prompt without running it.
 		// Fullscreen mode has no prompt to fill in, so tab does nothing.
-		if m.opts.Inline {
+		if m.display.startedInline() {
 			return m.pick(true)
 		}
 		return m, nil
@@ -577,16 +537,17 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+f":
 		// Inline only: expand the picker to the whole terminal, or go back to
 		// the inline area. The alternate screen keeps the prompt and the
-		// history safe. There is no inline area to return to when the program
-		// was started fullscreen, or when the terminal cannot report the cursor
-		// row (see cursorPosTimeoutMsg).
-		if m.opts.Inline && !m.inlineUnavailable {
-			if !m.fullscreen {
-				// Remember the width of the main screen before the alternate
-				// screen starts to report its own width.
-				m.mainWidth = m.width
-			}
-			m.fullscreen = !m.fullscreen
+		// history safe. The two operations refuse when there is no area to
+		// return to (a fullscreen start, or a terminal that never answered the
+		// cursor row), and a refused key settles no window because no height
+		// changed.
+		var moved bool
+		if m.display.expanded() {
+			moved = m.display.collapse()
+		} else {
+			moved = m.display.expand()
+		}
+		if moved {
 			// The inline box and the fullscreen box disagree on the height,
 			// so the window settles again.
 			m.listWin.settle(len(m.list.visible()), m.listHeight())
@@ -776,7 +737,6 @@ func (m *model) applyThemeSaved(msg themeSavedMsg) tea.Cmd {
 		m.status = status{kind: statusErr, text: fmt.Sprintf("cannot save theme %s: %v", msg.name, msg.err)}
 		return nil
 	}
-	m.opts.Theme = msg.name
 	if len(msg.tasks) > 0 {
 		m.setTasks(msg.tasks)
 	}
@@ -813,7 +773,7 @@ func (m model) run() (tea.Model, tea.Cmd) {
 	}
 	t := vis[m.listWin.cursor]
 
-	if m.opts.Inline {
+	if m.display.startedInline() {
 		// Here the picker is only a launcher: it quits, and the shell (or Run,
 		// when there is no widget) deals with the task afterwards.
 		return m.pick(false)
@@ -1153,8 +1113,8 @@ func trimLastRune(s string) string {
 
 // View implements tea.Model.
 func (m model) View() tea.View {
-	if m.opts.Inline && !m.fullscreen {
-		h := m.areaHeight()
+	if m.display.anchored() {
+		h := m.display.areaHeight()
 		if h <= 0 {
 			// The terminal size or the cursor position is still unknown, so
 			// render nothing instead of flashing the UI in the wrong spot.
@@ -1162,46 +1122,25 @@ func (m model) View() tea.View {
 		}
 		if m.opts.DebugArea {
 			// The border takes 2 columns and 2 rows of the area for itself.
-			return tea.NewView(areaStyle.Render(m.buildFrame(max(h-2, 0), max(m.inlineWidth()-2, 0)).paint()))
+			return tea.NewView(areaStyle.Render(m.buildFrame(max(h-2, 0), max(m.display.inlineWidth()-2, 0)).paint()))
 		}
-		return tea.NewView(m.buildFrame(h, m.inlineWidth()).paint())
+		return tea.NewView(m.buildFrame(h, m.display.inlineWidth()).paint())
 	}
 
-	v := tea.NewView(m.buildFrame(m.viewHeight(), m.width).paint())
-	v.AltScreen = true
+	v := tea.NewView(m.buildFrame(m.display.viewHeight(m.listHeight()), m.display.width).paint())
+	v.AltScreen = m.display.expanded()
 	return v
-}
-
-// viewHeight returns the number of rows that the fullscreen view occupies, or
-// the natural size while the terminal size is still unknown.
-func (m model) viewHeight() int {
-	if !m.ready {
-		return chromeRows + m.listHeight()
-	}
-	return m.height
-}
-
-// inlineWidth returns the number of columns that the inline frame is laid out
-// in. After ctrl+f toggles back from the alternate screen, the frame uses the
-// width of the main screen, which the terminal may have reported differently in
-// fullscreen. Rendering one column too many wraps every row and leaves the old
-// frame on screen.
-func (m model) inlineWidth() int {
-	if m.fullscreen || m.mainWidth <= 0 {
-		return m.width
-	}
-	return min(m.width, m.mainWidth)
 }
 
 // listHeight returns the number of task rows the list can show.
 func (m model) listHeight() int {
 	switch {
-	case m.opts.Inline && !m.fullscreen:
-		return max(m.areaHeight()-chromeRows, 1)
-	case !m.ready:
+	case m.display.anchored():
+		return max(m.display.areaHeight()-chromeRows, 1)
+	case !m.display.ready:
 		return max(len(m.list.visible()), 1)
 	default:
-		return max(m.height-chromeRows, 1)
+		return max(m.display.height-chromeRows, 1)
 	}
 }
 
@@ -1532,7 +1471,7 @@ func (m model) helpLine(w int) string {
 		count = fmt.Sprintf("%d/%d tasks", len(m.list.visible()), m.list.taskCount())
 		keys = "↑/↓ select · enter run · esc clear filter"
 	}
-	if m.opts.Inline {
+	if m.display.startedInline() {
 		keys = strings.Replace(keys, "enter run", "enter run · tab to prompt", 1)
 	}
 
@@ -1548,8 +1487,8 @@ func (m model) helpLine(w int) string {
 	if len(m.warnings) > 0 {
 		hints = append(hints, "ctrl+w warnings")
 	}
-	if m.opts.Inline {
-		if m.fullscreen {
+	if m.display.startedInline() {
+		if m.display.expanded() {
 			hints = append(hints, "ctrl+f inline")
 		} else {
 			hints = append(hints, "ctrl+f fullscreen")
@@ -1575,19 +1514,4 @@ func (m model) helpLine(w int) string {
 		keys += " · " + hint
 	}
 	return left + m.styles.dim.Render("   "+keys)
-}
-
-// areaHeight returns the number of rows that the inline UI occupies: the space
-// between the line below the prompt and the bottom of the screen. When fewer
-// than minInlineHeight rows are free, the layout uses the minimum and the
-// terminal scrolls up to make room. It returns 0 while the terminal size or the
-// start row is still unknown.
-func (m model) areaHeight() int {
-	if !m.ready || !m.startRowKnown {
-		return 0
-	}
-	if h := m.height - m.startRow; h > minInlineHeight {
-		return h
-	}
-	return minInlineHeight
 }

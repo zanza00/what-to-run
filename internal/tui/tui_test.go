@@ -548,8 +548,8 @@ func TestViewInlineFullscreenToggle(t *testing.T) {
 	if got := strings.Count(v.Content, "\n") + 1; got != 25 {
 		t.Errorf("inline view height after toggling back = %d, want 25", got)
 	}
-	if m.startRow != 5 {
-		t.Errorf("startRow after toggling back = %d, want 5", m.startRow)
+	if m.display.startRow != 5 {
+		t.Errorf("startRow after toggling back = %d, want 5", m.display.startRow)
 	}
 }
 
@@ -566,7 +566,7 @@ func TestViewInlineUsesMainScreenSizeAfterFullscreen(t *testing.T) {
 
 	next, _ = m.Update(ctrlFKey)
 	m = next.(model)
-	if got := m.inlineWidth(); got != 80 {
+	if got := m.display.inlineWidth(); got != 80 {
 		t.Errorf("inline width after toggling back = %d, want 80 (the main screen)", got)
 	}
 	v := m.View()
@@ -581,7 +581,7 @@ func TestViewInlineUsesMainScreenSizeAfterFullscreen(t *testing.T) {
 
 	// The picker adopts a resize of the main screen after it toggles back.
 	m = update(m, tea.WindowSizeMsg{Width: 90, Height: 32})
-	if got := m.inlineWidth(); got != 90 {
+	if got := m.display.inlineWidth(); got != 90 {
 		t.Errorf("inline width after a main-screen resize = %d, want 90", got)
 	}
 	if got := strings.Count(m.View().Content, "\n") + 1; got != 27 {
@@ -595,7 +595,7 @@ func TestCtrlFIgnoredFullscreen(t *testing.T) {
 		t.Errorf("ctrl+f in fullscreen mode returned %T, want no command", cmd)
 	}
 	m := next.(model)
-	if m.fullscreen {
+	if m.display.full {
 		t.Error("ctrl+f switched a fullscreen run into the inline fullscreen state")
 	}
 	if !m.View().AltScreen {
@@ -714,13 +714,13 @@ func TestRestoreCursor(t *testing.T) {
 	m := sized(Options{Inline: true}) // 25 rows of UI, cursor at the bottom
 
 	var buf bytes.Buffer
-	restoreCursor(&buf, m)
+	restoreCursor(&buf, m.display.areaHeight())
 	if got, want := buf.String(), "\x1b[24A\x1b[J"; got != want {
 		t.Errorf("restoreCursor wrote %q, want %q", got, want)
 	}
 
 	buf.Reset()
-	restoreCursor(&buf, newModel(Options{Inline: true}, sampleTasks(), nil)) // never rendered
+	restoreCursor(&buf, newModel(Options{Inline: true}, sampleTasks(), nil).display.areaHeight()) // never rendered
 	if got := buf.String(); got != "" {
 		t.Errorf("restoreCursor on an unrendered model wrote %q, want nothing", got)
 	}
@@ -1080,7 +1080,7 @@ func TestEmptyStateKeys(t *testing.T) {
 				t.Errorf("state after %s = filter %q, window %+v, want zeroed",
 					key.name, after.list.filterText(), after.listWin)
 			}
-			if after.themeModal || after.warningModal || after.fullscreen {
+			if after.themeModal || after.warningModal || after.display.full {
 				t.Errorf("state after %s opened a modal or took the full screen", key.name)
 			}
 			if after.chosen != nil {

@@ -32,7 +32,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -46,7 +46,7 @@ build:
 				"mod?\t\"sub:dir\"\n" +
 				"\nbuild:\n    echo build\n",
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -58,8 +58,8 @@ import: build
     echo import
 `,
 			want: []Task{
-				{Name: "import", Desc: "", Args: []string{"just", "import"}},
-				{Name: "set", Desc: "", Args: []string{"just", "set"}},
+				justTask("import", ""),
+				justTask("set", ""),
 			},
 		},
 		{
@@ -77,10 +77,10 @@ import q="4":
     echo import
 `,
 			want: []Task{
-				{Name: "alias", Desc: "", Args: []string{"just", "alias"}},
-				{Name: "export", Desc: "", Args: []string{"just", "export"}},
-				{Name: "import", Desc: "", Args: []string{"just", "import"}},
-				{Name: "set", Desc: "", Args: []string{"just", "set"}},
+				justTask("alias", ""),
+				justTask("export", ""),
+				justTask("import", ""),
+				justTask("set", ""),
 			},
 		},
 		{
@@ -93,7 +93,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -104,7 +104,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "Second line", Args: []string{"just", "build"}},
+				justTask("build", "Second line"),
 			},
 		},
 		{
@@ -115,7 +115,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -126,7 +126,7 @@ test:
     echo test
 `,
 			want: []Task{
-				{Name: "test", Desc: "Run the tests", Args: []string{"just", "test"}},
+				justTask("test", "Run the tests"),
 			},
 		},
 		{
@@ -137,7 +137,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -148,7 +148,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -162,8 +162,8 @@ test:
     echo test
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
-				{Name: "test", Desc: "Test the build", Args: []string{"just", "test"}},
+				justTask("build", ""),
+				justTask("test", "Test the build"),
 			},
 		},
 		{
@@ -173,7 +173,7 @@ test:
     echo test
 `,
 			want: []Task{
-				{Name: "test", Desc: "Single quoted doc", Args: []string{"just", "test"}},
+				justTask("test", "Single quoted doc"),
 			},
 		},
 		{
@@ -183,7 +183,7 @@ r:
     echo r
 `,
 			want: []Task{
-				{Name: "r", Desc: "the doc", Args: []string{"just", "r"}},
+				justTask("r", "the doc"),
 			},
 		},
 		{
@@ -197,8 +197,8 @@ apostrophe:
     echo apostrophe
 `,
 			want: []Task{
-				{Name: "apostrophe", Desc: "it's fine", Args: []string{"just", "apostrophe"}},
-				{Name: "say", Desc: `say "hi"`, Args: []string{"just", "say"}},
+				justTask("apostrophe", "it's fine"),
+				justTask("say", `say "hi"`),
 			},
 		},
 		{
@@ -209,7 +209,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "Build the app", Args: []string{"just", "build"}},
+				justTask("build", "Build the app"),
 			},
 		},
 		{
@@ -230,7 +230,7 @@ visible:
     echo visible
 `,
 			want: []Task{
-				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+				justTask("visible", ""),
 			},
 		},
 		{
@@ -243,7 +243,7 @@ visible:
     echo visible
 `,
 			want: []Task{
-				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+				justTask("visible", ""),
 			},
 		},
 		{
@@ -257,7 +257,7 @@ visible:
     echo visible
 `,
 			want: []Task{
-				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+				justTask("visible", ""),
 			},
 		},
 		{
@@ -271,7 +271,7 @@ visible:
     echo visible
 `,
 			want: []Task{
-				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+				justTask("visible", ""),
 			},
 		},
 		{
@@ -283,7 +283,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "x", Args: []string{"just", "build"}},
+				justTask("build", "x"),
 			},
 		},
 		{
@@ -296,7 +296,7 @@ build:
     echo b
 `,
 			want: []Task{
-				{Name: "build", Desc: "doc", Args: []string{"just", "build"}},
+				justTask("build", "doc"),
 			},
 		},
 		{
@@ -310,7 +310,7 @@ visible:
     echo visible
 `,
 			want: []Task{
-				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+				justTask("visible", ""),
 			},
 		},
 		{
@@ -323,7 +323,7 @@ visible:
     echo visible
 `,
 			want: []Task{
-				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+				justTask("visible", ""),
 			},
 		},
 		{
@@ -335,7 +335,7 @@ visible:
  group("g")
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -347,7 +347,7 @@ visible:
     echo visible
 `,
 			want: []Task{
-				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+				justTask("visible", ""),
 			},
 		},
 		{
@@ -356,7 +356,7 @@ visible:
     echo silent
 `,
 			want: []Task{
-				{Name: "silent-recipe", Desc: "", Args: []string{"just", "silent-recipe"}},
+				justTask("silent-recipe", ""),
 			},
 		},
 		{
@@ -366,7 +366,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -378,8 +378,8 @@ other:
     echo other
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
-				{Name: "other", Desc: "", Args: []string{"just", "other"}},
+				justTask("build", ""),
+				justTask("other", ""),
 			},
 		},
 		{
@@ -388,7 +388,7 @@ other:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -397,7 +397,7 @@ other:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -408,7 +408,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -419,7 +419,7 @@ build:
     fake:
 `,
 			want: []Task{
-				{Name: "script", Desc: "", Args: []string{"just", "script"}},
+				justTask("script", ""),
 			},
 		},
 		{
@@ -428,7 +428,7 @@ build:
     echo hyphen
 `,
 			want: []Task{
-				{Name: "hyphen-name", Desc: "", Args: []string{"just", "hyphen-name"}},
+				justTask("hyphen-name", ""),
 			},
 		},
 		{
@@ -438,7 +438,7 @@ build:
     echo foo
 `,
 			want: []Task{
-				{Name: "foo", Desc: "", Args: []string{"just", "foo"}},
+				justTask("foo", ""),
 			},
 		},
 		{
@@ -449,7 +449,7 @@ build:
     echo foo
 `,
 			want: []Task{
-				{Name: "foo", Desc: "", Args: []string{"just", "foo"}},
+				justTask("foo", ""),
 			},
 		},
 		{
@@ -466,9 +466,9 @@ other:
     echo other
 `,
 			want: []Task{
-				{Name: "dep", Desc: "", Args: []string{"just", "dep"}},
-				{Name: "foo", Desc: "", Args: []string{"just", "foo"}},
-				{Name: "other", Desc: "", Args: []string{"just", "other"}},
+				justTask("dep", ""),
+				justTask("foo", ""),
+				justTask("other", ""),
 			},
 		},
 		{
@@ -487,8 +487,8 @@ visible:
     echo visible
 `,
 			want: []Task{
-				{Name: "foo", Desc: "Build the app", Args: []string{"just", "foo"}},
-				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+				justTask("foo", "Build the app"),
+				justTask("visible", ""),
 			},
 		},
 		{
@@ -499,7 +499,7 @@ foo \
     echo foo
 `,
 			want: []Task{
-				{Name: "foo", Desc: `Build the app \`, Args: []string{"just", "foo"}},
+				justTask("foo", `Build the app \`),
 			},
 		},
 		{
@@ -509,8 +509,8 @@ test:
     echo test
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
-				{Name: "test", Desc: "", Args: []string{"just", "test"}},
+				justTask("build", ""),
+				justTask("test", ""),
 			},
 		},
 		{
@@ -520,7 +520,7 @@ other:
     echo other
 `,
 			want: []Task{
-				{Name: "other", Desc: "", Args: []string{"just", "other"}},
+				justTask("other", ""),
 			},
 		},
 		{
@@ -531,7 +531,7 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -542,8 +542,8 @@ test:
     echo test
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
-				{Name: "test", Desc: "", Args: []string{"just", "test"}},
+				justTask("build", ""),
+				justTask("test", ""),
 			},
 		},
 		{
@@ -553,7 +553,7 @@ test:
 
 foo \`,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -565,8 +565,8 @@ second:
     echo second
 `,
 			want: []Task{
-				{Name: "first", Desc: "Only the first", Args: []string{"just", "first"}},
-				{Name: "second", Desc: "", Args: []string{"just", "second"}},
+				justTask("first", "Only the first"),
+				justTask("second", ""),
 			},
 		},
 		{
@@ -578,7 +578,7 @@ visible:
     echo visible
 `,
 			want: []Task{
-				{Name: "visible", Desc: "", Args: []string{"just", "visible"}},
+				justTask("visible", ""),
 			},
 		},
 		{
@@ -590,8 +590,8 @@ test:
     echo test
 `,
 			want: []Task{
-				{Name: "build", Desc: "Build the app", Args: []string{"just", "build"}},
-				{Name: "test", Desc: "", Args: []string{"just", "test"}},
+				justTask("build", "Build the app"),
+				justTask("test", ""),
 			},
 		},
 		{
@@ -608,9 +608,9 @@ omega:
     echo o
 `,
 			want: []Task{
-				{Name: "alpha", Desc: "", Args: []string{"just", "alpha"}},
-				{Name: "omega", Desc: "", Args: []string{"just", "omega"}},
-				{Name: "zebra", Desc: "", Args: []string{"just", "zebra"}},
+				justTask("alpha", ""),
+				justTask("omega", ""),
+				justTask("zebra", ""),
 			},
 		},
 		{
@@ -622,7 +622,7 @@ build:
     echo two
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
@@ -633,14 +633,14 @@ build:
     echo build
 `,
 			want: []Task{
-				{Name: "build", Desc: "", Args: []string{"just", "build"}},
+				justTask("build", ""),
 			},
 		},
 		{
 			name: "CRLF line endings are normalized",
 			in:   "# Build the app\r\nbuild:\r\n    echo build\r\n",
 			want: []Task{
-				{Name: "build", Desc: "Build the app", Args: []string{"just", "build"}},
+				justTask("build", "Build the app"),
 			},
 		},
 		{
@@ -665,10 +665,10 @@ deploy target="prod":
     echo deploy
 `,
 			want: []Task{
-				{Name: "build", Desc: "Build the app", Args: []string{"just", "build"}},
-				{Name: "deploy", Desc: "", Args: []string{"just", "deploy"}},
-				{Name: "quiet", Desc: "", Args: []string{"just", "quiet"}},
-				{Name: "test", Desc: "Run the tests", Args: []string{"just", "test"}},
+				justTask("build", "Build the app"),
+				justTask("deploy", ""),
+				justTask("quiet", ""),
+				justTask("test", "Run the tests"),
 			},
 		},
 		{
@@ -793,25 +793,25 @@ func TestParseJustfilePlatformVariants(t *testing.T) {
 		{
 			goos: "linux",
 			want: []Task{
-				{Name: "build", Desc: "Build the app", Args: []string{"just", "build"}},
-				{Name: "serve", Desc: "Build the server (Unix)", Args: []string{"just", "serve"}},
-				{Name: "test", Desc: "Run the tests on Linux", Args: []string{"just", "test"}},
+				justTask("build", "Build the app"),
+				justTask("serve", "Build the server (Unix)"),
+				justTask("test", "Run the tests on Linux"),
 			},
 		},
 		{
 			goos: "darwin",
 			want: []Task{
-				{Name: "build", Desc: "Build the app", Args: []string{"just", "build"}},
-				{Name: "serve", Desc: "Build the server (Unix)", Args: []string{"just", "serve"}},
-				{Name: "test", Desc: "Run the tests on macOS", Args: []string{"just", "test"}},
+				justTask("build", "Build the app"),
+				justTask("serve", "Build the server (Unix)"),
+				justTask("test", "Run the tests on macOS"),
 			},
 		},
 		{
 			goos: "windows",
 			want: []Task{
-				{Name: "build", Desc: "Build the app", Args: []string{"just", "build"}},
-				{Name: "serve", Desc: "Build the server (Windows)", Args: []string{"just", "serve"}},
-				{Name: "test", Desc: "Run the tests on Windows", Args: []string{"just", "test"}},
+				justTask("build", "Build the app"),
+				justTask("serve", "Build the server (Windows)"),
+				justTask("test", "Run the tests on Windows"),
 			},
 		},
 	}
@@ -857,19 +857,19 @@ deploy:
 		{
 			goos: "linux",
 			want: []Task{
-				{Name: "deploy", Desc: "Public Unix deploy", Args: []string{"just", "deploy"}},
+				justTask("deploy", "Public Unix deploy"),
 			},
 		},
 		{
 			goos: "darwin",
 			want: []Task{
-				{Name: "deploy", Desc: "Public Unix deploy", Args: []string{"just", "deploy"}},
+				justTask("deploy", "Public Unix deploy"),
 			},
 		},
 		{
 			goos: "windows",
 			want: []Task{
-				{Name: "build", Desc: "Public Windows build", Args: []string{"just", "build"}},
+				justTask("build", "Public Windows build"),
 			},
 		},
 	}
@@ -916,8 +916,8 @@ func TestParseJustfileImports(t *testing.T) {
 				"lib/shared.just": "# Shared helper\nshared:\n    echo shared\n",
 			},
 			want: []Task{
-				{Name: "root", Args: []string{"just", "root"}},
-				{Name: "shared", Desc: "Shared helper", Args: []string{"just", "shared"}},
+				justTask("root", ""),
+				justTask("shared", "Shared helper"),
 			},
 		},
 		{
@@ -928,8 +928,8 @@ func TestParseJustfileImports(t *testing.T) {
 				"lib/nested/b.just": "from-b:\n    echo b\n",
 			},
 			want: []Task{
-				{Name: "from-a", Args: []string{"just", "from-a"}},
-				{Name: "from-b", Args: []string{"just", "from-b"}},
+				justTask("from-a", ""),
+				justTask("from-b", ""),
 			},
 		},
 		{
@@ -938,12 +938,12 @@ func TestParseJustfileImports(t *testing.T) {
 			tree: map[string]string{
 				"shared.just": "shared:\n    echo shared\n",
 			},
-			want: []Task{{Name: "shared", Args: []string{"just", "shared"}}},
+			want: []Task{justTask("shared", "")},
 		},
 		{
 			name: "missing imports are skipped, optional or not",
 			main: "import \"missing.just\"\nimport? \"also-missing.just\"\n\nroot:\n    echo root\n",
-			want: []Task{{Name: "root", Args: []string{"just", "root"}}},
+			want: []Task{justTask("root", "")},
 		},
 		{
 			name: "the root definition wins over an imported one",
@@ -951,7 +951,7 @@ func TestParseJustfileImports(t *testing.T) {
 			tree: map[string]string{
 				"lib/shared.just": "# Imported build\nbuild:\n    echo shared\n",
 			},
-			want: []Task{{Name: "build", Args: []string{"just", "build"}}},
+			want: []Task{justTask("build", "")},
 		},
 		{
 			name: "the shallowest import wins even when a deeper one is read first",
@@ -962,8 +962,8 @@ func TestParseJustfileImports(t *testing.T) {
 				"deep.just":            "# Direct build\nbuild:\n    echo direct\n",
 			},
 			want: []Task{
-				{Name: "build", Desc: "Direct build", Args: []string{"just", "build"}},
-				{Name: "from-a", Args: []string{"just", "from-a"}},
+				justTask("build", "Direct build"),
+				justTask("from-a", ""),
 			},
 		},
 		{
@@ -973,7 +973,7 @@ func TestParseJustfileImports(t *testing.T) {
 				"a.just": "# From a\ndeploy:\n    echo a\n",
 				"b.just": "# From b\ndeploy:\n    echo b\n",
 			},
-			want: []Task{{Name: "deploy", Desc: "From a", Args: []string{"just", "deploy"}}},
+			want: []Task{justTask("deploy", "From a")},
 		},
 		{
 			name: "a diamond is not a cycle",
@@ -984,9 +984,9 @@ func TestParseJustfileImports(t *testing.T) {
 				"shared.just": "shared:\n    echo shared\n",
 			},
 			want: []Task{
-				{Name: "from-a", Args: []string{"just", "from-a"}},
-				{Name: "from-b", Args: []string{"just", "from-b"}},
-				{Name: "shared", Args: []string{"just", "shared"}},
+				justTask("from-a", ""),
+				justTask("from-b", ""),
+				justTask("shared", ""),
 			},
 		},
 		{
@@ -997,8 +997,8 @@ func TestParseJustfileImports(t *testing.T) {
 				"b.just": "import \"a.just\"\nfrom-b:\n    echo b\n",
 			},
 			want: []Task{
-				{Name: "from-a", Args: []string{"just", "from-a"}},
-				{Name: "from-b", Args: []string{"just", "from-b"}},
+				justTask("from-a", ""),
+				justTask("from-b", ""),
 			},
 		},
 		{
@@ -1007,7 +1007,7 @@ func TestParseJustfileImports(t *testing.T) {
 			tree: map[string]string{
 				"lib/platforms.just": "[windows]\nwin:\n    echo win\n\n[linux]\nlin:\n    echo lin\n",
 			},
-			want: []Task{{Name: "lin", Args: []string{"just", "lin"}}},
+			want: []Task{justTask("lin", "")},
 		},
 	}
 
@@ -1038,8 +1038,8 @@ func TestParseJustfileModules(t *testing.T) {
 				"tools.just": "# Format the code\nfmt:\n    echo fmt\n",
 			},
 			want: []Task{
-				{Name: "root", Args: []string{"just", "root"}},
-				{Name: "tools::fmt", Desc: "Format the code", Args: []string{"just", "tools::fmt"}},
+				justTask("root", ""),
+				justTask("tools::fmt", "Format the code"),
 			},
 		},
 		{
@@ -1048,7 +1048,7 @@ func TestParseJustfileModules(t *testing.T) {
 			tree: map[string]string{
 				"tools/mod.just": "fmt:\n    echo fmt\n",
 			},
-			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+			want: []Task{justTask("tools::fmt", "")},
 		},
 		{
 			name: "mod name loads name/justfile in any capitalization",
@@ -1056,7 +1056,7 @@ func TestParseJustfileModules(t *testing.T) {
 			tree: map[string]string{
 				"tools/JustFile": "fmt:\n    echo fmt\n",
 			},
-			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+			want: []Task{justTask("tools::fmt", "")},
 		},
 		{
 			name: "an explicit path reads a file",
@@ -1064,7 +1064,7 @@ func TestParseJustfileModules(t *testing.T) {
 			tree: map[string]string{
 				"lib/tools.just": "fmt:\n    echo fmt\n",
 			},
-			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+			want: []Task{justTask("tools::fmt", "")},
 		},
 		{
 			name: "an explicit path reads a directory",
@@ -1072,12 +1072,12 @@ func TestParseJustfileModules(t *testing.T) {
 			tree: map[string]string{
 				"lib/tools/mod.just": "fmt:\n    echo fmt\n",
 			},
-			want: []Task{{Name: "tools::fmt", Args: []string{"just", "tools::fmt"}}},
+			want: []Task{justTask("tools::fmt", "")},
 		},
 		{
 			name: "missing modules are skipped, optional or not",
 			main: "mod missing\nmod? also-missing\n\nroot:\n    echo root\n",
-			want: []Task{{Name: "root", Args: []string{"just", "root"}}},
+			want: []Task{justTask("root", "")},
 		},
 		{
 			name: "nested modules chain the namespace",
@@ -1087,8 +1087,8 @@ func TestParseJustfileModules(t *testing.T) {
 				"outer/inner.just": "inner-task:\n    echo inner\n",
 			},
 			want: []Task{
-				{Name: "outer::inner::inner-task", Args: []string{"just", "outer::inner::inner-task"}},
-				{Name: "outer::outer-task", Args: []string{"just", "outer::outer-task"}},
+				justTask("outer::inner::inner-task", ""),
+				justTask("outer::outer-task", ""),
 			},
 		},
 		{
@@ -1098,7 +1098,7 @@ func TestParseJustfileModules(t *testing.T) {
 				"lib/mod.just":    "import \"shared.just\"\n",
 				"lib/shared.just": "shared:\n    echo shared\n",
 			},
-			want: []Task{{Name: "tools::shared", Args: []string{"just", "tools::shared"}}},
+			want: []Task{justTask("tools::shared", "")},
 		},
 		{
 			name: "private recipes stay hidden inside a module",
@@ -1106,7 +1106,7 @@ func TestParseJustfileModules(t *testing.T) {
 			tree: map[string]string{
 				"tools.just": "_hidden:\n    echo hidden\n\nshown:\n    echo shown\n",
 			},
-			want: []Task{{Name: "tools::shown", Args: []string{"just", "tools::shown"}}},
+			want: []Task{justTask("tools::shown", "")},
 		},
 		{
 			name: "a module cycle terminates",
@@ -1116,8 +1116,8 @@ func TestParseJustfileModules(t *testing.T) {
 				"b.just": "mod a\n\nfrom-b:\n    echo b\n",
 			},
 			want: []Task{
-				{Name: "a::b::from-b", Args: []string{"just", "a::b::from-b"}},
-				{Name: "a::from-a", Args: []string{"just", "a::from-a"}},
+				justTask("a::b::from-b", ""),
+				justTask("a::from-a", ""),
 			},
 		},
 		{
@@ -1126,7 +1126,7 @@ func TestParseJustfileModules(t *testing.T) {
 			tree: map[string]string{
 				"tools.just": "[windows]\nwin:\n    echo win\n\n[linux]\nlin:\n    echo lin\n",
 			},
-			want: []Task{{Name: "tools::lin", Args: []string{"just", "tools::lin"}}},
+			want: []Task{justTask("tools::lin", "")},
 		},
 	}
 
@@ -1148,7 +1148,7 @@ func TestParseJustfileImportAbsolute(t *testing.T) {
 	files := mapFiles{abs: "from-abs:\n    echo abs\n"}
 
 	tasks := parseJustfileFor("linux", files, t.TempDir(), []byte("import \""+abs+"\"\n"))
-	want := []Task{{Name: "from-abs", Args: []string{"just", "from-abs"}}}
+	want := []Task{justTask("from-abs", "")}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("parseJustfileFor() = %+v, want %+v", tasks, want)
 	}
@@ -1163,7 +1163,7 @@ func TestParseJustfileImportHome(t *testing.T) {
 	files := mapFiles{filepath.Join(home, "home.just"): "from-home:\n    echo home\n"}
 
 	tasks := parseJustfileFor("linux", files, t.TempDir(), []byte("import \"~/home.just\"\n"))
-	want := []Task{{Name: "from-home", Args: []string{"just", "from-home"}}}
+	want := []Task{justTask("from-home", "")}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("parseJustfileFor() = %+v, want %+v", tasks, want)
 	}
@@ -1190,7 +1190,7 @@ func TestDiscoverJustfileFirstFileWins(t *testing.T) {
 	if warn != nil {
 		t.Fatalf("discoverSource() error = %v", warn)
 	}
-	want := []Task{{Source: "justfile", Name: "local-only", Desc: "", Args: []string{"just", "local-only"}}}
+	want := []Task{badgeTask("justfile", justTask("local-only", ""))}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("discoverSource() = %+v, want %+v", tasks, want)
 	}
@@ -1206,7 +1206,7 @@ func TestDiscoverJustfileDotFallback(t *testing.T) {
 	if warn != nil {
 		t.Fatalf("discoverSource() error = %v", warn)
 	}
-	want := []Task{{Source: ".justfile", Name: "build", Desc: "Build the app", Args: []string{"just", "build"}}}
+	want := []Task{badgeTask(".justfile", justTask("build", "Build the app"))}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("discoverSource() = %+v, want %+v", tasks, want)
 	}
@@ -1223,8 +1223,8 @@ func TestDiscoverJustfileImports(t *testing.T) {
 		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{
-		{Source: "justfile", Name: "root", Desc: "Root recipe", Args: []string{"just", "root"}},
-		{Source: "justfile", Name: "shared", Desc: "Shared recipe", Args: []string{"just", "shared"}},
+		badgeTask("justfile", justTask("root", "Root recipe")),
+		badgeTask("justfile", justTask("shared", "Shared recipe")),
 	}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("discoverSource() = %+v, want %+v", tasks, want)
@@ -1242,8 +1242,8 @@ func TestDiscoverJustfileModules(t *testing.T) {
 		t.Fatalf("discoverSource() error = %v", warn)
 	}
 	want := []Task{
-		{Source: "justfile", Name: "root", Desc: "Root recipe", Args: []string{"just", "root"}},
-		{Source: "justfile", Name: "tools::fmt", Desc: "Format the code", Args: []string{"just", "tools::fmt"}},
+		badgeTask("justfile", justTask("root", "Root recipe")),
+		badgeTask("justfile", justTask("tools::fmt", "Format the code")),
 	}
 	if !reflect.DeepEqual(tasks, want) {
 		t.Errorf("discoverSource() = %+v, want %+v", tasks, want)

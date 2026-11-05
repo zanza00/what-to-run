@@ -28,3 +28,18 @@ func taskNames(tasks []Task) []string {
 	}
 	return names
 }
+
+// justTask builds the want task of one justfile recipe. A justfile task runs
+// as "just <name>". The run prefix lives in this helper, so a table row
+// states only the recipe name and its doc.
+func justTask(name, desc string) Task {
+	return Task{Name: name, Desc: desc, Args: []string{"just", name}}
+}
+
+// badgeTask sets the badge of a want task. A discovery test compares the
+// badge of the found file too. The badge sits in this wrapper over the
+// justTask return. The run prefix stays in justTask alone.
+func badgeTask(badge string, task Task) Task {
+	task.Source = badge
+	return task
+}

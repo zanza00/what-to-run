@@ -133,6 +133,18 @@ func TestSystemThemeAdaptsToTerminalColors(t *testing.T) {
 			if !strings.Contains(view, tt.wantDim) {
 				t.Errorf("view does not use dim %q:\n%q", tt.wantDim, view)
 			}
+
+			// The theme row carries the same register through the
+			// painter, so the pin covers both surfaces that draw a
+			// selected row.
+			themeView := update(m, ctrlTKey).View().Content
+			themeSelected := selectedThemeRow(t, themeView, "system")
+			if !strings.Contains(themeSelected, tt.wantSelBg) {
+				t.Errorf("selected theme row does not paint selBg %q:\n%q", tt.wantSelBg, themeSelected)
+			}
+			if !strings.Contains(themeSelected, tt.wantSelFg) {
+				t.Errorf("selected theme row does not paint selFg %q:\n%q", tt.wantSelFg, themeSelected)
+			}
 		})
 	}
 }
@@ -361,6 +373,20 @@ func selectedRow(t *testing.T, view string) string {
 		}
 	}
 	t.Fatalf("bar-selected view does not use the bar marker:\n%s", view)
+	return ""
+}
+
+// selectedThemeRow returns the rendered line of the previewed theme row of the
+// theme picker. The theme name tells the theme row from the task row behind
+// the box, because both carry the bar marker.
+func selectedThemeRow(t *testing.T, view, name string) string {
+	t.Helper()
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "▌") && strings.Contains(ansi.Strip(line), name) {
+			return line
+		}
+	}
+	t.Fatalf("previewed theme row %q does not use the bar marker:\n%s", name, view)
 	return ""
 }
 

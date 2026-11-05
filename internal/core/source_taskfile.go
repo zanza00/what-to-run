@@ -2,7 +2,6 @@
 package core
 
 import (
-	"bytes"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -47,8 +46,8 @@ type taskfileDoc struct {
 }
 
 // parseTaskfile returns the tasks that a Taskfile declares, with its local
-// includes followed recursively, sorted by name like "task --list-all". Each
-// task runs as "task <name>".
+// includes followed recursively, like "task --list-all". Each task runs as
+// "task <name>".
 //
 // The description is the desc of the task, else the first line of its summary,
 // else its command line. A Taskfile has no help convention beyond those fields,
@@ -71,12 +70,6 @@ type taskfileDoc struct {
 // first definition of a final name wins: the root tasks come before the
 // includes, and includes are read in sorted key order.
 func parseTaskfile(files Files, dir string, data []byte) ([]Task, error) {
-	// An empty file declares no tasks, so report it like a missing file
-	// instead of failing on an empty YAML document.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	doc, err := taskfileDocOf(data)
 	if err != nil {
 		return nil, err
@@ -88,7 +81,7 @@ func parseTaskfile(files Files, dir string, data []byte) ([]Task, error) {
 	taskfileCollect(files, doc, dir, "", nil, collected)
 
 	tasks := make([]Task, 0, len(collected))
-	for _, name := range slices.Sorted(maps.Keys(collected)) {
+	for name := range collected {
 		tasks = append(tasks, collected[name])
 	}
 	if len(tasks) == 0 {
@@ -97,13 +90,11 @@ func parseTaskfile(files Files, dir string, data []byte) ([]Task, error) {
 	return tasks, nil
 }
 
-// taskfileDocOf unmarshals one Taskfile document. An empty file is a document
-// without tasks, not an error.
+// taskfileDocOf unmarshals one Taskfile document. An empty file is a
+// document without tasks, not an error, and YAML unmarshals empty bytes into
+// such a document on its own.
 func taskfileDocOf(data []byte) (taskfileDoc, error) {
 	var doc taskfileDoc
-	if len(bytes.TrimSpace(data)) == 0 {
-		return doc, nil
-	}
 	err := yaml.Unmarshal(data, &doc)
 	return doc, err
 }
@@ -114,7 +105,7 @@ func taskfileDocOf(data []byte) (taskfileDoc, error) {
 // already on it is a cycle, while the same file included from a sibling branch
 // is read again under the namespace of that branch.
 func taskfileCollect(files Files, doc taskfileDoc, dir, prefix string, active map[string]bool, collected map[string]Task) {
-	for _, name := range slices.Sorted(maps.Keys(doc.Tasks)) {
+	for name := range doc.Tasks {
 		desc, ok := taskfileDesc(doc.Tasks[name])
 		if !ok {
 			continue

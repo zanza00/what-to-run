@@ -1,12 +1,6 @@
 // The deno.json source: Deno tasks.
 package core
 
-import (
-	"bytes"
-	"maps"
-	"slices"
-)
-
 // denoSource returns the source for the deno.json or deno.jsonc of the project,
 // in that order. Deno looks for deno.json first, so that file wins when both
 // exist.
@@ -21,18 +15,12 @@ func denoSource() source {
 	}
 }
 
-// parseDeno returns the tasks that the tasks object of deno.json declares,
-// sorted by name. Each task runs through "deno task". A task is a command
-// string or an object with a command and an optional description. The
-// description shows the command when the object does not declare one. An entry
-// without a usable command is skipped.
+// parseDeno returns the tasks that the tasks object of deno.json declares.
+// Each task runs through "deno task". A task is a command string or an
+// object with a command and an optional description. The description shows
+// the command when the object does not declare one. An entry without a
+// usable command is skipped.
 func parseDeno(_, _ string, data []byte) ([]Task, error) {
-	// An empty file declares no tasks, so report it like a missing file
-	// instead of failing on invalid JSON.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	var doc struct {
 		Tasks map[string]any `json:"tasks"`
 	}
@@ -41,7 +29,7 @@ func parseDeno(_, _ string, data []byte) ([]Task, error) {
 	}
 
 	tasks := make([]Task, 0, len(doc.Tasks))
-	for _, name := range slices.Sorted(maps.Keys(doc.Tasks)) {
+	for name := range doc.Tasks {
 		desc, ok := denoTaskDesc(doc.Tasks[name])
 		if !ok {
 			continue
@@ -72,10 +60,8 @@ func denoTaskDesc(v any) (string, bool) {
 		if !isString || cmd == "" {
 			return "", false
 		}
-		if desc, isString := task["description"].(string); isString && desc != "" {
-			return desc, true
-		}
-		return cmd, true
+		help, _ := task["description"].(string)
+		return helpOrBody(help, cmd), true
 	}
 	return "", false
 }

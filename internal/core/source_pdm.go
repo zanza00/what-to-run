@@ -2,9 +2,6 @@
 package core
 
 import (
-	"bytes"
-	"maps"
-	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -25,18 +22,12 @@ func pdmSource() source {
 	}
 }
 
-// parsePdm returns the scripts that the [tool.pdm.scripts] table declares,
-// sorted by name. Each script runs through "pdm run". The description comes
-// from the script's help text and otherwise from the raw body, which is
-// display text and never a promise of the executed command. An entry that is
-// not a script shape is skipped.
+// parsePdm returns the scripts that the [tool.pdm.scripts] table declares.
+// Each script runs through "pdm run". The description comes from the script's
+// help text and otherwise from the raw body, which is display text and never
+// a promise of the executed command. An entry that is not a script shape is
+// skipped.
 func parsePdm(_, _ string, data []byte) ([]Task, error) {
-	// An empty file declares no scripts, so report it like a missing file
-	// instead of failing on invalid TOML.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	var doc struct {
 		Tool struct {
 			Pdm struct {
@@ -50,7 +41,7 @@ func parsePdm(_, _ string, data []byte) ([]Task, error) {
 
 	scripts := doc.Tool.Pdm.Scripts
 	out := make([]Task, 0, len(scripts))
-	for _, name := range slices.Sorted(maps.Keys(scripts)) {
+	for name := range scripts {
 		// The "_" key holds the options shared by all scripts, and names with
 		// an underscore prefix are internal. One prefix check hides both,
 		// because pdm hides such scripts from its own listing too.
@@ -97,10 +88,8 @@ func pdmScriptDesc(v any) (string, bool) {
 			if !ok {
 				return "", false
 			}
-			if help, isString := script["help"].(string); isString && help != "" {
-				desc = help
-			}
-			return desc, true
+			help, _ := script["help"].(string)
+			return helpOrBody(help, desc), true
 		}
 	}
 	return "", false

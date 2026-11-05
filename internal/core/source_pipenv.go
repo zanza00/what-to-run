@@ -2,13 +2,7 @@
 // a Pipfile.
 package core
 
-import (
-	"bytes"
-	"maps"
-	"slices"
-
-	"github.com/pelletier/go-toml/v2"
-)
+import "github.com/pelletier/go-toml/v2"
 
 // pipenvSource returns the source for the Pipfile of the project. The source
 // searches the parent directories, because pipenv walks up to find the
@@ -26,18 +20,12 @@ func pipenvSource() source {
 }
 
 // parsePipenv returns the scripts that the [scripts] table of a Pipfile
-// declares, sorted by name. Each script runs through "pipenv run", because
-// the script needs the virtual environment of the project. A Pipfile has no
-// description field, so the body of a script is its description, as display
-// text and never a promise of the executed command. An entry that is not a
-// script shape is skipped.
+// declares. Each script runs through "pipenv run", because the script needs
+// the virtual environment of the project. A Pipfile has no description field,
+// so the body of a script is its description, as display text and never a
+// promise of the executed command. An entry that is not a script shape is
+// skipped.
 func parsePipenv(_, _ string, data []byte) ([]Task, error) {
-	// An empty file declares no scripts, so report it like a missing file
-	// instead of failing on invalid TOML.
-	if len(bytes.TrimSpace(data)) == 0 {
-		return nil, nil
-	}
-
 	var doc struct {
 		Scripts map[string]any `toml:"scripts"`
 	}
@@ -46,7 +34,7 @@ func parsePipenv(_, _ string, data []byte) ([]Task, error) {
 	}
 
 	out := make([]Task, 0, len(doc.Scripts))
-	for _, name := range slices.Sorted(maps.Keys(doc.Scripts)) {
+	for name := range doc.Scripts {
 		desc, ok := pipenvScriptDesc(doc.Scripts[name])
 		if !ok {
 			continue

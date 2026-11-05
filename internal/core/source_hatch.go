@@ -26,7 +26,7 @@ func hatchSource() source {
 }
 
 // parseHatch returns the scripts that the environments of [tool.hatch.envs]
-// declare, sorted by environment and then by script. Each script runs through
+// declare, by environment and then by script. Each script runs through
 // "hatch run" with its environment, because a script only means something
 // inside its environment: the task is named "<env>:<script>", like the run
 // command, because two environments can declare the same script name. The
@@ -59,18 +59,13 @@ func parseHatch(_, _ string, data []byte) ([]Task, error) {
 		if !isTable {
 			continue
 		}
-		envDesc, hasEnvDesc := hatchEnvDesc(env)
+		envDesc := hatchEnvDesc(env)
 		for _, scriptName := range slices.Sorted(maps.Keys(scripts)) {
 			script, ok := hatchScriptDesc(scripts[scriptName])
 			if !ok {
 				continue
 			}
-			// The environment's description overrides the script, because
-			// Hatch has no per-script help.
-			desc := script
-			if hasEnvDesc {
-				desc = envDesc
-			}
+			desc := helpOrBody(envDesc, script)
 			name := envName + ":" + scriptName
 			out = append(out, Task{
 				Name: name,
@@ -100,15 +95,12 @@ func hatchEnvHidden(name string, env map[string]any) bool {
 }
 
 // hatchEnvDesc returns the description of an environment, as display text.
-// Hatch has no per-script help, so the description of an environment is the
-// closest description of its scripts. ok is false when the environment
-// declares no description, and the caller falls back to the raw script.
-func hatchEnvDesc(env map[string]any) (string, bool) {
-	desc, isString := env["description"].(string)
-	if !isString || desc == "" {
-		return "", false
-	}
-	return desc, true
+// Hatch declares no help per script, so the description of an environment is
+// the help text of every script it holds. The value is empty when the
+// environment declares no description, and the scripts show their own bodies.
+func hatchEnvDesc(env map[string]any) string {
+	desc, _ := env["description"].(string)
+	return desc
 }
 
 // hatchScriptDesc turns one script entry into its description, as display

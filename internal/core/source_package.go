@@ -3,7 +3,6 @@ package core
 
 import (
 	"encoding/json"
-	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -25,8 +24,8 @@ func packageJSONSource(runnerOverride string, files Files) source {
 	}
 }
 
-// parsePackageScripts returns the scripts that package.json declares, sorted by
-// name. Each script runs through the package manager in use.
+// parsePackageScripts returns the scripts that package.json declares. Each
+// script runs through the package manager in use.
 func parsePackageScripts(files Files, dir string, data []byte, runnerOverride string) ([]Task, error) {
 	var pkg struct {
 		Scripts        map[string]string `json:"scripts"`
@@ -37,8 +36,8 @@ func parsePackageScripts(files Files, dir string, data []byte, runnerOverride st
 	}
 
 	runner := packageRunner(files, dir, pkg.PackageManager, runnerOverride)
-	tasks := make([]Task, 0, len(pkg.Scripts))
-	for _, name := range slices.Sorted(maps.Keys(pkg.Scripts)) {
+	var tasks []Task
+	for name := range pkg.Scripts {
 		tasks = append(tasks, Task{
 			Name: name,
 			Desc: pkg.Scripts[name],

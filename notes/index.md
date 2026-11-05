@@ -72,3 +72,8 @@ it was true at.
   position and the listing era, emptied wholesale at every era —
   steady frames stop re-deriving, the paint stays fresh, and the landed
   benchstat numbers prove the gain.
+- [parser-frame](parser-frame.md) — the settled piece-8 design (2026-11-05):
+  the discover seam owns the parser skeleton — the empty-file report,
+  the sorted delivery, the help-else-body chain in one helper, the nil
+  convention — with the npm, make and hatch exemptions ratified as
+  facts of their sources.

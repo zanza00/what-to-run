@@ -82,3 +82,9 @@ it was true at.
   fused parse flow splits into its three homes, the dead error dies with
   the signature, and the 78-line prose comment distributes to the owners
   — nothing stated twice.
+- [discovery-read-walk](discovery-read-walk.md) — the settled piece-10
+  design (2026-11-05): one Discover reads one file at most once — a
+  `readCache` over the Files port remembers every result, misses included
+  — and enumerates the ancestors at most once, into `parentLevels` that
+  every parent-searching source consumes in registry order, so task and
+  warning order cannot move.

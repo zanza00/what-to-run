@@ -19,8 +19,8 @@ below carries the date it became true.
 | 8 | Parser frame shared (core) | Strong | done (2026-11-05, PR #132, cfc203a) | the discover seam owns the skeleton; the npm, make and hatch exemptions are ratified facts; the decisions live in [parser-frame](parser-frame.md) |
 | 9 | justfile: one quote scanner + split | Strong | done (2026-11-05, PR #134, f0f9b2c) | the 81-case table passed case-for-case unchanged; the decisions and the deletion taxonomy live in [justfile-scanner](justfile-scanner.md) |
 | 10 | Discovery: one read, one walk | Worth exploring | done (2026-11-05, PR #136, 7fe6a3b) | the read law and the parent levels own one home in the seam; the decisions live in [discovery-read-walk](discovery-read-walk.md) |
-| 11 | Core test friction | Worth exploring | not started (2026-11-04) | the name→argv rule asserted once; label-keyed registry mutations |
-| 12 | Files `~/` exception | Speculative | not started (2026-11-04) | may close as an accepted exception, no code |
+| 11 | Core test friction | Worth exploring | done (2026-11-05, PR #138, d5ae222) | the run-prefix rule asserted once in justTask; the mutations keyed by ID; the decisions live in [core-test-friction](core-test-friction.md) |
+| 12 | Files `~/` exception | Speculative | closed as accepted exception (2026-11-05, no PR — a decision) | justImportPath keeps the one reach-past, the test pins it with t.Setenv, and the law "do not widen Files for it" stands |
 | 13 | Measured row cache (arch-bench patch B) | follow-up (grilled) | done (2026-11-05, PR #130, 35ba523) | the derivations live in the era-keyed cache; the suite landed at the merged seams; the decisions and the two ratifications live in [row-cache](row-cache.md) |
 
 Update discipline: when a piece moves, update its status with the date and
@@ -147,3 +147,37 @@ To resume work: read this table, then the candidate details in
   [discovery-read-walk](discovery-read-walk.md), and the spec survives at
   `.scratch/discovery-read-walk/spec.md`. Piece 11 (core test friction)
   is next.
+- 2026-11-05: piece 11 shipped — PR #138 landed on `main` with merge commit
+  `d5ae222` (the single commit `5a7a489`): the run-prefix rule — a justfile
+  task runs as `just <name>` — is asserted once in `justTask`, with the 124
+  literal restatements dead (120 in the justfile tests, 4 badge sites in the
+  discovery tests, verified couple-for-couple uniform before the grilling),
+  and the registry invariants mutate through `sourceByID`, so a registry
+  reordering can no longer silently turn a case into a different test; the
+  four positionally-intended cases keep their indices with comments. The
+  harness ran both legs at zero differences (124/124 want literals against
+  the helper encoding, 19/19 checkRegistry error strings byte-identical),
+  the production diff stayed empty, and the binary check ran identical
+  anyway. The decisions and the seam shapes live in
+  [core-test-friction](core-test-friction.md); the spec survives at
+  `.scratch/core-test-friction/spec.md`.
+- 2026-11-05: piece 12 closed as an accepted exception, no code — the
+  maintainer ratified the closing in the grilling of 2026-11-05.
+  `justImportPath` (`source_justfile.go:310-320` at `7fe6a3b`; its body
+  byte-identical through pieces 9-11, the lines only moved by the piece-9
+  split) keeps the one `~/` reach-past past the Files seam,
+  `os.UserHomeDir` one caller in `internal/core`; the test
+  (`TestParseJustfileImportHome`, `source_justfile_test.go:1157-1163`)
+  pins it through `t.Setenv` of HOME and USERPROFILE, the Go-sanctioned
+  idiom; and the review's law "do not widen Files for it" stands — the
+  same review rejected the Stat/Write widening, and a `~/` prefix mirrors
+  just's own documented behavior, so one reach-past with a loud pin is the
+  honest shape.
+- 2026-11-06: the plan closed. All thirteen rows are decided: pieces 1-9
+  and 13 shipped as code (PRs #116 through #138), piece 10 shipped the
+  same way, piece 11 refactored the tests, and row 12 closed as an
+  accepted exception with no code. The parked `themeModalHeight` candidate
+  of [display-mode](display-mode.md) dies as accepted with the plan: the
+  arch-bench measured the modal-open cost at the overlay compositor, the
+  row cache absorbed the steady-frame derivations, and no user-visible
+  rider exists. A new architecture move starts a new review.

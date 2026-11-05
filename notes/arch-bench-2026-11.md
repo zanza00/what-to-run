@@ -10,6 +10,17 @@ Intel N150 — ratios transfer, nanoseconds do not. The widget protocol needs
 a program loop for anything beyond these pure paths; the repo rule forbids
 PTY tests.
 
+2026-11-05: the suite no longer needs rebuilding — the row-cache piece
+landed it at the real seams (PR #130, merge commit `35ba523`) as
+`internal/tui/render_bench_test.go`: the benchmark names kept where the
+workload survived, the inserts adapted to the merged modules (the list
+module, the display module, the typed warnings), plus
+`BenchmarkRowCacheSteadyFrame` and `BenchmarkRowCacheFirstFrame`. The
+paired benchstat table of that piece lives in [row-cache](row-cache.md).
+The source block below stays as the 2026-11-04 record of the suite at HEAD
+`cd1e933`, preserved verbatim; its pre-merge inserts are the page's own
+record, not the landed file.
+
 ## Baselines (medians)
 
 | Benchmark | 10 tasks | 100 tasks | 1000 tasks |

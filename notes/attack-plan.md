@@ -21,7 +21,7 @@ below carries the date it became true.
 | 10 | Discovery: one read, one walk | Worth exploring | not started (2026-11-04) | inside Discover; no new interfaces |
 | 11 | Core test friction | Worth exploring | not started (2026-11-04) | the name→argv rule asserted once; label-keyed registry mutations |
 | 12 | Files `~/` exception | Speculative | not started (2026-11-04) | may close as an accepted exception, no code |
-| 13 | Measured row cache (arch-bench patch B) | follow-up (grilled) | not started (2026-11-05) | rides after FP1 by the 2026-11-05 grillings (FP5's Q2, FP3's Q4); the baselines live in [arch-bench-2026-11](arch-bench-2026-11.md) |
+| 13 | Measured row cache (arch-bench patch B) | follow-up (grilled) | done (2026-11-05, PR #130, 35ba523) | the derivations live in the era-keyed cache; the suite landed at the merged seams; the decisions and the two ratifications live in [row-cache](row-cache.md) |
 
 Update discipline: when a piece moves, update its status with the date and
 the PR number, and add one dated line to the progress log naming the commit
@@ -99,3 +99,15 @@ To resume work: read this table, then the candidate details in
   and the themeModalHeight finding live in [display-mode](display-mode.md);
   the spec survives at `.scratch/fp1-display-mode/spec.md`. The measured
   row cache (row 13) is next.
+- 2026-11-05: row 13 shipped — PR #130 landed on `main` with merge commit
+  `35ba523` (the row derivations keyed by the listing era: one rowCache
+  owns the pre-paint derivations, emptied wholesale at every era change
+  — the listing generation and the width of the frame — with the paint
+  applying the current styles every frame; the list module counts the
+  rebuilds as its generation; the arch-bench suite landed at the merged
+  seams with cache legs; steady frames −12.5…−27.7% plain,
+  −29.3…−41.9% filtered, bytes −67.8…−81.1%, zero byte differences).
+  The decisions, the two maintainer ratifications and the benchstat
+  numbers live in [row-cache](row-cache.md); the spec survives at
+  `.scratch/row-cache/spec.md`. The TUI pieces are done: the core
+  pieces 8-11 are next.

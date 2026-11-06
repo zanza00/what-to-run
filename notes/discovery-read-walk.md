@@ -141,5 +141,31 @@ of the [attack plan](attack-plan.md). Shipped on 2026-11-05 as PR #136
 - `7fe6a3b` merged it into `main`. The piece-9 bookkeeping had landed
   first, with PR #135 (merge commit `f09fe8a`).
 
+## The cost, measured after the plan closed (2026-11-06)
+
+A before/after pair (a portable benchmark compiled unchanged at
+`cd1e933` and at the closed `main` `c80c6f4`, the same machine and
+method as the bench record, interleaved pairs) measured what the read
+cache costs per call:
+
+- The port-call law holds on every leg: the Python project reads
+  pyproject.toml once instead of five (92 → 88 calls), and the deep
+  all-miss tree drops 24 duplicate misses (139 → 115).
+- The memo costs more than the reads it saves at the registry's sixteen
+  sources: in-memory +111,2% per Discover on the Python project
+  (37,5 → 79,2 µs) and +238,3% on the deep miss tree (40,7 → 137,8 µs);
+  on a real temp tree on disk, +43,5% (452,7 → 649,7 µs). The bytes per
+  op rise with the memo's entries (+144% and +411%) while the allocs per
+  op fall (−5,1% and −6,6%).
+- Discovery runs at most twice per run, so the per-run impact stays
+  under a millisecond; the win the piece bought is bounded growth — a
+  file shared by more sources is still read once, and each new
+  shared-candidate reader adds no calls instead of one per level.
+
+The 2026-11-05 decisions stand: the piece closed the row for the
+structural law, which the numbers prove true. The TUI halves of the
+same pair are recorded in
+[arch-bench-2026-11](arch-bench-2026-11.md) (addendum of 2026-11-06).
+
 If the code changes any decision above, add a dated claim here and mark the
 old one superseded — do not rewrite it.

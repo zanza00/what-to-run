@@ -331,3 +331,32 @@ To rebuild: save the source as `internal/tui/render_bench_test.go` (it uses
 only the package's own helpers; no name collides at HEAD `cd1e933`), then
 `go test ./internal/tui -bench . -benchmem`. Delete it or land it at the
 real seams when the piece is done.
+
+## Addendum: the full-plan pair (2026-11-06)
+
+With the plan closed, a before/after pair measured the whole arc for the
+LAN report: the archived suite dropped into a detached worktree at
+`cd1e933` (pre-plan) against the landed suite on the closed `main`
+`c80c6f4`, the recorded method (`-count=10 -benchtime=0.5s -benchmem`,
+medians, Go 1.27.3, Intel N150), interleaved pairs, under ambient load
+(~4.4 on 4 cores, other sessions; a first non-interleaved attempt was
+contaminated on the pre side and superseded). Headlines, all p≤0.002:
+
+- The frame is lighter everywhere: fullscreen steady −30…−66% wall time
+  (modal-open −25…−73%), inline −15…−71%, filtered −21…−63%; windowing
+  (listLines) −38…−49%; the keystroke rank (rankTasks) −17…−30%.
+- The allocation counts (deterministic, ±0%) confirm the gains where the
+  load noise cannot: modal-closed frames −10…−15% allocs, modal-open
+  −27…−38% allocs, with bytes −3…−13%.
+- The single uncached row paint costs more time only: taskRow +17…
+  +54% wall with bytes and allocs identical (±0%) — the painter's
+  segment protocol, amortized by the row cache inside the frames.
+- setFilter at 10 and 100 tasks is +137…150% on the same-text loop the
+  benchmark drives: the pre-plan snapshot short-circuited repeated sets
+  while the list module rebuilds unconditionally (the ratified FP5
+  trade); at 1000 tasks the delta is +12,7% / −6,2%, inside the rebuild
+  cost. truncateMatched and matchPositions are unchanged (p>0.05).
+
+A portable core benchmark measured the discovery piece on the same pair:
+its numbers and the honest cost reading live in
+[discovery-read-walk](discovery-read-walk.md).

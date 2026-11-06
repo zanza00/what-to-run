@@ -124,6 +124,9 @@ func Run(opts Options) error {
 	var progOpts []tea.ProgramOption
 	out := io.Writer(os.Stdout)
 	widget := false
+	// cursorCol holds the column of the typed line while a widget runs, and
+	// -1 in every other run (see restoreCursor).
+	cursorCol := -1
 	if opts.Inline && !term.IsTerminal(os.Stdout.Fd()) {
 		ttyIn, ttyOut, err := tea.OpenTTY()
 		if err != nil {
@@ -149,6 +152,26 @@ func Run(opts Options) error {
 			progOpts = []tea.ProgramOption{tea.WithInput(in), tea.WithOutput(ttyOut)}
 			out = ttyOut
 			widget = true
+			// The shell's line editor is blocked while this process runs,
+			// so it cannot ask the terminal where the typed line is, and
+			// this process is the only reader the answer can reach. Ask
+			// and remember the column: the widget's shell redraws
+			// nothing, so the cursor must return to the exact spot it
+			// left (see restoreCursor).
+			row, col := askCursorPosition(ttyOut, in)
+			cursorCol = col
+			if row > 0 {
+				// Open the row below the typed line for the area. The
+				// shell's editor knows nothing of this output: the line
+				// stays where it is also when the terminal is one row
+				// short, because the scroll keeps the walk of the exit
+				// relative (see restoreCursor again).
+				fmt.Fprint(out, "\r\n")
+			}
+			// The terminal that answers nothing also fails the query of
+			// the model, so the timeout there moves the frame to the
+			// alternate screen and the close restores the cursor by
+			// itself.
 		}
 	}
 
@@ -168,7 +191,7 @@ func Run(opts Options) error {
 	// Every other frame draws on the alternate screen, and the terminal
 	// restores that screen by itself (see display.go).
 	if m, ok := final.(model); ok && m.display.anchored() {
-		restoreCursor(out, m.display.areaHeight(), widget)
+		restoreCursor(out, m.display.areaHeight(), cursorCol)
 	}
 	if err != nil {
 		return fmt.Errorf("run tui: %w", err)
@@ -275,23 +298,97 @@ func inlineInputAvailable() bool {
 	return true
 }
 
-// restoreCursor clears the area and parks the cursor where the next text
+// restoreCursor clears the area and returns the cursor where the next text
 // belongs. Bubble Tea closes an inline program on the bottom row of the
-// screen, which sits h rows below the typed line. The widget wants the typed
-// line itself, because its shell redraws the prompt there: on the first row
-// of the area the shell drew a second prompt below a stale copy of the line.
-// A direct --inline run wants that first row instead: the echoed command line
-// survives above it, and the task output continues there, as after every
-// command the shell runs in place.
-func restoreCursor(w io.Writer, h int, onTypedLine bool) {
+// screen, which sits h rows below the typed line, so the walk up lands on it.
+// A widget (col >= 0) needs the typed line itself at the column the shell left
+// it on: the shell's line editor redraws nothing on its own, and zle redraws
+// the whole prompt only from the exact spot its display model still trusts.
+// One row lower the shell drew a second prompt under a stale copy of the line.
+// A direct --inline run (col < 0) has no shell to redraw: the echoed command
+// line survives, so the cursor takes the first row of the area and the task
+// output continues below it, as after every command the shell runs in place.
+func restoreCursor(w io.Writer, h, col int) {
 	if h <= 1 {
 		return
 	}
-	rows := h
-	if !onTypedLine {
-		rows = h - 1
+	if col < 0 {
+		fmt.Fprintf(w, "\x1b[%dA\x1b[J", h-1)
+		return
 	}
-	fmt.Fprintf(w, "\x1b[%dA\x1b[J", rows)
+	if col > 1 {
+		fmt.Fprintf(w, "\x1b[%dA\x1b[%dC\x1b[J", h, col-1)
+		return
+	}
+	fmt.Fprintf(w, "\x1b[%dA\x1b[J", h)
+}
+
+// askCursorPosition writes the request for the cursor position and reads the
+// report that the terminal answers with. It returns the row and the column,
+// both 1-based, or -1s when the terminal stays silent before the timeout. The
+// shell's line editor is blocked while the widget runs this process, so this
+// is the only reader the report can reach: the widget itself cannot ask
+// without breaking the editor's terminal state.
+func askCursorPosition(out io.Writer, in io.Reader) (row, col int) {
+	if _, err := fmt.Fprint(out, "\x1b[6n"); err != nil {
+		return -1, -1
+	}
+	type report struct {
+		buf []byte
+	}
+	replies := make(chan report, 1)
+	go func() {
+		buf := make([]byte, 32)
+		n, _ := in.Read(buf)
+		replies <- report{buf[:n]}
+	}()
+	select {
+	case r := <-replies:
+		return parseCursorReport(r.buf)
+	case <-time.After(cursorPosTimeout):
+		// The reader stays blocked, but the process ends with the picker,
+		// and the terminal answers nothing in this case anyway.
+		return -1, -1
+	}
+}
+
+// parseCursorReport reads the cursor report of the terminal: ESC [ row ; col
+// R, with 1-based numbers. Anything else leaves the position unknown.
+func parseCursorReport(b []byte) (row, col int) {
+	s := string(b)
+	// Other reports (mode answers, for example) can come first, so the
+	// last escape is the one the request asked for.
+	i := strings.LastIndex(s, "\x1b[")
+	if i < 0 {
+		return -1, -1
+	}
+	s = s[i+2:]
+	if !strings.HasSuffix(s, "R") {
+		return -1, -1
+	}
+	parts := strings.SplitN(strings.TrimSuffix(s, "R"), ";", 2)
+	if len(parts) != 2 {
+		return -1, -1
+	}
+	for _, p := range parts {
+		if p == "" {
+			return -1, -1
+		}
+		for _, r := range p {
+			if r < '0' || r > '9' {
+				return -1, -1
+			}
+		}
+	}
+	row, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return -1, -1
+	}
+	col, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return -1, -1
+	}
+	return row, col
 }
 
 // cursorPosTimeout is how long the inline layout waits for the terminal to

@@ -83,13 +83,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- The prompt no longer appears twice when the widget closes its picker. The
-  picker returned the cursor one row below the typed line, so the shell drew
-  its prompt there and kept the old, empty one above it. The cursor now
-  returns to the typed line: `enter` runs the chosen task on that line, and
-  a closed picker leaves the prompt exactly where it was. A direct
-  `wtr --inline` run is unchanged: its echoed command line stays and the
-  task output follows it.
+- The prompt no longer doubles when the widget closes its picker, and
+  multiline themes close cleanly too. The picker asked zle to invalidate its
+  display, so zle redrew the whole prompt from wherever the cursor sat and
+  left a stale copy of the old line above: an empty prompt above the one
+  that runs the task, or a doubled header with a two-line theme. The picker
+  now asks the terminal for the typed line itself and returns the cursor to
+  its exact row and column: `enter` runs the chosen task on that line, `esc`
+  leaves the prompt where it was, and a direct `wtr --inline` run keeps its
+  echoed command line as before.
 - The `ctrl+t` theme preview now restyles the status line together with the
   rest of the picker. Before, the message of the last run, or of a failed
   save, kept the colors of the theme that was active when it was written, so

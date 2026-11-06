@@ -82,7 +82,7 @@ scoops:
 
 # Windows also installs through WinGet. GoReleaser writes the manifest into a
 # fork of microsoft/winget-pkgs and opens the update pull request; the first
-# package (0.8.0) was opened by hand and the automation takes over from the
+# package (0.9.0) was opened by hand and the automation takes over from the
 # next release.
 winget:
   - name: wtr

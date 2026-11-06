@@ -717,11 +717,11 @@ func TestViewShowsWarnings(t *testing.T) {
 }
 
 func TestRestoreCursor(t *testing.T) {
-	m := sized(Options{Inline: true}) // 25 rows of UI, cursor at the bottom
+	m := sized(Options{Inline: true}) // an area of 25 rows below the typed line
 
 	var buf bytes.Buffer
 	restoreCursor(&buf, m.display.areaHeight())
-	if got, want := buf.String(), "\x1b[24A\x1b[J"; got != want {
+	if got, want := buf.String(), "\x1b[25A\x1b[J"; got != want {
 		t.Errorf("restoreCursor wrote %q, want %q", got, want)
 	}
 

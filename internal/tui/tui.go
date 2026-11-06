@@ -275,15 +275,17 @@ func inlineInputAvailable() bool {
 	return true
 }
 
-// restoreCursor moves the cursor from the bottom of the rendered block, where
-// Bubble Tea leaves it, to the first row of the block and clears the block.
-// The shell can then redraw its prompt right below the line that the user was
-// typing on.
+// restoreCursor returns the cursor to the typed line and clears the area, so
+// the shell redraws its prompt on the line the user was typing on. Bubble Tea
+// closes by moving the cursor to the bottom row of the screen, and the area
+// fills the h rows between the typed line and that row, so the typed line sits
+// h rows up. Moving up h-1 rows left the cursor below the typed line, and a
+// stale copy of it stayed above the prompt that the shell drew there.
 func restoreCursor(w io.Writer, h int) {
 	if h <= 1 {
 		return
 	}
-	fmt.Fprintf(w, "\x1b[%dA\x1b[J", h-1)
+	fmt.Fprintf(w, "\x1b[%dA\x1b[J", h)
 }
 
 // cursorPosTimeout is how long the inline layout waits for the terminal to

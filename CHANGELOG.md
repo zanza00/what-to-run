@@ -83,11 +83,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- The prompt no longer appears twice when the inline picker closes. The picker
-  returned the cursor one row below the typed line, so the shell drew its
-  prompt there and left the old, empty one above it. The cursor now returns
-  to the typed line: `enter` runs the chosen task on that line, and a closed
-  picker leaves the prompt exactly where it was.
+- The prompt no longer appears twice when the widget closes its picker. The
+  picker returned the cursor one row below the typed line, so the shell drew
+  its prompt there and kept the old, empty one above it. The cursor now
+  returns to the typed line: `enter` runs the chosen task on that line, and
+  a closed picker leaves the prompt exactly where it was. A direct
+  `wtr --inline` run is unchanged: its echoed command line stays and the
+  task output follows it.
 - The `ctrl+t` theme preview now restyles the status line together with the
   rest of the picker. Before, the message of the last run, or of a failed
   save, kept the colors of the theme that was active when it was written, so

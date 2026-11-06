@@ -720,13 +720,19 @@ func TestRestoreCursor(t *testing.T) {
 	m := sized(Options{Inline: true}) // an area of 25 rows below the typed line
 
 	var buf bytes.Buffer
-	restoreCursor(&buf, m.display.areaHeight())
+	restoreCursor(&buf, m.display.areaHeight(), true) // the widget: the shell redraws the typed line
 	if got, want := buf.String(), "\x1b[25A\x1b[J"; got != want {
 		t.Errorf("restoreCursor wrote %q, want %q", got, want)
 	}
 
 	buf.Reset()
-	restoreCursor(&buf, newModel(Options{Inline: true}, sampleTasks(), nil).display.areaHeight()) // never rendered
+	restoreCursor(&buf, m.display.areaHeight(), false) // a direct run: the echoed line stays, the output continues below it
+	if got, want := buf.String(), "\x1b[24A\x1b[J"; got != want {
+		t.Errorf("restoreCursor wrote %q, want %q", got, want)
+	}
+
+	buf.Reset()
+	restoreCursor(&buf, newModel(Options{Inline: true}, sampleTasks(), nil).display.areaHeight(), true) // never rendered
 	if got := buf.String(); got != "" {
 		t.Errorf("restoreCursor on an unrendered model wrote %q, want nothing", got)
 	}

@@ -168,7 +168,7 @@ func Run(opts Options) error {
 	// Every other frame draws on the alternate screen, and the terminal
 	// restores that screen by itself (see display.go).
 	if m, ok := final.(model); ok && m.display.anchored() {
-		restoreCursor(out, m.display.areaHeight())
+		restoreCursor(out, m.display.areaHeight(), widget)
 	}
 	if err != nil {
 		return fmt.Errorf("run tui: %w", err)
@@ -275,17 +275,23 @@ func inlineInputAvailable() bool {
 	return true
 }
 
-// restoreCursor returns the cursor to the typed line and clears the area, so
-// the shell redraws its prompt on the line the user was typing on. Bubble Tea
-// closes by moving the cursor to the bottom row of the screen, and the area
-// fills the h rows between the typed line and that row, so the typed line sits
-// h rows up. Moving up h-1 rows left the cursor below the typed line, and a
-// stale copy of it stayed above the prompt that the shell drew there.
-func restoreCursor(w io.Writer, h int) {
+// restoreCursor clears the area and parks the cursor where the next text
+// belongs. Bubble Tea closes an inline program on the bottom row of the
+// screen, which sits h rows below the typed line. The widget wants the typed
+// line itself, because its shell redraws the prompt there: on the first row
+// of the area the shell drew a second prompt below a stale copy of the line.
+// A direct --inline run wants that first row instead: the echoed command line
+// survives above it, and the task output continues there, as after every
+// command the shell runs in place.
+func restoreCursor(w io.Writer, h int, onTypedLine bool) {
 	if h <= 1 {
 		return
 	}
-	fmt.Fprintf(w, "\x1b[%dA\x1b[J", h)
+	rows := h
+	if !onTypedLine {
+		rows = h - 1
+	}
+	fmt.Fprintf(w, "\x1b[%dA\x1b[J", rows)
 }
 
 // cursorPosTimeout is how long the inline layout waits for the terminal to

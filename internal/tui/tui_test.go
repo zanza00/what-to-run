@@ -717,18 +717,54 @@ func TestViewShowsWarnings(t *testing.T) {
 }
 
 func TestRestoreCursor(t *testing.T) {
-	m := sized(Options{Inline: true}) // 25 rows of UI, cursor at the bottom
+	m := sized(Options{Inline: true}) // an area of 25 rows below the typed line
 
 	var buf bytes.Buffer
-	restoreCursor(&buf, m.display.areaHeight())
+	restoreCursor(&buf, m.display.areaHeight(), 10) // the widget: the typed line at the column the shell left
+	if got, want := buf.String(), "\x1b[25A\x1b[9C\x1b[J"; got != want {
+		t.Errorf("restoreCursor wrote %q, want %q", got, want)
+	}
+
+	buf.Reset()
+	restoreCursor(&buf, m.display.areaHeight(), 1) // the widget at column one: CUF would move nowhere
+	if got, want := buf.String(), "\x1b[25A\x1b[J"; got != want {
+		t.Errorf("restoreCursor wrote %q, want %q", got, want)
+	}
+
+	buf.Reset()
+	restoreCursor(&buf, m.display.areaHeight(), -1) // a direct run: the echoed line stays, the output continues below it
 	if got, want := buf.String(), "\x1b[24A\x1b[J"; got != want {
 		t.Errorf("restoreCursor wrote %q, want %q", got, want)
 	}
 
 	buf.Reset()
-	restoreCursor(&buf, newModel(Options{Inline: true}, sampleTasks(), nil).display.areaHeight()) // never rendered
+	restoreCursor(&buf, newModel(Options{Inline: true}, sampleTasks(), nil).display.areaHeight(), 10) // never rendered
 	if got := buf.String(); got != "" {
 		t.Errorf("restoreCursor on an unrendered model wrote %q, want nothing", got)
+	}
+}
+
+func TestParseCursorReport(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		row  int
+		col  int
+	}{
+		{"the report of the terminal", "\x1b[8;10R", 8, 10},
+		{"junk before the report", "\x1b[O\x1b[3;1R", 3, 1},
+		{"row one, column one", "\x1b[1;1R", 1, 1},
+		{"no escape", "8;10R", -1, -1},
+		{"no letters allowed", "\x1b[8;10", -1, -1},
+		{"empty numbers", "\x1b[;R", -1, -1},
+		{"not digits", "\x1b[a;bR", -1, -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if row, col := parseCursorReport([]byte(tt.in)); row != tt.row || col != tt.col {
+				t.Errorf("parseCursorReport(%q) = (%d, %d), want (%d, %d)", tt.in, row, col, tt.row, tt.col)
+			}
+		})
 	}
 }
 

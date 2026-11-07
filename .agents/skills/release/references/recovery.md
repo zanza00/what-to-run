@@ -110,6 +110,27 @@ git -C "$tmp/bucket" commit -am "what-to-run: add vX.Y.Z"
 git -C "$tmp/bucket" push
 ```
 
+### WinGet
+
+The manifest lives in `microsoft/winget-pkgs` and goes in through a pull
+request from the `zanza00/winget-pkgs` fork, so a failed push leaves the
+channel at the previous version until someone opens that pull request. When
+the automation did not, `komac` opens it from the released assets:
+
+```sh
+GITHUB_TOKEN=… komac update zanza00.WhatToRun --version X.Y.Z --urls \
+  https://github.com/zanza00/what-to-run/releases/download/vX.Y.Z/what-to-run_X.Y.Z_windows_amd64.zip \
+  https://github.com/zanza00/what-to-run/releases/download/vX.Y.Z/what-to-run_X.Y.Z_windows_arm64.zip \
+  --submit
+```
+
+`komac sync` first brings the fork up to date. The pull request still goes
+through the usual review: the repair is done when the verifier reports the
+channel as `pending`, and the channel moves once a reviewer merges the pull
+request. To fix a merged manifest, open a follow-up pull request
+editing the three files under `manifests/z/zanza00/WhatToRun/<version>`;
+never push to `microsoft/winget-pkgs` directly.
+
 ### npm
 
 While the `NPM_PUBLISH` repository variable is not `true`, the workflow skips
@@ -158,6 +179,8 @@ For a channel that is on:
 - Homebrew stale → run `publish-homebrew.py` locally;
 - Scoop stale → update `bucket/what-to-run.json` in the bucket as above;
 - npm stale → rerun the publisher as above;
+- WinGet without an open pull request → `komac` opens it, as above;
+  `pending` means the pull request is open and in review.
 
 After any repair, run the verifier again:
 

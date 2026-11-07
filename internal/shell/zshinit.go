@@ -69,7 +69,6 @@ stty -ixon 2>/dev/null
 
 	b.WriteString(`
 _wtr_widget() {
-  zle -I
   # zle runs commands with stdin not connected to the terminal; use /dev/tty
   # explicitly (same as television's shell integration). stdout is captured:
   # the picker renders on the terminal and prints its result here — a mode
@@ -95,7 +94,10 @@ _wtr_widget() {
         ;;
     esac
   fi
-  zle reset-prompt
+  # No redraw and no zle -I here: the picker returns the cursor to the row and
+  # the column it took, so zle's display model stays valid and only the text
+  # appended above is drawn. An invalidated zle redraws the whole prompt where
+  # the cursor happens to sit, which duplicates the prompt with a multiline one.
 }
 
 zle -N wtr-widget _wtr_widget
